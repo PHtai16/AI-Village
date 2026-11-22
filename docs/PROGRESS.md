@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02 và P01B.02A (System Blueprint). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A và P01B.02A-G (Khóa quy tắc kiến trúc). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -161,6 +161,15 @@ AI-Village/
 - [ ] **P01.13** — Tạo **`workspace/`** (được gitignore; dùng cho input/scratch của task).
 - [ ] **P01.14** — Tạo **`output/`** (được gitignore; dùng cho artifact bàn giao).
 - [ ] **P01.15** — Tạo **`.runtime/`** (được gitignore; chứa state/log/cache/private data).
+
+**PHASE 01B — Tiêu chuẩn và Kiến trúc**
+
+- [x] **P01B.01 — Đặc tả Agent:** Thiết lập 16 khía cạnh chuẩn mực định nghĩa Agent. **DoD:** `docs/standards/AGENT_SPEC.md`. (SHA: `715976b`)
+- [x] **P01B.01-R — Rà soát chuẩn hóa Agent Spec:** Đồng bộ tên trường, bổ sung BLOCKED, quyền IT, telemetry. (SHA: `a7d377d`)
+- [x] **P01B.02 — Đặc tả Phòng ban:** Thiết lập 8 thành phần phòng ban, 9 bộ phận mặc định và cơ chế mở rộng. **DoD:** `docs/standards/DEPARTMENT_SPEC.md`. (SHA: `8e828c3`)
+- [x] **P01B.02A — Bản thiết kế kiến trúc toàn diện:** Single Source of Truth cho toàn bộ dự án. **DoD:** `docs/architecture/SYSTEM_BLUEPRINT.md`. (SHA: `78c8457`)
+- [x] **P01B.02A-G — Khóa quy tắc kiến trúc:** Cập nhật thứ tự tham chiếu, quy trình kiểm tra 6 bước và bảo vệ định hướng dự án trong AGENTS.md.
+- [ ] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`.
 
 **Gate A:** cấu trúc rõ ràng, Git sạch, có một lệnh chạy test/format; không có mã nghiệp vụ đặt sai folder.
 
@@ -446,7 +455,7 @@ Next: P01B.02A — Bản thiết kế kiến trúc toàn diện (System Blueprin
 ID: P01B.02A
 Status: DONE
 Scope: docs/architecture/SYSTEM_BLUEPRINT.md, docs/PROGRESS.md
-Git SHA: Xem mã commit bàn giao thực tế trên git log sau khi push
+Git SHA: 78c8457
 Acceptance: 
 - Thiết lập tài liệu kiến trúc trung tâm Single Source of Truth cho toàn bộ dự án tại docs/architecture/SYSTEM_BLUEPRINT.md.
 - Làm rõ tầm nhìn sản phẩm, phân định ranh giới sở hữu logic, trạng thái và dữ liệu của 12 thư mục cấp cao.
@@ -458,7 +467,24 @@ Acceptance:
 - Ghi nhận cách xử lý 3 vấn đề kiến trúc đã làm rõ và đề xuất cập nhật tiêu chuẩn tương lai.
 Tests / Evidence: Tệp docs/architecture/SYSTEM_BLUEPRINT.md tồn tại, kiểm tra cú pháp và cấu trúc dữ liệu đạt yêu cầu, không chứa từ cấm
 Blocking issue: Không có
-Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+Next: P01B.02A-G — Khóa quy tắc kiến trúc (System Blueprint Lock)
+
+### P01B.02A-G — Khóa quy tắc kiến trúc (System Blueprint Lock)
+ID: P01B.02A-G
+Status: DONE
+Scope: AGENTS.md, docs/PROGRESS.md
+Git SHA: Xem mã commit bàn giao thực tế trên git log sau khi push
+Acceptance: 
+- Bổ sung thứ tự tài liệu tham chiếu vào AGENTS.md, xác lập docs/architecture/SYSTEM_BLUEPRINT.md là Single Source of Truth cho tầm nhìn và nguyên tắc kiến trúc.
+- Thiết lập quy trình kiểm tra 6 bước bắt buộc trước khi Coding Agent triển khai bất kỳ nhiệm vụ nào.
+- Bổ sung giao thức xử lý mâu thuẫn kiến trúc: cấm tự ý lựa chọn hoặc âm thầm thay đổi, ghi nhận vấn đề Master Agent và trường system_role đang chờ đồng bộ schema.
+- Thiết lập các ranh giới bảo vệ định hướng dự án: cấm biến hệ thống thành tool marketing, cấm ép workflow qua 9 phòng ban, cấm giả lập AI, cấm chốt CrewAI trước khi thử nghiệm, cấm làm 3D trước khi 2D và Runtime vượt qua các Gate.
+- Cập nhật chính xác commit bàn giao P01B.02A là 78c8457.
+- Không đánh dấu các chức năng Runtime là DONE chỉ vì đã có Blueprint.
+Tests / Evidence: Tệp AGENTS.md và docs/PROGRESS.md được cập nhật nhất quán, kiểm tra cú pháp và quy tắc không phát sinh lỗi
+Blocking issue: Không có
+Next: P01B.03 — SKILL_SPEC.md
+
 
 
 
