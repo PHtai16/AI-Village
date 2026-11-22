@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A, P01B.02A-G, P01B.03 và P01B.04 (Rule Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A, P01B.02A-G, P01B.03, P01B.04 và P01B.05 (Tool Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -170,7 +170,8 @@ AI-Village/
 - [x] **P01B.02A — Bản thiết kế kiến trúc toàn diện:** Single Source of Truth cho toàn bộ dự án. **DoD:** `docs/architecture/SYSTEM_BLUEPRINT.md`. (SHA: `78c8457`)
 - [x] **P01B.02A-G — Khóa quy tắc kiến trúc:** Cập nhật thứ tự tham chiếu, quy trình kiểm tra 6 bước và bảo vệ định hướng dự án trong AGENTS.md.
 - [x] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`. (SHA: `e4f48e0`)
-- [x] **P01B.04 — Đặc tả Quy tắc và Quản trị:** Thiết lập kiến trúc 8 lớp Rule System, schema, xử lý xung đột, Approval Gate và kịch bản kiểm chứng. **DoD:** `docs/standards/RULE_SPEC.md`.
+- [x] **P01B.04 — Đặc tả Quy tắc và Quản trị:** Thiết lập kiến trúc 8 lớp Rule System, schema, xử lý xung đột, Approval Gate và kịch bản kiểm chứng. **DoD:** `docs/standards/RULE_SPEC.md`. (SHA: `1678f1d`)
+- [x] **P01B.05 — Đặc tả Công cụ:** Thiết lập kiến trúc Tool Runtime, Tool Manifest Schema, chuẩn ToolResult, phân định Tool ID vs Action ID và 12 kịch bản kiểm chứng. **DoD:** `docs/standards/TOOL_SPEC.md`.
 
 **Gate A:** cấu trúc rõ ràng, Git sạch, có một lệnh chạy test/format; không có mã nghiệp vụ đặt sai folder.
 
@@ -509,7 +510,7 @@ Next: P01B.04 — Tiêu chuẩn định nghĩa quy tắc và quản trị (Rule 
 ID: P01B.04
 Status: DONE
 Scope: docs/standards/RULE_SPEC.md, docs/PROGRESS.md
-Git SHA: PENDING_COMMIT (xem mã commit thực tế trên git log sau khi push)
+Git SHA: 1678f1d
 Acceptance: 
 - Thiết lập kiến trúc Rule System 8 lớp và phân biệt rõ Rule, Permission, Policy, Approval; khẳng định Rule System là thành phần quản trị trong Core Runtime (không phải phòng ban hay LLM).
 - Quy định đầy đủ Rule Manifest Schema gồm 14 trường dữ liệu chuẩn, kiểu dữ liệu, tính bắt buộc và ràng buộc giá trị.
@@ -521,7 +522,24 @@ Acceptance:
 - Ghi nhận 4 điểm cần đồng bộ chéo giữa AGENT_SPEC, SKILL_SPEC, DEPARTMENT_SPEC và SYSTEM_BLUEPRINT mà không tự ý sửa các tài liệu ngoài phạm vi.
 Tests / Evidence: Tệp docs/standards/RULE_SPEC.md tồn tại, kiểm tra cấu trúc và từ cấm đạt 100%, git diff chỉ nằm trong RULE_SPEC.md và PROGRESS.md
 Blocking issue: Không có
-Next: Dừng lại và chờ chỉ đạo cho P01B.05
+Next: P01B.05 — Tiêu chuẩn định nghĩa công cụ (Tool Specification)
+
+### P01B.05 — Tiêu chuẩn định nghĩa công cụ (Tool Specification)
+ID: P01B.05
+Status: DONE
+Scope: docs/standards/TOOL_SPEC.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem mã commit thực tế trên git log sau khi push)
+Acceptance: 
+- Thiết lập tài liệu đặc tả toàn diện cho hệ thống Tools tại docs/standards/TOOL_SPEC.md, phân biệt 7 thành phần từ Agent, Skill, Tool, Registry, Tool Runtime, Permission Manager đến Engine Adapter.
+- Quy định Tool Manifest Schema gồm 16 trường chuẩn và 5 nhóm danh mục công cụ (`files`, `code`, `browser`, `research`, `office`).
+- Thiết lập chuẩn cấu trúc đầu ra `ToolResult`, tách biệt rõ trạng thái gọi công cụ kỹ thuật (`EXECUTION_SUCCEEDED`, `EXECUTION_FAILED`, `PERMISSION_DENIED`, `APPROVAL_REQUIRED`, `CANCELLED`, `TIMED_OUT`) với kiểm chứng nghiệp vụ (`UNVERIFIED`, `VERIFIED_PASS`, `VERIFIED_FAIL`).
+- Đặc tả vòng đời gọi công cụ 10 bước, cơ chế Fail-Closed khi Policy Engine không phản hồi, cách ly sandbox, idempotency guard chống retry mù quáng và lọc bỏ secrets trong log.
+- Chuẩn hóa phân biệt và ánh xạ giữa Tool ID, Action ID, Capability ID và Permission ID; ghi nhận danh sách các điểm mâu thuẫn cần đồng bộ tại P01B.07 (gồm `skills.allowed`, `status: APPROVED` ở ví dụ Skill, `system_role` của Master, đường dẫn `agents/departments/` và chuẩn hóa Action ID).
+- Thiết lập bảng 12 kịch bản kiểm chứng độc lập và 3 ví dụ manifest YAML khớp 100% với schema (`tools.files.read`, `tools.code.run_test`, `tools.research.query`).
+Tests / Evidence: Tệp docs/standards/TOOL_SPEC.md tồn tại, kiểm tra cấu trúc và từ cấm đạt 100%, không tạo mã nguồn hay chỉnh sửa tệp ngoài phạm vi
+Blocking issue: Không có
+Next: Dừng lại và chờ chỉ đạo cho P01B.06 (hoặc P01B.07 đồng bộ tài liệu chuẩn)
+
 
 
 
