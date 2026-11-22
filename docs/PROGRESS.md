@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A, P01B.02A-G và P01B.03 (Skill Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A, P01B.02A-G, P01B.03 và P01B.04 (Rule Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -169,7 +169,8 @@ AI-Village/
 - [x] **P01B.02 — Đặc tả Phòng ban:** Thiết lập 8 thành phần phòng ban, 9 bộ phận mặc định và cơ chế mở rộng. **DoD:** `docs/standards/DEPARTMENT_SPEC.md`. (SHA: `8e828c3`)
 - [x] **P01B.02A — Bản thiết kế kiến trúc toàn diện:** Single Source of Truth cho toàn bộ dự án. **DoD:** `docs/architecture/SYSTEM_BLUEPRINT.md`. (SHA: `78c8457`)
 - [x] **P01B.02A-G — Khóa quy tắc kiến trúc:** Cập nhật thứ tự tham chiếu, quy trình kiểm tra 6 bước và bảo vệ định hướng dự án trong AGENTS.md.
-- [x] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`.
+- [x] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`. (SHA: `e4f48e0`)
+- [x] **P01B.04 — Đặc tả Quy tắc và Quản trị:** Thiết lập kiến trúc 8 lớp Rule System, schema, xử lý xung đột, Approval Gate và kịch bản kiểm chứng. **DoD:** `docs/standards/RULE_SPEC.md`.
 
 **Gate A:** cấu trúc rõ ràng, Git sạch, có một lệnh chạy test/format; không có mã nghiệp vụ đặt sai folder.
 
@@ -489,7 +490,7 @@ Next: P01B.03 — Tiêu chuẩn định nghĩa kỹ năng (Skill Specification)
 ID: P01B.03
 Status: DONE
 Scope: docs/standards/SKILL_SPEC.md, docs/PROGRESS.md
-Git SHA: PENDING_COMMIT (xem mã commit thực tế trên git log sau khi push)
+Git SHA: e4f48e0
 Acceptance: 
 - Thiết lập tài liệu tiêu chuẩn kỹ thuật toàn diện cho hệ thống kỹ năng tại docs/standards/SKILL_SPEC.md.
 - Phân định rõ 4 khái niệm: Agent (chủ thể), Tool (công cụ), Skill (quy trình), Capability (nhãn năng lực).
@@ -502,7 +503,26 @@ Acceptance:
 - Bổ sung 2 ví dụ thiết kế hoàn chỉnh: excel_data_analysis và git_diff_code_review.
 Tests / Evidence: Tệp docs/standards/SKILL_SPEC.md tồn tại, kiểm tra cú pháp và cấu trúc dữ liệu đạt yêu cầu, không chứa từ cấm
 Blocking issue: Không có
-Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+Next: P01B.04 — Tiêu chuẩn định nghĩa quy tắc và quản trị (Rule Specification)
+
+### P01B.04 — Tiêu chuẩn định nghĩa quy tắc và quản trị (Rule Specification)
+ID: P01B.04
+Status: DONE
+Scope: docs/standards/RULE_SPEC.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem mã commit thực tế trên git log sau khi push)
+Acceptance: 
+- Thiết lập kiến trúc Rule System 8 lớp và phân biệt rõ Rule, Permission, Policy, Approval; khẳng định Rule System là thành phần quản trị trong Core Runtime (không phải phòng ban hay LLM).
+- Quy định đầy đủ Rule Manifest Schema gồm 14 trường dữ liệu chuẩn, kiểu dữ liệu, tính bắt buộc và ràng buộc giá trị.
+- Xác lập phân tầng thứ bậc 7 cấp, nguyên tắc Deny-Overrides, Approval-Before-Allow và Default-Deny (Fail-Closed).
+- Đặc tả kiểm soát quyền Agent trên 9 nhóm hành vi và ranh giới quyền hạn của Master Agent.
+- Quy định chính sách Tool và Skill, cổng phê duyệt con người (Approval Gate) 8 bước và mô hình Runtime Enforcement có cấu trúc (`PolicyDecision`).
+- Định nghĩa vòng đời 5 trạng thái Rule, SemVer bất biến, snapshot cho tác vụ đang chạy và rollback an toàn.
+- Thiết lập bảng xử lý Fail-Closed cho 10 sự cố bảo mật, 7 kịch bản kiểm chứng độc lập và 3 ví dụ YAML thiết kế khớp schema.
+- Ghi nhận 4 điểm cần đồng bộ chéo giữa AGENT_SPEC, SKILL_SPEC, DEPARTMENT_SPEC và SYSTEM_BLUEPRINT mà không tự ý sửa các tài liệu ngoài phạm vi.
+Tests / Evidence: Tệp docs/standards/RULE_SPEC.md tồn tại, kiểm tra cấu trúc và từ cấm đạt 100%, git diff chỉ nằm trong RULE_SPEC.md và PROGRESS.md
+Blocking issue: Không có
+Next: Dừng lại và chờ chỉ đạo cho P01B.05
+
 
 
 
