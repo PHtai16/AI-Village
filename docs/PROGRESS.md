@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01 và P01B.01-R (Chuẩn hóa Agent Spec). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R và P01B.02 (Department Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -413,7 +413,7 @@ Next: P01B.01-R — Rà soát và chuẩn hóa Agent Spec
 ID: P01B.01-R
 Status: DONE
 Scope: docs/standards/AGENT_SPEC.md, docs/PROGRESS.md
-Git SHA: 3693066
+Git SHA: a7d377d (mã commit ban đầu trước khi đồng bộ là 3693066)
 Acceptance: 
 - Thống nhất 100% tên trường giữa phần mô tả chi tiết, bảng Static Manifest Schema và ví dụ minh họa YAML.
 - Bổ sung trạng thái BLOCKED vào Task Lifecycle để phân biệt với FAILED và WAITING_APPROVAL; quy định trạng thái do Agent Runtime xác nhận độc lập thay vì tin lời mô hình.
@@ -424,7 +424,24 @@ Acceptance:
 - Đối chiếu và cập nhật chính xác lịch sử commit SHA.
 Tests / Evidence: Tệp docs/standards/AGENT_SPEC.md được rà soát và chuẩn hóa, không có từ cấm, không có vi phạm quy tắc
 Blocking issue: Không có
-Next: P01B.02 — DEPARTMENT_SPEC.md
+Next: P01B.02 — Tiêu chuẩn định nghĩa phòng ban (Department Specification)
+
+### P01B.02 — Tiêu chuẩn định nghĩa phòng ban (Department Specification)
+ID: P01B.02
+Status: DONE
+Scope: docs/standards/DEPARTMENT_SPEC.md, docs/PROGRESS.md
+Git SHA: Xem mã commit bàn giao thực tế trên git log sau khi push
+Acceptance: 
+- Thiết lập đầy đủ 8 thành phần đặc tả phòng ban: Department Identity, 9 bộ phận mặc định, Department Membership, Collaboration & Communication, Department Autonomy, Dynamic Department Registry, Coordination Boundaries, Department Lifecycle & Schema.
+- Phân biệt rõ ranh giới trách nhiệm của 9 bộ phận chuyên môn, khẳng định Master là cơ quan điều hành trung tâm không thuộc 9 phòng ban.
+- Cho phép mở rộng Department Registry tại agents/departments/, không đặt tại repository root.
+- Cho phép Agent tham gia đa nhóm dự án liên phòng ban mà không nhân bản nhân sự.
+- Không áp đặt quy trình cứng bắt buộc mọi tác vụ phải đi qua toàn bộ phòng ban.
+- Cung cấp ví dụ manifest YAML cho phòng ban IT khớp 100% với schema và liên kết nhất quán với AGENT_SPEC.
+Tests / Evidence: Tệp docs/standards/DEPARTMENT_SPEC.md tồn tại, cú pháp chuẩn xác, không chứa mã nghiệp vụ hay từ cấm
+Blocking issue: Không có
+Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+
 
 
 
