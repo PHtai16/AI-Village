@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02 và P01B.01 (Agent Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01 và P01B.01-R (Chuẩn hóa Agent Spec). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -398,7 +398,7 @@ Next: P01B.01 — Tiêu chuẩn định nghĩa AI Agent (Agent Specification)
 ID: P01B.01
 Status: DONE
 Scope: docs/standards/AGENT_SPEC.md
-Git SHA: 468ac66
+Git SHA: 715976b (mã commit ban đầu trước khi đồng bộ là 468ac66)
 Acceptance: 
 - Thiết lập đầy đủ 16 khía cạnh định nghĩa Agent: Identity, Mission, Capabilities, AI Engine, Session, Memory, Skills, Tools, Permissions, Task Lifecycle, Communication, Handoff, Quality, Error Handling, Dynamic Registration, Security Boundaries.
 - Phân biệt rõ cấu hình tĩnh (Static Manifest) và trạng thái động (Runtime State).
@@ -407,6 +407,24 @@ Acceptance:
 - Đảm bảo tính tương thích với CrewAI nhưng không phụ thuộc vào framework này.
 Tests / Evidence: Tệp docs/standards/AGENT_SPEC.md tồn tại, kiểm tra cú pháp và cấu trúc dữ liệu đạt yêu cầu
 Blocking issue: Không có
-Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+Next: P01B.01-R — Rà soát và chuẩn hóa Agent Spec
+
+### P01B.01-R — Rà soát và chuẩn hóa Agent Spec
+ID: P01B.01-R
+Status: DONE
+Scope: docs/standards/AGENT_SPEC.md, docs/PROGRESS.md
+Git SHA: 3693066
+Acceptance: 
+- Thống nhất 100% tên trường giữa phần mô tả chi tiết, bảng Static Manifest Schema và ví dụ minh họa YAML.
+- Bổ sung trạng thái BLOCKED vào Task Lifecycle để phân biệt với FAILED và WAITING_APPROVAL; quy định trạng thái do Agent Runtime xác nhận độc lập thay vì tin lời mô hình.
+- Cho phép mở rộng Department Registry ngoài 9 phòng ban mặc định.
+- Phân biệt số liệu tài nguyên thực tế với số liệu không có từ provider; nghiêm cấm tạo token usage giả.
+- Xác lập rõ quyền phát triển phần mềm của IT Agent: được phép sửa code trong workspace hoặc nhánh dev trong sandbox; tuyệt đối không tự sửa production.
+- Khớp nối hoàn toàn ví dụ YAML với schema định nghĩa.
+- Đối chiếu và cập nhật chính xác lịch sử commit SHA.
+Tests / Evidence: Tệp docs/standards/AGENT_SPEC.md được rà soát và chuẩn hóa, không có từ cấm, không có vi phạm quy tắc
+Blocking issue: Không có
+Next: P01B.02 — DEPARTMENT_SPEC.md
+
 
 
