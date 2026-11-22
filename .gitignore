@@ -1,0 +1,87 @@
+# ==========================================
+# AI Village — Git Ignore Configuration
+# ==========================================
+
+# 1. Secrets & Environment Configurations
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+credentials.json
+token.json
+secrets/
+*.secrets
+
+# 2. Runtime Storage & Databases
+.runtime/
+*.db
+*.sqlite
+*.sqlite3
+storage/db/*.sqlite*
+storage/db/*.db*
+
+# 3. Logs & Traces
+*.log
+logs/
+*.trace
+
+# 4. Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.eslintcache
+.cache/
+
+# 5. Runtime Sessions & Temporary Files
+*.session
+sessions/
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+
+# 6. Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# 7. Dependencies & Virtual Environments
+venv/
+.venv/
+env/
+.env_venv/
+node_modules/
+.pnpm-store/
+pip-wheel-metadata/
+
+# 8. Build Artifacts & Distribution
+dist/
+build/
+*.egg-info/
+out/
+.next/
+*.tsbuildinfo
+
+# 9. Workspace & Task-specific Private Outputs
+workspace/*
+!workspace/.gitkeep
+output/*
+!output/.gitkeep
+
+# 10. Explicit Tracking Rules
+!*.md
+!agents/**/*.md
+!skills/**/*.md
+!docs/**/*.md
