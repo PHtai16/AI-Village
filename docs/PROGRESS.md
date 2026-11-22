@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R và P01B.02 (Department Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02 và P01B.02A (System Blueprint). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -430,7 +430,7 @@ Next: P01B.02 — Tiêu chuẩn định nghĩa phòng ban (Department Specificat
 ID: P01B.02
 Status: DONE
 Scope: docs/standards/DEPARTMENT_SPEC.md, docs/PROGRESS.md
-Git SHA: Xem mã commit bàn giao thực tế trên git log sau khi push
+Git SHA: 8e828c3
 Acceptance: 
 - Thiết lập đầy đủ 8 thành phần đặc tả phòng ban: Department Identity, 9 bộ phận mặc định, Department Membership, Collaboration & Communication, Department Autonomy, Dynamic Department Registry, Coordination Boundaries, Department Lifecycle & Schema.
 - Phân biệt rõ ranh giới trách nhiệm của 9 bộ phận chuyên môn, khẳng định Master là cơ quan điều hành trung tâm không thuộc 9 phòng ban.
@@ -440,7 +440,26 @@ Acceptance:
 - Cung cấp ví dụ manifest YAML cho phòng ban IT khớp 100% với schema và liên kết nhất quán với AGENT_SPEC.
 Tests / Evidence: Tệp docs/standards/DEPARTMENT_SPEC.md tồn tại, cú pháp chuẩn xác, không chứa mã nghiệp vụ hay từ cấm
 Blocking issue: Không có
+Next: P01B.02A — Bản thiết kế kiến trúc toàn diện (System Blueprint)
+
+### P01B.02A — Bản thiết kế kiến trúc toàn diện (System Blueprint)
+ID: P01B.02A
+Status: DONE
+Scope: docs/architecture/SYSTEM_BLUEPRINT.md, docs/PROGRESS.md
+Git SHA: Xem mã commit bàn giao thực tế trên git log sau khi push
+Acceptance: 
+- Thiết lập tài liệu kiến trúc trung tâm Single Source of Truth cho toàn bộ dự án tại docs/architecture/SYSTEM_BLUEPRINT.md.
+- Làm rõ tầm nhìn sản phẩm, phân định ranh giới sở hữu logic, trạng thái và dữ liệu của 12 thư mục cấp cao.
+- Đặc tả vai trò điều phối trung tâm của Master Agent và giải pháp biểu diễn trong schema (id: "core.master", department: "orchestration", system_role: "orchestrator").
+- Quy định chi tiết mục đích, trách nhiệm, đầu vào, đầu ra, quyền hạn, phối hợp, non-goals và ví dụ thực tế cho 9 phòng ban chức năng mặc định.
+- Phân định rõ 3 mức độ sẵn sàng kỹ thuật (đã kiểm chứng, đang thiết kế, cần thử nghiệm); không khẳng định tính năng chưa chạy thực tế.
+- Đặc tả quy trình tự học (Phương án C), cơ chế phân loại 5 cấp độ ngắt của Reception, quản lý kho lưu trữ Vault và đo lường tài nguyên thực tế.
+- Thiết lập 9 nguyên tắc bất biến của kiến trúc và ma trận truy xuất 17 yêu cầu hệ thống (Traceability Matrix) liên kết với lộ trình roadmap.
+- Ghi nhận cách xử lý 3 vấn đề kiến trúc đã làm rõ và đề xuất cập nhật tiêu chuẩn tương lai.
+Tests / Evidence: Tệp docs/architecture/SYSTEM_BLUEPRINT.md tồn tại, kiểm tra cú pháp và cấu trúc dữ liệu đạt yêu cầu, không chứa từ cấm
+Blocking issue: Không có
 Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+
 
 
 
