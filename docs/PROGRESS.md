@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A và P01B.02A-G (Khóa quy tắc kiến trúc). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A, P01B.02A-G và P01B.03 (Skill Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -169,7 +169,7 @@ AI-Village/
 - [x] **P01B.02 — Đặc tả Phòng ban:** Thiết lập 8 thành phần phòng ban, 9 bộ phận mặc định và cơ chế mở rộng. **DoD:** `docs/standards/DEPARTMENT_SPEC.md`. (SHA: `8e828c3`)
 - [x] **P01B.02A — Bản thiết kế kiến trúc toàn diện:** Single Source of Truth cho toàn bộ dự án. **DoD:** `docs/architecture/SYSTEM_BLUEPRINT.md`. (SHA: `78c8457`)
 - [x] **P01B.02A-G — Khóa quy tắc kiến trúc:** Cập nhật thứ tự tham chiếu, quy trình kiểm tra 6 bước và bảo vệ định hướng dự án trong AGENTS.md.
-- [ ] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`.
+- [x] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`.
 
 **Gate A:** cấu trúc rõ ràng, Git sạch, có một lệnh chạy test/format; không có mã nghiệp vụ đặt sai folder.
 
@@ -473,7 +473,7 @@ Next: P01B.02A-G — Khóa quy tắc kiến trúc (System Blueprint Lock)
 ID: P01B.02A-G
 Status: DONE
 Scope: AGENTS.md, docs/PROGRESS.md
-Git SHA: Xem mã commit bàn giao thực tế trên git log sau khi push
+Git SHA: ea7a780
 Acceptance: 
 - Bổ sung thứ tự tài liệu tham chiếu vào AGENTS.md, xác lập docs/architecture/SYSTEM_BLUEPRINT.md là Single Source of Truth cho tầm nhìn và nguyên tắc kiến trúc.
 - Thiết lập quy trình kiểm tra 6 bước bắt buộc trước khi Coding Agent triển khai bất kỳ nhiệm vụ nào.
@@ -483,7 +483,27 @@ Acceptance:
 - Không đánh dấu các chức năng Runtime là DONE chỉ vì đã có Blueprint.
 Tests / Evidence: Tệp AGENTS.md và docs/PROGRESS.md được cập nhật nhất quán, kiểm tra cú pháp và quy tắc không phát sinh lỗi
 Blocking issue: Không có
-Next: P01B.03 — SKILL_SPEC.md
+Next: P01B.03 — Tiêu chuẩn định nghĩa kỹ năng (Skill Specification)
+
+### P01B.03 — Tiêu chuẩn định nghĩa kỹ năng (Skill Specification)
+ID: P01B.03
+Status: DONE
+Scope: docs/standards/SKILL_SPEC.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem mã commit thực tế trên git log sau khi push)
+Acceptance: 
+- Thiết lập tài liệu tiêu chuẩn kỹ thuật toàn diện cho hệ thống kỹ năng tại docs/standards/SKILL_SPEC.md.
+- Phân định rõ 4 khái niệm: Agent (chủ thể), Tool (công cụ), Skill (quy trình), Capability (nhãn năng lực).
+- Quy định cấu trúc gói kỹ năng và schema SKILL.md gồm YAML frontmatter kết hợp Markdown body.
+- Thiết lập hợp đồng thực thi chi tiết (triggers, anti-triggers, inputs, outputs, execution steps, evidence, error handling).
+- Đặc tả cơ chế tìm kiếm, nạp kỹ năng tinh gọn và bảo đảm ranh giới an toàn, cấm tự nâng quyền.
+- Định nghĩa 7 trạng thái vòng đời kỹ năng và chu trình tự học 9 bước theo Phương án C.
+- Thiết lập tiêu chí kiểm thử độc lập, cơ chế phiên bản hóa SemVer và quy trình rollback an toàn.
+- Phân định trách nhiệm đa bên giữa Master, HR, Process, IT, QA và Vault.
+- Bổ sung 2 ví dụ thiết kế hoàn chỉnh: excel_data_analysis và git_diff_code_review.
+Tests / Evidence: Tệp docs/standards/SKILL_SPEC.md tồn tại, kiểm tra cú pháp và cấu trúc dữ liệu đạt yêu cầu, không chứa từ cấm
+Blocking issue: Không có
+Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+
 
 
 
