@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01 (Khởi tạo cấu trúc) và P02 (Tài liệu nền tảng). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02 và P01B.01 (Agent Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -385,12 +385,28 @@ Next: P02 — Khởi tạo tài liệu nền tảng AI Village
 ID: P02
 Status: DONE
 Scope: README.md, AGENTS.md, .gitignore
-Git SHA: d1270da
+Git SHA: d1270da (Lưu ý: commit hoàn tất trên nhánh main sau khi bổ sung quy tắc đồng bộ là caef2c1)
 Acceptance: 
 - README.md: Mô tả mục tiêu, kiến trúc Multi-Agent linh hoạt, vai trò Master, 9 nhóm chức năng, Antigravity engine, cấu trúc 14 thư mục và nguyên tắc phát triển theo từng phase.
 - AGENTS.md: Quy định 11 nguyên tắc phát triển bắt buộc cho coding agent, bao gồm tự động push lên Git khi hoàn tất.
 - .gitignore: Thiết lập quy tắc loại trừ secrets, cache, logs, database, runtime, dependencies và bảo toàn file markdown của Agent và Skill.
 Tests / Evidence: Kiểm tra tệp tin thực tế tại thư mục gốc, xác nhận không chứa secret hay code nghiệp vụ
 Blocking issue: Không có
+Next: P01B.01 — Tiêu chuẩn định nghĩa AI Agent (Agent Specification)
+
+### P01B.01 — Tiêu chuẩn định nghĩa AI Agent (Agent Specification)
+ID: P01B.01
+Status: DONE
+Scope: docs/standards/AGENT_SPEC.md
+Git SHA: 468ac66
+Acceptance: 
+- Thiết lập đầy đủ 16 khía cạnh định nghĩa Agent: Identity, Mission, Capabilities, AI Engine, Session, Memory, Skills, Tools, Permissions, Task Lifecycle, Communication, Handoff, Quality, Error Handling, Dynamic Registration, Security Boundaries.
+- Phân biệt rõ cấu hình tĩnh (Static Manifest) và trạng thái động (Runtime State).
+- Quy định bảng trường dữ liệu bắt buộc, tùy chọn, kiểu dữ liệu và ràng buộc validation.
+- Bổ sung hồ sơ minh họa mẫu cho vai trò IT Code Reviewer.
+- Đảm bảo tính tương thích với CrewAI nhưng không phụ thuộc vào framework này.
+Tests / Evidence: Tệp docs/standards/AGENT_SPEC.md tồn tại, kiểm tra cú pháp và cấu trúc dữ liệu đạt yêu cầu
+Blocking issue: Không có
 Next: Dừng lại và chờ chỉ đạo cho phase tiếp theo
+
 
