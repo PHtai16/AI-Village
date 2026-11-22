@@ -80,9 +80,17 @@ Mọi lời gọi công cụ qua Tool Runtime phải trả về đối tượng 
 - `evidence` (Object): Dữ liệu chứng thực gồm `exit_code`, `redacted_stdout_ref`, `redacted_stderr_ref` và `command_summary`.
 - `telemetry` (Object): Số liệu vận hành gồm `duration_ms`, `cpu_time_ms` (Optional), `memory_peak_mb` (Optional) và `telemetry_status`.
 
-### 4.2. Phân tách trạng thái kỹ thuật và nghiệm thu nghiệp vụ
+### 4.2. Phân tách trạng thái kỹ thuật, nghiệp vụ và vòng đời
 
-Tool Runtime chỉ xác nhận việc công cụ có chạy xong đúng hợp đồng hay không (`EXECUTION_SUCCEEDED`). Hệ thống tuyệt đối không đánh đồng `exit_code == 0` với việc nhiệm vụ đạt chuẩn nghiệp vụ (`VERIFIED_PASS`). Mọi đánh giá đạt hay không đạt về mặt nội dung và chất lượng phải do bước kiểm chứng độc lập của QA thực hiện.
+Tool Runtime chỉ xác nhận việc công cụ có chạy xong đúng hợp đồng hay không (`EXECUTION_SUCCEEDED`). Hệ thống tuyệt đối không đánh đồng `exit_code == 0` với việc nhiệm vụ đạt chuẩn nghiệp vụ (`VERIFIED_PASS`) hay Task chuyển sang `COMPLETED`. Mọi đánh giá đạt hay không đạt về mặt nội dung và chất lượng phải do bước kiểm chứng độc lập của QA thực hiện.
+
+Các miền trạng thái trong hệ thống hoàn toàn tách biệt (không dùng chung tên để suy diễn đồng nghĩa):
+- **Agent Task Lifecycle (`AGENT_SPEC.md`):** `QUEUED`, `ASSIGNED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `BLOCKED`, `COMPLETED`, `FAILED`, `CANCELLED`.
+- **Skill Lifecycle (`SKILL_SPEC.md`):** `DRAFT`, `CANDIDATE`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `DEPRECATED`, `DISABLED`.
+- **Rule Lifecycle (`RULE_SPEC.md`):** `DRAFT`, `UNDER_REVIEW`, `ACTIVE`, `DEPRECATED`, `DISABLED`.
+- **Tool Availability Status (`TOOL_SPEC.md`):** `DRAFT`, `REGISTERED`, `AVAILABLE`, `DEPRECATED`, `DISABLED`.
+- **Tool Execution Status (`ToolResult.status`):** `EXECUTION_SUCCEEDED`, `EXECUTION_FAILED`, `PERMISSION_DENIED`, `APPROVAL_REQUIRED`, `CANCELLED`, `TIMED_OUT`.
+- **QA Verification Status (`business_verification_status`):** `UNVERIFIED`, `VERIFIED_PASS`, `VERIFIED_FAIL`.
 
 ## 5. Vòng đời gọi công cụ (Tool Invocation Lifecycle)
 
@@ -169,16 +177,29 @@ Mọi lời gọi công cụ phải để lại dấu vết kiểm toán đầy 
 
 Đối chiếu giữa `AGENT_SPEC.md`, `DEPARTMENT_SPEC.md`, `SKILL_SPEC.md` và `RULE_SPEC.md`, cần phân biệt rạch ròi bốn loại định danh để tránh nhầm lẫn khi xây dựng Registry và Policy Engine:
 
-1. **Tool ID:** Định danh một công cụ cụ thể trong Tool Registry. Quy chuẩn: `tools.<category>.<tool_name>` (ví dụ: `tools.files.read`, `tools.code.run_test`, `tools.code.run_custom_script`). Được dùng trong `agent.tools.allowed` và `skill.requirements.tools`.
-2. **Action ID:** Định danh một loại hành động kỹ thuật bị kiểm soát bởi Rule System. Quy chuẩn: `<domain>.<verb>` viết bằng `snake_case` (ví dụ: `files.read`, `files.write`, `terminal.exec`, `code.run_test`, `code.exec_custom`, `network.http`). Được dùng trong `rule.actions` và `tool.permissions_required`.
+1. **Tool ID:** Định danh một công cụ cụ thể trong Tool Registry. Quy chuẩn: `tools.<category>.<tool_name>` (ví dụ: `tools.files.read`, `tools.code.run_test`, `tools.code.run_custom_script`). Được dùng trong `agent.tools.allowed`, `department.default_tools` và `skill.requirements.tools`.
+2. **Action ID:** Định danh một loại hành động kỹ thuật bị kiểm soát bởi Rule System. Quy chuẩn: `<domain>.<verb>` viết bằng `snake_case` (ví dụ: `files.read`, `files.write`, `terminal.exec`, `code.run_test`, `code.exec_custom`, `network.http`). Được dùng trong `rule.actions`, `agent.permissions.requires_approval` và `tool.permissions_required`.
 3. **Capability ID:** Nhãn mô tả năng lực chuyên môn cấp cao để Master ghép đội ngũ. Quy chuẩn: `snake_case` không chứa dấu chấm (ví dụ: `git_diff_analysis`, `python_ast_audit`, `automated_testing`). Được dùng trong `agent.capabilities.skills` và `department.supported_capabilities`.
 4. **Permission ID:** Quyền thực thi tổng hợp gắn kết một Action ID với phạm vi tài nguyên xác định trong bộ kiểm tra quyền (ví dụ: quyền `files.read` trên phạm vi `workspace/{task_id}/**`).
 
 ### Cơ chế ánh xạ thống nhất
+
 - Một `tool_id` khai báo các `action_id` mà nó cần trong trường `permissions_required`.
 - Khi Agent muốn chạy một công cụ, Permission Manager thực hiện kiểm tra hai bước: (1) xác nhận `tool_id` nằm trong `agent.tools.allowed`, và (2) đánh giá từng `action_id` trong `tool.permissions_required` đối chiếu với tài nguyên yêu cầu qua Rule System.
 
-*Ghi nhận đồng bộ cho P01B.07:* Cần rà soát và chuẩn hóa danh sách các Action ID dùng chung giữa `RULE_SPEC.md` (như `terminal.exec`, `code.exec_custom`) và trường `permissions_required` của `TOOL_SPEC.md`, đồng thời thống nhất các ví dụ trong `AGENT_SPEC.md` theo đúng quy tắc đặt tên bốn định danh trên. Không tự ý sửa đổi các tài liệu khác trong phase hiện tại.
+Bảng ánh xạ chuẩn hóa giữa Tool ID, Action ID và Capability ID:
+
+| Tool ID (`tools.allowed` / `requirements.tools` / `default_tools`) | Action ID (`permissions_required` / `rule.actions` / `requires_approval`) | Capability ID liên quan |
+| :--- | :--- | :--- |
+| `tools.files.read` | `files.read` | `file_reading`, `workspace_inspection` |
+| `tools.files.write` | `files.write` | `file_writing` |
+| `tools.code.run_test` | `code.run_test`, `files.read` | `automated_testing` |
+| `tools.code.run_linter` | `code.run_linter`, `files.read` | `git_diff_analysis` |
+| `tools.code.run_ast_parser` | `code.run_ast_parser`, `files.read` | `python_ast_audit` |
+| `tools.code.run_custom_script` | `code.exec_custom`, `terminal.exec` | `custom_automation` |
+| `tools.research.query` | `network.http` | `web_research` |
+
+*(Các định danh trên đã được đối chiếu và đồng bộ thống nhất giữa `AGENT_SPEC.md`, `DEPARTMENT_SPEC.md`, `SKILL_SPEC.md`, `RULE_SPEC.md` và `TOOL_SPEC.md` trong P01B.07.)*
 
 ## 13. Kịch bản kiểm chứng độc lập (Verification Scenarios)
 
@@ -201,7 +222,7 @@ Bảng 12 kịch bản kiểm thử dùng để nghiệm thu Tool Registry và T
 
 ## 14. Hồ sơ minh họa mẫu (Example Tool Manifests)
 
-Ba tệp cấu hình dưới đây tuân thủ hoàn toàn bảng Tool Manifest Schema 16 trường tại Mục 2. Đây chỉ là ví dụ thiết kế minh họa cấu trúc dữ liệu, chưa phải công cụ đang hoạt động trong Runtime.
+Ba tệp cấu hình dưới đây tuân thủ hoàn toàn bảng Tool Manifest Schema 16 trường tại Mục 2 và đặt `status: "DRAFT"` để phản ánh đây chỉ là ví dụ thiết kế minh họa cấu trúc dữ liệu, chưa phải công cụ đã được lập trình hay đang hoạt động ở trạng thái `AVAILABLE` trong Runtime.
 
 ### 14.1. Ví dụ 1: Công cụ chỉ đọc tệp (`tools.files.read`)
 
@@ -245,7 +266,7 @@ approval_policy: "NONE"
 idempotency:
   supported: true
   safe_retry: true
-status: "AVAILABLE"
+status: "DRAFT"
 ```
 
 ### 14.2. Ví dụ 2: Công cụ chạy kiểm thử trong sandbox (`tools.code.run_test`)
@@ -291,7 +312,7 @@ approval_policy: "CONDITIONAL"
 idempotency:
   supported: true
   safe_retry: true
-status: "AVAILABLE"
+status: "DRAFT"
 ```
 
 ### 14.3. Ví dụ 3: Công cụ tra cứu thông tin mạng (`tools.research.query`)
@@ -339,5 +360,5 @@ approval_policy: "CONDITIONAL"
 idempotency:
   supported: true
   safe_retry: true
-status: "AVAILABLE"
+status: "DRAFT"
 ```

@@ -22,8 +22,8 @@ Thông tin nhận diện cơ bản của phòng ban trong hệ thống:
 - `description`: Mô tả súc tích về chức năng và phạm vi nghiệp vụ.
 - `purpose`: Tuyên bố mục tiêu tồn tại của bộ phận trong hệ thống Village.
 - `responsibilities`: Danh sách các trách nhiệm chuyên môn cụ thể mà phòng ban đảm nhiệm.
-- `supported_capabilities`: Danh mục các nhãn năng lực chuẩn hóa mà phòng ban bảo trợ và đào tạo cho các Agent trực thuộc.
-- `default_tools`: Danh sách các công cụ trong `tools/` được phòng ban khuyến nghị hoặc cấp phép mặc định cho nhân viên.
+- `supported_capabilities`: Danh mục các nhãn năng lực chuẩn hóa (Capability ID dạng `snake_case`) mà phòng ban bảo trợ và đào tạo cho các Agent trực thuộc.
+- `default_tools`: Danh sách các Tool ID (`tools.<category>.<name>`) trong `tools/` được phòng ban khuyến nghị cho nhân viên. Trường này chỉ mang tính chất gợi ý chuyên môn, không tự động cấp quyền thực thi cho Agent.
 - `status`: Trạng thái hoạt động (`ACTIVE`, `INACTIVE`, `DEPRECATED`).
 - `visual_metadata`: Cấu hình đồ họa phục vụ giao diện 2D và không gian 3D gồm mã màu nhận diện, biểu tượng và mã vùng văn phòng (`zone_id`).
 
@@ -93,13 +93,13 @@ Tệp cấu hình được đặt tại `agents/departments/{department_id}/depa
 | Tên trường | Kiểu dữ liệu | Bắt buộc | Ràng buộc giá trị và mô tả |
 | :--- | :--- | :--- | :--- |
 | `spec_version` | String | Có | Phiên bản chuẩn đặc tả, ví dụ: `"1.0.0"`. |
-| `department_id` | String | Có | Khóa chính duy nhất, định dạng `^[a-z0-9_]+$`. |
+| `department_id` | String | Có | Khóa chính duy nhất, định dạng `^[a-z0-9_]+$` (trừ định danh dành riêng `"orchestration"` của Master). |
 | `name` | String | Có | Tên hiển thị của bộ phận, độ dài từ 3 đến 64 ký tự. |
 | `description` | String | Có | Mô tả tóm tắt phạm vi chuyên môn của bộ phận. |
 | `purpose` | String | Có | Mục tiêu tồn tại chính của bộ phận trong hệ thống. |
 | `responsibilities` | List[String] | Có | Danh sách các trách nhiệm cụ thể của bộ phận. |
-| `supported_capabilities` | List[String] | Có | Danh mục các nhãn năng lực mà bộ phận bảo trợ. |
-| `default_tools` | List[String] | Không | Danh sách công cụ được đề xuất mặc định cho nhân viên. |
+| `supported_capabilities` | List[String] | Có | Danh mục các Capability ID (`snake_case`) mà bộ phận bảo trợ. |
+| `default_tools` | List[String] | Không | Danh sách Tool ID (`tools.<category>.<name>`) mang tính khuyến nghị; Department không tự cấp quyền cho Agent. |
 | `status` | String | Có | Trạng thái hoạt động: `ACTIVE`, `INACTIVE`, `DEPRECATED`. |
 | `visual_metadata.color_code` | String | Có | Mã màu HEX hiển thị (ví dụ: `"#2563EB"`). |
 | `visual_metadata.icon` | String | Có | Tên định danh biểu tượng giao diện (ví dụ: `"cpu"`). |

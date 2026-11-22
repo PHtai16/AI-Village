@@ -8,7 +8,7 @@ Agent trong AI Village được định nghĩa là một thực thể lao độn
 
 1. **Thực thể logic độc lập:** Agent không tương đương với một tài khoản AI hay một khóa API riêng biệt. Nhiều Agent với các vai trò khác nhau có thể sử dụng chung một Engine hoặc một mô hình ngôn ngữ nền tảng.
 2. **Tách biệt tĩnh và động:** Cấu hình tĩnh (Static Manifest) quy định danh tính, năng lực, quyền hạn và ranh giới an toàn. Trạng thái động (Runtime State) phản ánh ngữ cảnh phiên làm việc, tiến độ tác vụ, tài nguyên thực tế và lịch sử tương tác.
-3. **Tổ chức phòng ban linh hoạt:** Hệ thống cung cấp sẵn 9 phòng ban chức năng mặc định (`hr`, `resources`, `service`, `marketing`, `it`, `reception`, `process`, `qa`, `vault`). Danh mục này có thể mở rộng thông qua Department Registry tại `departments/`. Master có thể triệu tập nhân viên vào bất kỳ nhóm công tác liên phòng ban nào tùy theo đòi hỏi thực tế của nhiệm vụ.
+3. **Tổ chức phòng ban linh hoạt:** Hệ thống cung cấp sẵn 9 phòng ban chức năng mặc định (`hr`, `resources`, `service`, `marketing`, `it`, `reception`, `process`, `qa`, `vault`). Danh mục này có thể mở rộng thông qua Department Registry tại `agents/departments/`. Master có thể triệu tập nhân viên vào bất kỳ nhóm công tác liên phòng ban nào tùy theo đòi hỏi thực tế của nhiệm vụ. Riêng Master sử dụng định danh phạm vi điều hành `department: "orchestration"` gắn với `system_role: "orchestrator"`.
 4. **Không phụ thuộc framework điều phối:** Cấu trúc định nghĩa Agent tương thích với các mô hình điều phối phổ biến như CrewAI hoặc orchestrator nội bộ, không gắn chặt mã nguồn vào API riêng của bất kỳ thư viện bên thứ ba nào.
 5. **Chứng thực độc lập bằng Runtime:** Mọi trạng thái và kết quả công việc phải do Agent Runtime và hệ thống kiểm thử xác nhận từ dữ liệu thực tế, tuyệt đối không dựa vào lời tuyên bố trong nội dung phản hồi của mô hình ngôn ngữ.
 
@@ -17,10 +17,12 @@ Agent trong AI Village được định nghĩa là một thực thể lao độn
 ### 2.1. Identity (Danh tính)
 Xác định sự tồn tại duy nhất của Agent trong hệ thống:
 - `spec_version`: Phiên bản của chuẩn đặc tả dữ liệu (ví dụ: `"1.0.0"`).
-- `id`: Định danh duy nhất theo định dạng `dept.role_name`, viết thường, ngăn cách bằng dấu chấm (ví dụ: `it.code_reviewer`).
+- `id`: Định danh duy nhất theo định dạng `dept.role_name`, viết thường, ngăn cách bằng dấu chấm (ví dụ: `it.code_reviewer`, hoặc `core.master` đối với Master Agent).
 - `name`: Tên gọi hiển thị của nhân viên (ví dụ: "Quốc Bảo").
 - `role`: Chức danh chuyên môn (ví dụ: "Senior Code Quality Inspector").
-- `department`: Phòng ban chủ quản. Chấp nhận một trong 9 phòng ban mặc định hoặc phòng ban tùy biến đã đăng ký hợp lệ trong Department Registry.
+- `system_role`: Phân loại vai trò hệ thống, nhận giá trị `"worker"` hoặc `"orchestrator"`.
+  - **Quy tắc ràng buộc có điều kiện:** Worker Agent bắt buộc dùng `system_role: "worker"` và tham chiếu một `department` hợp lệ trong Department Registry; không được tự khai báo `"orchestrator"` để tăng quyền. Chỉ Master Agent (`id: "core.master"`) mới được dùng `system_role: "orchestrator"` và phạm vi `department: "orchestration"` (không xem là phòng ban chuyên môn thứ 10). Thuộc tính `system_role` không tự động cấp quyền thực thi; Permission Manager luôn kiểm tra quyền độc lập cho mọi Agent.
+- `department`: Phòng ban chủ quản. Chấp nhận một trong 9 phòng ban mặc định hoặc phòng ban tùy biến đã đăng ký hợp lệ trong `agents/departments/` (ngoại lệ `"orchestration"` chỉ dành cho `system_role: "orchestrator"`).
 - `description`: Mô tả súc tích về phạm vi trách nhiệm của vai trò.
 
 ### 2.2. Mission (Mục đích và trách nhiệm)
@@ -47,7 +49,7 @@ Phân định phạm vi lưu trữ thông tin:
 
 ### 2.6. Skills (Kỹ năng nghiệp vụ)
 Liên kết các quy trình chuẩn hóa:
-- `skills.allowed`: Danh sách mã kỹ năng từ thư mục `skills/approved/` mà Agent được cấp phép sử dụng.
+- `skills.allowed`: Danh sách mã định danh kỹ năng (`skill_id` dạng `snake_case`, ví dụ: `git_diff_code_review`) từ thư mục `skills/approved/` mà Agent được cấp phép sử dụng. Phiên bản thực thi cụ thể được xác định và cố định khi Task bắt đầu.
 
 ### 2.7. Tools (Công cụ thực thi)
 Danh mục các công cụ hệ thống được cấp quyền gọi:
@@ -58,7 +60,7 @@ Ranh giới an toàn cho các thao tác tài nguyên:
 - `permissions.fs_read`: Danh sách phạm vi đường dẫn được đọc.
 - `permissions.fs_write`: Danh sách phạm vi đường dẫn được ghi. Đối với các IT Agent thực hiện nhiệm vụ lập trình, quyền ghi được cấp trong không gian làm việc của nhiệm vụ (`workspace/{task_id}/`) hoặc trên nhánh phát triển được chỉ định trong sandbox. Tuyệt đối cấm quyền ghi đè mã nguồn production hoặc sửa trực tiếp nhánh chính khi chưa có phê duyệt.
 - `permissions.network`: Chính sách kết nối mạng (`none`, `intranet`, `full`).
-- `permissions.requires_approval`: Danh sách hành động bắt buộc phải dừng lại chờ người vận hành phê duyệt trước khi thực thi.
+- `permissions.requires_approval`: Danh sách Action ID (định dạng `<domain>.<action>`, ví dụ: `code.exec_custom`) bắt buộc phải dừng lại chờ người vận hành phê duyệt trước khi thực thi.
 
 ### 2.9. Limits (Giới hạn thực thi)
 Các tham số kiểm soát an toàn tài nguyên:
@@ -101,7 +103,7 @@ Các nguyên tắc bất biến:
 
 ### 3.1. Static Manifest Schema (Khai báo tĩnh)
 
-Cấu hình tĩnh lưu trữ trong tệp `manifest.yaml` hoặc `manifest.json` tại thư mục của vai trò trong `agents/`.
+Cấu hình tĩnh lưu trữ trong tệp `agent.yaml` (hoặc `manifest.yaml`, `manifest.json`) tại thư mục của vai trò trong `agents/`.
 
 | Tên trường | Kiểu dữ liệu | Bắt buộc | Ràng buộc giá trị và mô tả |
 | :--- | :--- | :--- | :--- |
@@ -109,7 +111,8 @@ Cấu hình tĩnh lưu trữ trong tệp `manifest.yaml` hoặc `manifest.json` 
 | `id` | String | Có | Khóa chính duy nhất, định dạng `^[a-z0-9_]+\.[a-z0-9_]+$`. |
 | `name` | String | Có | Tên hiển thị, độ dài từ 3 đến 64 ký tự. |
 | `role` | String | Có | Chức danh chuyên môn, độ dài từ 3 đến 64 ký tự. |
-| `department` | String | Có | Tên phòng ban trong danh mục mặc định hoặc phòng ban đã đăng ký hợp lệ. |
+| `system_role` | String | Có | Giá trị hợp lệ: `"worker"` hoặc `"orchestrator"`. Không tự cấp quyền thực thi. |
+| `department` | String | Có | Tên phòng ban hợp lệ trong `agents/departments/`; ngoại lệ `"orchestration"` chỉ dùng cho `id: "core.master"` với `system_role: "orchestrator"`. |
 | `description` | String | Có | Mô tả ngắn gọn phạm vi trách nhiệm. |
 | `mission.purpose` | String | Có | Mục đích hoạt động cốt lõi. |
 | `mission.responsibilities` | List[String] | Có | Danh sách ít nhất 1 trách nhiệm cụ thể. |
@@ -121,12 +124,12 @@ Cấu hình tĩnh lưu trữ trong tệp `manifest.yaml` hoặc `manifest.json` 
 | `engine.model_tier` | String | Có | Nhóm mô hình ưu tiên: `"pro"`, `"flash"`, `"code"`. |
 | `engine.parameters` | Object | Không | Tham số vận hành bổ sung như `temperature`, `timeout_seconds`. |
 | `memory.scopes` | List[String] | Có | Danh sách phạm vi bộ nhớ, chứa ít nhất `"private"`. |
-| `skills.allowed` | List[String] | Không | Danh sách mã kỹ năng từ thư mục `skills/approved/`. |
-| `tools.allowed` | List[String] | Có | Danh mục công cụ được phép triệu gọi. |
+| `skills.allowed` | List[String] | Không | Danh sách `skill_id` (định dạng `^[a-z0-9_]+$`) từ `skills/approved/`. |
+| `tools.allowed` | List[String] | Có | Danh mục Tool ID (`tools.<category>.<name>`) được phép triệu gọi. |
 | `permissions.fs_read` | List[String] | Có | Danh sách phạm vi đường dẫn được đọc. |
 | `permissions.fs_write` | List[String] | Có | Danh sách phạm vi đường dẫn được ghi (chỉ trong workspace/nhánh dev). |
 | `permissions.network` | String | Có | Mức độ kết nối mạng: `"none"`, `"intranet"`, `"full"`. |
-| `permissions.requires_approval` | List[String] | Không | Danh sách hành động bắt buộc con người phê duyệt. |
+| `permissions.requires_approval` | List[String] | Không | Danh sách Action ID (`<domain>.<action>`) bắt buộc con người phê duyệt. |
 | `limits.timeout_seconds` | Integer | Có | Giới hạn thời gian tối đa cho mỗi lượt thao tác. |
 | `limits.max_retries` | Integer | Có | Số lần thử lại tối đa khi gặp lỗi tạm thời. |
 
@@ -158,6 +161,7 @@ spec_version: "1.0.0"
 id: "it.code_reviewer"
 name: "Quốc Bảo"
 role: "Senior Code Quality Inspector"
+system_role: "worker"
 department: "it"
 description: "Chuyên gia đánh giá chất lượng mã nguồn, kiểm tra tuân thủ kiến trúc và phát hiện lỗ hổng bảo mật."
 
@@ -199,8 +203,8 @@ memory:
 
 skills:
   allowed:
-    - "skills.code_review.standard_audit"
-    - "skills.security.secret_check"
+    - "git_diff_code_review"
+    - "secret_security_audit"
 
 tools:
   allowed:
@@ -216,7 +220,7 @@ permissions:
     - "workspace/{task_id}/review_reports/*"
   network: "none"
   requires_approval:
-    - "tools.code.run_custom_script"
+    - "code.exec_custom"
 
 limits:
   timeout_seconds: 180

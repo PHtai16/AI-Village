@@ -35,7 +35,7 @@ Master là thực thể điều phối cao nhất trong hệ sinh thái AI Villa
 
 - **Trách nhiệm của Master:** Tiếp nhận mục tiêu từ người dùng, phân tích và phản biện yêu cầu để làm rõ phạm vi, lựa chọn các Agent phù hợp theo nhãn năng lực, triệu tập và chủ trì các phiên họp khi cần, điều phối tiến độ, phân xử bất đồng kỹ thuật, tổng hợp sản phẩm cuối cùng và chịu trách nhiệm bàn giao cho người dùng khi đã có đầy đủ bằng chứng kiểm thử độc lập.
 - **Vị trí kiến trúc:** Master là một thực thể độc lập, không thuộc về bất kỳ phòng ban chuyên môn nào trong 9 phòng ban chức năng và tuyệt đối không tự chấm đạt thay cho bộ phận QA.
-- **Biểu diễn trong Agent Schema:** Trong cấu hình manifest tại `agents/master/agent.yaml`, Master được định danh với `id: "core.master"`, trường `department: "orchestration"` (hoặc `department: "executive"`) và thuộc tính `system_role: "orchestrator"`. Cách định danh này giúp phân biệt rõ Master với các Worker Agent thuộc các phòng ban chuyên môn (`system_role: "worker"`) mà không làm phá vỡ tính nhất quán của schema.
+- **Biểu diễn trong Agent Schema:** Trong cấu hình manifest tại `agents/master/agent.yaml`, Master được định danh với `id: "core.master"`, trường `department: "orchestration"` (phạm vi điều hành đặc biệt, không xem là phòng ban chuyên môn thứ 10) và thuộc tính `system_role: "orchestrator"`. Cách định danh này giúp phân biệt rõ Master với các Worker Agent thuộc các phòng ban chuyên môn (`system_role: "worker"`) mà không phá vỡ schema và không tự động cấp quyền bỏ qua Permission Manager.
 
 ## 4. Chín phòng ban chức năng mặc định
 
@@ -242,10 +242,10 @@ Ma trận liên kết giữa yêu cầu kiến trúc, thành phần phụ trách
 
 | Mã yêu cầu | Yêu cầu hệ thống | Thành phần phụ trách | Phase trong PROGRESS.md | Điều kiện nghiệm thu |
 | :--- | :--- | :--- | :--- | :--- |
-| **REQ-01** | Khởi tạo cấu trúc 14 thư mục cấp cao | Kho mã nguồn | P01.01 – P01.15 | Đầy đủ 14 thư mục, Git theo dõi sạch sẽ. |
-| **REQ-02** | Quy chuẩn hóa đặc tả nhân sự AI | `agents/`, `docs/standards/` | P01B.01, P01B.01-R | `AGENT_SPEC.md` đầy đủ 16 khía cạnh, schema chuẩn. |
-| **REQ-03** | Quy chuẩn hóa đặc tả phòng ban chức năng | `agents/departments/` | P01B.02 | `DEPARTMENT_SPEC.md` định nghĩa 9 bộ phận và cơ chế mở rộng. |
-| **REQ-04** | Thiết lập bản thiết kế kiến trúc toàn diện | `docs/architecture/` | P01B.02A | `SYSTEM_BLUEPRINT.md` làm Single Source of Truth. |
+| **REQ-01** | Khởi tạo cấu trúc 14 thư mục cấp cao | Kho mã nguồn | P01.01 – P01.15 | Đầy đủ 14 thư mục, Git theo dõi sạch sẽ (thư mục cấp cao đã tạo tại P01; README từng folder thuộc P01.02–P01.15 vẫn ở trạng thái kế hoạch). |
+| **REQ-02** | Quy chuẩn hóa đặc tả nhân sự AI | `agents/`, `docs/standards/` | P01B.01, P01B.01-R, P01B.07 | `AGENT_SPEC.md` đầy đủ 16 khía cạnh, schema có `system_role` và ràng buộc chuẩn. |
+| **REQ-03** | Quy chuẩn hóa đặc tả phòng ban chức năng | `agents/departments/`, `docs/standards/` | P01B.02, P01B.07 | `DEPARTMENT_SPEC.md` định nghĩa 9 bộ phận và cơ chế mở rộng tại `agents/departments/`. |
+| **REQ-04** | Thiết lập bản thiết kế kiến trúc, bộ tiêu chuẩn Skill/Rule/Tool, Templates và Audit | `docs/architecture/`, `docs/standards/`, `docs/templates/`, `docs/reviews/` | P01B.02A, P01B.02A-G, P01B.03 – P01B.07 | `SYSTEM_BLUEPRINT.md`, `SKILL_SPEC.md`, `RULE_SPEC.md`, `TOOL_SPEC.md`, 3 templates và `PHASE_01B_AUDIT.md` nhất quán hoàn toàn. |
 | **REQ-05** | Kiểm chứng thực thi Antigravity CLI | `engines/antigravity/` | P02.01 – P02.06 | Gọi lệnh `agy` thật, tạo file thật, xác nhận qua SHA. |
 | **REQ-06** | Đánh giá và quyết định tích hợp CrewAI | `core/orchestration/` | P03.01 – P03.03 | Spike tích hợp Master và Worker, tài liệu ADR so sánh. |
 | **REQ-07** | Máy trạng thái nhiệm vụ và Event Journal | `core/tasks/`, `core/events/` | P04.01 – P04.07 | Task chuyển trạng thái có guard, event replay được. |
@@ -266,11 +266,11 @@ Ma trận liên kết giữa yêu cầu kiến trúc, thành phần phụ trách
 
 Trong quá trình xây dựng hệ thống, ba vấn đề kiến trúc quan trọng được làm rõ và ghi nhận giải pháp:
 
-1. **Định danh Master:** Master không thuộc 9 phòng ban chuyên môn nhưng cần có định danh tương thích trong Agent Registry. Giải pháp thống nhất là sử dụng mã định danh `id: "core.master"` với trường `department: "orchestration"` (hoặc `"executive"`), kết hợp thuộc tính `system_role: "orchestrator"`.
+1. **Định danh Master:** Master không thuộc 9 phòng ban chuyên môn nhưng cần có định danh tương thích trong Agent Registry. Giải pháp thống nhất là sử dụng mã định danh `id: "core.master"` với trường `department: "orchestration"` (phạm vi điều hành đặc biệt, không phải phòng ban chuyên môn thứ 10), kết hợp thuộc tính `system_role: "orchestrator"`.
 2. **Đường dẫn Department Registry:** Đảm bảo toàn bộ cấu hình phòng ban nằm đúng ranh giới tại `agents/departments/{dept_id}/department.yaml`, không tạo thư mục độc lập ở root repository.
 3. **Bản chất của default_tools:** Thuộc tính `default_tools` trong cấu hình phòng ban chỉ mang tính chất khuyến nghị chuyên môn. Quyền thực thi công cụ thực tế của Agent bắt buộc phải được quy định cụ thể tại trường `tools.allowed` trong manifest của Agent và chịu sự kiểm soát của Permission Manager tại `core/governance/`.
 
-**Danh sách đề xuất cập nhật cho các văn bản tiêu chuẩn trong tương lai:**
-- Cập nhật `AGENT_SPEC.md` để bổ sung trường `system_role` (`orchestrator` hoặc `worker`) nhằm hỗ trợ phân loại Master chính thức trong schema.
-- Bổ sung quy định rõ ràng trong `DEPARTMENT_SPEC.md` về vai trò khuyến nghị của trường `default_tools`.
-- Các cập nhật này sẽ được thực hiện khi hệ thống bước vào giai đoạn triển khai chi tiết cho Agent Registry, không tự ý chỉnh sửa trong phase hiện tại.
+**Trạng thái đồng bộ cập nhật (P01B.07):**
+- Đã cập nhật `AGENT_SPEC.md` để bổ sung trường `system_role` (`orchestrator` hoặc `worker`), quy tắc kiểm tra điều kiện `orchestration`, đường dẫn `agents/departments/`, `skill_id` dạng `snake_case` và Action ID cho `requires_approval`.
+- Đã cập nhật `DEPARTMENT_SPEC.md` để khẳng định `default_tools` chỉ mang tính khuyến nghị, không tự động cấp quyền.
+- Đã đồng bộ `SKILL_SPEC.md`, `RULE_SPEC.md` và `TOOL_SPEC.md` theo báo cáo kiểm toán tại `docs/reviews/PHASE_01B_AUDIT.md`.

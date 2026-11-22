@@ -23,7 +23,7 @@ Hệ thống phân tách quy tắc quản trị thành 8 lớp có mức độ c
 
 ### 1.2. Phân định bốn khái niệm quản trị
 
-- **Rule:** Một đơn vị quy tắc nguyên tử gồm điều kiện kích hoạt, phạm vi áp dụng và hiệu lực quyết định (`ALLOW`, `DENY`, `APPROVAL_REQUIRED`, `AUDIT_ONLY`).
+- **Rule:** Một đơn vị quy tắc nguyên tử gồm điều kiện kích hoạt, phạm vi áp dụng và hiệu lực cấu hình (`ALLOW`, `DENY`, `REQUIRE_APPROVAL`, `AUDIT_ONLY`).
 - **Permission:** Quyền truy cập cụ thể vào một tài nguyên hoặc công cụ xác định, được cấp phát cho một chủ thể trong một phạm vi giới hạn.
 - **Policy:** Tập hợp nhiều Rule được nhóm theo miền quản trị (ví dụ: Security Policy, File Access Policy) để phục vụ đánh giá nhất quán.
 - **Approval:** Quyết định cho phép có thời hạn và phạm vi đơn lẻ do người vận hành cấp qua Approval Gate cho một hành động nhạy cảm cụ thể.
@@ -44,7 +44,7 @@ Mỗi Rule được khai báo dưới dạng tệp cấu hình có cấu trúc (
 | `priority` | Integer | Có | Độ ưu tiên từ `1` đến `1000`. Số lớn hơn có ưu tiên cao hơn khi xét trong cùng tầng hiệu lực. |
 | `effect` | String | Có | Hiệu lực đánh giá: `ALLOW`, `DENY`, `REQUIRE_APPROVAL`, `AUDIT_ONLY`. |
 | `conditions` | Object | Có | Biểu thức điều kiện có cấu trúc dựa trên thuộc tính của Agent, Task, Workspace, Tool hoặc Environment. |
-| `actions` | List[String] | Có | Danh sách hành động bị chi phối (ít nhất 1 phần tử, ví dụ: `files.read`, `files.write`, `terminal.exec`, `task.complete`). |
+| `actions` | List[String] | Có | Danh sách Action ID (`<domain>.<action>`) bị chi phối (ít nhất 1 phần tử, ví dụ: `files.read`, `files.write`, `terminal.exec`, `code.exec_custom`, `task.complete`). |
 | `approval_required` | Boolean | Có | Cờ đánh dấu cần cổng phê duyệt. Nếu `effect` là `REQUIRE_APPROVAL`, trường này bắt buộc phải là `true`. |
 | `status` | String | Có | Trạng thái vòng đời Rule: `DRAFT`, `UNDER_REVIEW`, `ACTIVE`, `DEPRECATED`, `DISABLED`. |
 | `evidence_requirements` | List[String] | Tùy chọn | Danh sách bằng chứng bắt buộc phải ghi nhận khi Rule khớp. Bắt buộc có ít nhất 1 mục đối với nhóm `verification` và `approval`. |
@@ -131,9 +131,9 @@ Agent Intent -> Action/Tool Request -> Policy Evaluator -> Structured PolicyDeci
    └── DENY / ERROR ------> Block Action -> Security Audit Event -> Structured Error to Agent
 ```
 
-### 8.2. Kết quả đánh giá có cấu trúc (`PolicyDecision`)
+### 8.2. Kết quả đánh giá có cấu trúc (`PolicyDecision`) và Ánh xạ 3 tầng
 
-Mọi lượt kiểm tra quyền phải trả về một đối tượng có cấu trúc chuẩn xác để Core Runtime xử lý:
+Mọi lượt kiểm tra quyền phải trả về một đối tượng `PolicyDecision` có cấu trúc chuẩn xác để Core Runtime xử lý:
 
 - `decision`: `ALLOW`, `DENY`, `APPROVAL_REQUIRED`, hoặc `ERROR`.
 - `matched_rule_ids`: Danh sách các `rule_id` đã khớp điều kiện.
@@ -141,6 +141,18 @@ Mọi lượt kiểm tra quyền phải trả về một đối tượng có c�
 - `reason_code`: Mã lý do chuẩn hóa (ví dụ: `PATH_OUTSIDE_WORKSPACE`, `MISSING_TOOL_PERMISSION`, `APPROVAL_EXPIRED`).
 - `message`: Thông báo kỹ thuật rõ ràng phục vụ ghi nhật ký và phản hồi Agent.
 - `audit_event_id`: Mã liên kết đến bản ghi Audit Event trong Event Journal.
+
+Bảng ánh xạ nhất quán giữa `Rule.effect`, `PolicyDecision.decision` và `ToolResult.status`:
+
+| Tầng 1: `Rule.effect` | Tầng 2: `PolicyDecision.decision` | Tầng 3: `ToolResult.status` (tham chiếu `TOOL_SPEC.md`) | Ý nghĩa và quy tắc chuyển tiếp |
+| :--- | :--- | :--- | :--- |
+| `ALLOW` | `ALLOW` | Cho phép chạy (`EXECUTION_SUCCEEDED` hoặc `EXECUTION_FAILED` tùy thực thi) | Chỉ cấp khi có `ALLOW` hợp lệ và không vướng `DENY` hoặc `REQUIRE_APPROVAL`. |
+| `DENY` | `DENY` | `PERMISSION_DENIED` | Chặn tuyệt đối trước khi chạm Tool Runtime; `DENY` luôn thắng `ALLOW`. |
+| `REQUIRE_APPROVAL` | `APPROVAL_REQUIRED` | `APPROVAL_REQUIRED` | Tạm dừng nhánh thực thi chờ Approval Gate (`WAITING_APPROVAL`). |
+| `AUDIT_ONLY` | Không tự tạo `ALLOW` | Phụ thuộc Rule khác; thiếu `ALLOW` vẫn bị `DENY` | Chỉ phát Audit Event ghi nhận dấu vết; tuyệt đối không tự biến thành quyền `ALLOW`. |
+| Lỗi đánh giá / thiếu ngữ cảnh | `ERROR` | `PERMISSION_DENIED` hoặc `EXECUTION_FAILED` (Fail-Closed) | Hệ thống từ chối thực thi hành động có rủi ro khi Policy Engine lỗi. |
+
+Tuyệt đối không đánh đồng `PolicyDecision` với `ToolResult.status` hoặc `Task Status` của Agent. Một `PolicyDecision(ALLOW)` chỉ cho phép gọi công cụ; một `ToolResult(EXECUTION_SUCCEEDED)` không tự động làm Task chuyển sang `COMPLETED`.
 
 ### 8.3. Ghi nhận giới hạn hiện tại
 
@@ -200,7 +212,7 @@ Phần này đặc tả 7 kịch bản kiểm thử dùng để nghiệm thu th�
    - *Evidence cần kiểm chứng:* Tool Runtime không được gọi; bộ đếm thực thi của công cụ đó giữ nguyên ở mức 0; có Audit Event.
 
 4. **Kịch bản 4: Agent yêu cầu hành động cần người dùng phê duyệt**
-   - *Điều kiện:* Agent gọi công cụ nằm trong `permissions.requires_approval` (ví dụ `tools.code.run_custom_script`).
+   - *Điều kiện:* Agent gọi công cụ `tools.code.run_custom_script` đòi hỏi Action ID `code.exec_custom` nằm trong `permissions.requires_approval`.
    - *Expected Result:* `PolicyDecision.decision == APPROVAL_REQUIRED`; trạng thái Agent chuyển sang `WAITING_APPROVAL`.
    - *Evidence cần kiểm chứng:* Đối tượng `ApprovalRequest` được tạo với `approval_id` hợp lệ; hành động chưa thực thi trước khi nhận phản hồi `APPROVED`.
 
@@ -221,7 +233,7 @@ Phần này đặc tả 7 kịch bản kiểm thử dùng để nghiệm thu th�
 
 ## 12. Hồ sơ minh họa mẫu (Example Rules)
 
-Ba ví dụ dưới đây tuân thủ đúng bảng Rule Identity & Schema tại Mục 2. Các tệp này chỉ là ví dụ thiết kế minh họa cấu trúc, chưa phải chính sách đã được triển khai hay kích hoạt trong Runtime.
+Ba ví dụ dưới đây tuân thủ đúng bảng Rule Identity & Schema tại Mục 2 và đặt `status: "DRAFT"` để phản ánh đây chỉ là ví dụ thiết kế minh họa cấu trúc, chưa phải chính sách đã được triển khai hay kích hoạt trong Runtime.
 
 ### 12.1. Ví dụ 1: Cho phép đọc tệp hợp lệ trong workspace
 
@@ -251,7 +263,7 @@ conditions:
 actions:
   - "files.read"
 approval_required: false
-status: "ACTIVE"
+status: "DRAFT"
 evidence_requirements:
   - "audit_event"
 ```
@@ -288,7 +300,7 @@ actions:
   - "files.delete"
   - "terminal.exec"
 approval_required: false
-status: "ACTIVE"
+status: "DRAFT"
 evidence_requirements:
   - "audit_event"
   - "security_alert"
@@ -321,18 +333,18 @@ conditions:
 actions:
   - "code.exec_custom"
 approval_required: true
-status: "ACTIVE"
+status: "DRAFT"
 evidence_requirements:
   - "approval_id"
   - "audit_event"
   - "execution_log"
 ```
 
-## 13. Ghi nhận các điểm cần đồng bộ giữa các tài liệu đặc tả
+## 13. Trạng thái đồng bộ liên tài liệu
 
-Trong quá trình đối chiếu chéo với các tài liệu hiện có (`SYSTEM_BLUEPRINT.md`, `AGENT_SPEC.md`, `DEPARTMENT_SPEC.md`, `SKILL_SPEC.md`), ghi nhận 4 điểm cần được thống nhất tại một bước đồng bộ tài liệu riêng trước khi xây dựng Registry (không tự ý sửa các tài liệu đó trong P01B.04):
+Bốn điểm cần đồng bộ phát hiện trong quá trình xây dựng `RULE_SPEC.md` đã được kiểm toán và xử lý thống nhất tại bước nghiệm thu P01B.07 (xem chi tiết tại `docs/reviews/PHASE_01B_AUDIT.md`):
 
-1. **Cách tham chiếu `skills.allowed` giữa `AGENT_SPEC.md` và `SKILL_SPEC.md`:** Trong ví dụ YAML của `AGENT_SPEC.md` (Mục 4, dòng 201-203), danh sách `skills.allowed` đang dùng chuỗi phân cấp dấu chấm (như `"skills.code_review.standard_audit"`), trong khi `SKILL_SPEC.md` (Mục 2 và Mục 3.3) quy định `skill_id` dùng định dạng `snake_case` không dấu chấm (`^[a-z0-9_]+$`). Đề xuất chuẩn hóa `skills.allowed` trong `AGENT_SPEC.md` tham chiếu trực tiếp tới `skill_id` (hoặc `skill_id@version`).
-2. **Phân biệt `status: APPROVED` trong ví dụ thiết kế với Skill được QA duyệt:** Trong `SKILL_SPEC.md` (Mục 12.1 và Mục 12.2), hai ví dụ minh họa mẫu đặt giá trị `status: "APPROVED"` ở phần YAML frontmatter dù phần thuyết minh ghi rõ đây mới là ví dụ thiết kế. Đề xuất bổ sung quy định vào Skill Registry rằng chỉ các gói tồn tại thực tế tại `skills/approved/` kèm bản ghi nghiệm thu QA mới được công nhận trạng thái `APPROVED` trong runtime.
-3. **Đề xuất trường `system_role` và định danh Master Agent:** `SYSTEM_BLUEPRINT.md` (Mục 3 và Mục 15) đề xuất khai báo Master với `id: "core.master"`, `department: "orchestration"` và trường `system_role: "orchestrator"`, nhưng `AGENT_SPEC.md` (Mục 3.1) chưa bổ sung trường `system_role` vào bảng Static Manifest Schema. Vấn đề này tiếp tục được giữ ở trạng thái đề xuất chờ đồng bộ chính thức.
-4. **Đường dẫn Department Registry trong `AGENT_SPEC.md`:** Tại Mục 1 (dòng 11) của `AGENT_SPEC.md` ghi ngắn gọn là `Department Registry tại departments/`, trong khi `DEPARTMENT_SPEC.md` (Mục 2.6) và `SYSTEM_BLUEPRINT.md` (Mục 15) xác định đường dẫn chuẩn là `agents/departments/` (không tạo thư mục `departments/` ở cấp root). Đề xuất chỉnh sửa câu chữ tại dòng 11 của `AGENT_SPEC.md` trong đợt đồng bộ tài liệu sắp tới.
+1. `skills.allowed` trong `AGENT_SPEC.md` đã được thống nhất dùng `skill_id` dạng `snake_case` (`^[a-z0-9_]+$`).
+2. Các ví dụ thiết kế trong `SKILL_SPEC.md` đã chuyển về trạng thái `DRAFT`, tách biệt hoàn toàn với 6 điều kiện công nhận Skill `APPROVED` thực tế.
+3. Trường `system_role` (`worker` / `orchestrator`) và phạm vi `department: "orchestration"` cho Master Agent (`id: "core.master"`) đã được đưa vào Static Manifest Schema của `AGENT_SPEC.md`.
+4. Đường dẫn Department Registry trong `AGENT_SPEC.md` đã được thống nhất về `agents/departments/`.

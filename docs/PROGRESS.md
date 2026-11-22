@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. Đã hoàn thành P01, P02, P01B.01, P01B.01-R, P01B.02, P01B.02A, P01B.02A-G, P01B.03, P01B.04 và P01B.05 (Tool Specification). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI. **PHASE 01B: DONE** (nhánh bổ sung chuẩn hóa kiến trúc, tiêu chuẩn, templates và audit tại `docs/reviews/PHASE_01B_AUDIT.md`). Các hạng mục của PHASE 00, PHASE 01 và Gate A vẫn giữ nguyên trạng thái chờ hoàn tất. Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -162,16 +162,18 @@ AI-Village/
 - [ ] **P01.14** — Tạo **`output/`** (được gitignore; dùng cho artifact bàn giao).
 - [ ] **P01.15** — Tạo **`.runtime/`** (được gitignore; chứa state/log/cache/private data).
 
-**PHASE 01B — Tiêu chuẩn và Kiến trúc**
+**PHASE 01B — Tiêu chuẩn và Kiến trúc** *(nhánh bổ sung ngoài lộ trình gốc PHASE 00–17 nhằm chuẩn hóa đặc tả trước khi lập trình)* — **PHASE 01B: DONE**
 
 - [x] **P01B.01 — Đặc tả Agent:** Thiết lập 16 khía cạnh chuẩn mực định nghĩa Agent. **DoD:** `docs/standards/AGENT_SPEC.md`. (SHA: `715976b`)
 - [x] **P01B.01-R — Rà soát chuẩn hóa Agent Spec:** Đồng bộ tên trường, bổ sung BLOCKED, quyền IT, telemetry. (SHA: `a7d377d`)
 - [x] **P01B.02 — Đặc tả Phòng ban:** Thiết lập 8 thành phần phòng ban, 9 bộ phận mặc định và cơ chế mở rộng. **DoD:** `docs/standards/DEPARTMENT_SPEC.md`. (SHA: `8e828c3`)
 - [x] **P01B.02A — Bản thiết kế kiến trúc toàn diện:** Single Source of Truth cho toàn bộ dự án. **DoD:** `docs/architecture/SYSTEM_BLUEPRINT.md`. (SHA: `78c8457`)
-- [x] **P01B.02A-G — Khóa quy tắc kiến trúc:** Cập nhật thứ tự tham chiếu, quy trình kiểm tra 6 bước và bảo vệ định hướng dự án trong AGENTS.md.
+- [x] **P01B.02A-G — Khóa quy tắc kiến trúc:** Cập nhật thứ tự tham chiếu, quy trình kiểm tra 6 bước và bảo vệ định hướng dự án trong AGENTS.md. (SHA: `ea7a780`)
 - [x] **P01B.03 — Đặc tả Kỹ năng:** Định nghĩa cấu trúc kỹ năng, schema đầu vào/đầu ra và vòng đời. **DoD:** `docs/standards/SKILL_SPEC.md`. (SHA: `e4f48e0`)
 - [x] **P01B.04 — Đặc tả Quy tắc và Quản trị:** Thiết lập kiến trúc 8 lớp Rule System, schema, xử lý xung đột, Approval Gate và kịch bản kiểm chứng. **DoD:** `docs/standards/RULE_SPEC.md`. (SHA: `1678f1d`)
-- [x] **P01B.05 — Đặc tả Công cụ:** Thiết lập kiến trúc Tool Runtime, Tool Manifest Schema, chuẩn ToolResult, phân định Tool ID vs Action ID và 12 kịch bản kiểm chứng. **DoD:** `docs/standards/TOOL_SPEC.md`.
+- [x] **P01B.05 — Đặc tả Công cụ:** Thiết lập kiến trúc Tool Runtime, Tool Manifest Schema, chuẩn ToolResult, phân định Tool ID vs Action ID và 12 kịch bản kiểm chứng. **DoD:** `docs/standards/TOOL_SPEC.md`. (SHA: `74a78d0`)
+- [x] **P01B.06 — Tạo bộ Template chuẩn:** Khởi tạo 3 mẫu cấu hình tại `docs/templates/` (`agent/agent.yaml`, `department/department.yaml`, `skill/SKILL.md`). (SHA: `74c0b17`)
+- [x] **P01B.07 — Kiểm toán và đồng bộ chéo toàn bộ Specification:** Xử lý 8 phát hiện bất nhất, kiểm thử `tests/standards/test_standards_consistency.py` (6/6 PASSED), xuất báo cáo `docs/reviews/PHASE_01B_AUDIT.md`.
 
 **Gate A:** cấu trúc rõ ràng, Git sạch, có một lệnh chạy test/format; không có mã nghiệp vụ đặt sai folder.
 
@@ -528,7 +530,7 @@ Next: P01B.05 — Tiêu chuẩn định nghĩa công cụ (Tool Specification)
 ID: P01B.05
 Status: DONE
 Scope: docs/standards/TOOL_SPEC.md, docs/PROGRESS.md
-Git SHA: PENDING_COMMIT (xem mã commit thực tế trên git log sau khi push)
+Git SHA: 74a78d0
 Acceptance: 
 - Thiết lập tài liệu đặc tả toàn diện cho hệ thống Tools tại docs/standards/TOOL_SPEC.md, phân biệt 7 thành phần từ Agent, Skill, Tool, Registry, Tool Runtime, Permission Manager đến Engine Adapter.
 - Quy định Tool Manifest Schema gồm 16 trường chuẩn và 5 nhóm danh mục công cụ (`files`, `code`, `browser`, `research`, `office`).
@@ -538,7 +540,37 @@ Acceptance:
 - Thiết lập bảng 12 kịch bản kiểm chứng độc lập và 3 ví dụ manifest YAML khớp 100% với schema (`tools.files.read`, `tools.code.run_test`, `tools.research.query`).
 Tests / Evidence: Tệp docs/standards/TOOL_SPEC.md tồn tại, kiểm tra cấu trúc và từ cấm đạt 100%, không tạo mã nguồn hay chỉnh sửa tệp ngoài phạm vi
 Blocking issue: Không có
-Next: Dừng lại và chờ chỉ đạo cho P01B.06 (hoặc P01B.07 đồng bộ tài liệu chuẩn)
+Next: P01B.06 — Tạo bộ Template chuẩn
+
+### P01B.06 — Tạo bộ Template chuẩn
+ID: P01B.06
+Status: DONE
+Scope: docs/templates/agent/agent.yaml, docs/templates/department/department.yaml, docs/templates/skill/SKILL.md
+Git SHA: 74c0b17
+Acceptance:
+- Tạo 3 tệp template chuẩn tại `docs/templates/` tuân thủ đúng schema của `AGENT_SPEC.md`, `DEPARTMENT_SPEC.md` và `SKILL_SPEC.md`.
+- Template Agent bổ sung đầy đủ `system_role: "worker"`, dùng `skill_id` `snake_case`, Tool ID và Action ID chuẩn.
+- Template Department đặt `status: "INACTIVE"` và khẳng định `default_tools` chỉ mang tính khuyến nghị.
+- Template Skill đặt `status: "DRAFT"` (không dùng `APPROVED`), có đủ 10 mục hợp đồng thực thi.
+Tests / Evidence: PyYAML parse thành công cả 3 template (`Agent OK: it.example_worker worker`, `Dept OK: example_dept INACTIVE`, `Skill OK: example_skill_template DRAFT`); không có Agent hay Skill thực tế nào trong `agents/` và `skills/`
+Blocking issue: Không có
+Next: P01B.07 — Kiểm toán và đồng bộ chéo toàn bộ Specification
+
+### P01B.07 — Kiểm toán, đồng bộ chéo và Nghiệm thu PHASE 01B
+ID: P01B.07
+Status: DONE
+Scope: docs/standards/AGENT_SPEC.md, DEPARTMENT_SPEC.md, SKILL_SPEC.md, RULE_SPEC.md, TOOL_SPEC.md, docs/architecture/SYSTEM_BLUEPRINT.md, docs/reviews/PHASE_01B_AUDIT.md, tests/standards/test_standards_consistency.py, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem mã commit bàn giao thực tế trên git log sau khi push)
+Acceptance:
+- Đồng bộ định danh Master Agent (`id: core.master`, `system_role: orchestrator`, `department: orchestration`) và quy tắc ràng buộc có điều kiện giữa Worker vs Master trong `AGENT_SPEC.md` và `SYSTEM_BLUEPRINT.md`.
+- Thống nhất đường dẫn Department Registry duy nhất tại `agents/departments/` và khẳng định `default_tools` chỉ mang tính khuyến nghị.
+- Đồng bộ `skills.allowed` dùng `skill_id` `snake_case`, chuyển các ví dụ thiết kế Skill/Rule/Tool về trạng thái `DRAFT` và bổ sung 6 điều kiện công nhận Skill `APPROVED`.
+- Chuẩn hóa phân biệt Tool ID, Action ID, Capability ID, Permission; bổ sung bảng ánh xạ 3 tầng `Rule.effect` -> `PolicyDecision.decision` -> `ToolResult.status` và phân tách 6 miền trạng thái vòng đời.
+- Cập nhật Traceability Matrix trong `SYSTEM_BLUEPRINT.md` cho toàn bộ PHASE 01B, giữ nguyên các hạng mục PHASE 02–17 ở trạng thái chưa triển khai.
+- Xuất báo cáo nghiệm thu đầy đủ tại `docs/reviews/PHASE_01B_AUDIT.md` với kết luận **PHASE 01B: PASS**.
+Tests / Evidence: `python -m pytest tests/standards/test_standards_consistency.py -v` đạt `6 passed`; `git diff --check` sạch; quét từ cấm đạt chuẩn; báo cáo kiểm toán tại `docs/reviews/PHASE_01B_AUDIT.md`.
+Blocking issue: Không có (ghi nhận 1 mục Informational tại `AGENTS.md` dòng 35 giữ nguyên ngoài phạm vi chỉnh sửa P01B.07).
+Next: Dừng sau nghiệm thu PHASE 01B; chờ chỉ đạo thực hiện các hạng mục còn lại của PHASE 00–01 / Gate A trước khi bước sang PHASE 02.
 
 
 

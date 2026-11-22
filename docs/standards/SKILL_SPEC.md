@@ -61,7 +61,7 @@ Tệp `SKILL.md` sử dụng cấu trúc YAML Frontmatter ở đầu tệp và n
 | `author` | String | Có | Định danh tác giả khởi tạo. |
 | `maintainer` | String | Có | Phòng ban chịu trách nhiệm bảo trì (`it`, `process`, `qa`). |
 | `status` | String | Có | Một trong các trạng thái vòng đời hợp lệ. |
-| `requirements.tools` | List[String] | Có | Danh sách định danh công cụ bắt buộc phải có từ `tools/`. |
+| `requirements.tools` | List[String] | Có | Danh sách Tool ID (`tools.<category>.<name>`) bắt buộc phải có từ `tools/`. |
 | `requirements.dependencies` | List[String] | Không | Các thư viện mã nguồn cần thiết trong môi trường sandbox. |
 | `requirements.min_engine_tier`| String | Không | Nhóm mô hình tối thiểu khuyến nghị (`flash`, `pro`, `code`). |
 
@@ -85,7 +85,7 @@ Phần thân Markdown của tệp `SKILL.md` bắt buộc phải chứa các m�
 Hệ thống phân phối kỹ năng theo cơ chế kiểm soát chặt chẽ:
 
 - **Tra cứu theo nhãn năng lực:** Master hoặc Worker Agent tra cứu kỹ năng dựa trên `category` và `capabilities.skills` khớp với yêu cầu của nhiệm vụ.
-- **Kiểm tra trạng thái kích hoạt:** Chỉ các kỹ năng có trạng thái `APPROVED` trong thư mục `skills/approved/` mới được phép đưa vào phiên làm việc chính thức.
+- **Kiểm tra trạng thái kích hoạt:** Chỉ các kỹ năng được công nhận là `APPROVED` thực sự khi thỏa mãn đầy đủ 6 điều kiện: (1) gói Skill tồn tại thực tế trong `skills/approved/`, (2) schema manifest hợp lệ, (3) có bản ghi kiểm chứng độc lập của QA, (4) có quyết định kích hoạt hợp lệ, (5) đã kiểm tra quyền công cụ và dependencies, (6) phiên bản và nội dung tệp đã được xác minh toàn vẹn. Nội dung YAML tự khai `status: "APPROVED"` tuyệt đối không được xem là bằng chứng đã phê duyệt.
 - **Đối chiếu quyền hạn thực thi:** Agent chỉ được nạp kỹ năng nếu toàn bộ công cụ yêu cầu trong `requirements.tools` nằm trong danh mục `tools.allowed` của Agent Manifest.
 - **Tinh gọn ngữ cảnh:** Hệ thống không nạp toàn bộ danh mục kỹ năng vào context window của Agent. Chỉ tệp `SKILL.md` của kỹ năng được lựa chọn mới được truyền vào phiên làm việc khi nhiệm vụ bắt đầu.
 
@@ -164,7 +164,7 @@ Mô hình này ngăn chặn triệt để tình trạng một bộ phận duy nh
 
 ## 12. Hồ sơ minh họa mẫu
 
-Dưới đây là hai ví dụ thiết kế mẫu tuân thủ đúng chuẩn đặc tả. Các ví dụ này phục vụ việc chuẩn hóa cấu trúc, chưa đại diện cho các kỹ năng đã được kích hoạt trong runtime.
+Dưới đây là hai ví dụ thiết kế mẫu tuân thủ đúng chuẩn đặc tả. Các ví dụ này đặt trạng thái `DRAFT` vì chỉ phục vụ việc minh họa cấu trúc, chưa qua kiểm thử QA và chưa đại diện cho các kỹ năng đã được kích hoạt trong runtime.
 
 ### 12.1. Ví dụ 1: Kỹ năng Phân tích Dữ liệu Bảng tính (`excel_data_analysis`)
 
@@ -178,7 +178,7 @@ description: "Trích xuất, làm sạch, tính toán thống kê và lập báo
 category: "office_automation"
 author: "human_expert"
 maintainer: "it"
-status: "APPROVED"
+status: "DRAFT"
 requirements:
   tools:
     - "tools.files.read"
@@ -230,7 +230,7 @@ description: "Phân tích các thay đổi trong mã nguồn, kiểm tra tuân t
 category: "code_engineering"
 author: "human_expert"
 maintainer: "qa"
-status: "APPROVED"
+status: "DRAFT"
 requirements:
   tools:
     - "tools.files.read"
