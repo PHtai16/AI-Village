@@ -1,0 +1,64 @@
+# Template hồ sơ tĩnh AI Agent (Static Agent Manifest Template)
+# Lưu ý: Đây là tệp mẫu tham chiếu cấu trúc theo AGENT_SPEC.md.
+# Không tự động nạp tệp này vào Agent Registry hoặc Runtime.
+
+spec_version: "1.0.0"
+id: "it.example_worker"
+name: "Template Worker Agent"
+role: "Example Specialist Role"
+system_role: "worker"
+department: "it"
+description: "Mẫu khai báo cấu hình tĩnh cho một Worker Agent trong AI Village."
+
+mission:
+  purpose: "Mô tả ngắn gọn mục tiêu tồn tại và bài toán mà Agent chịu trách nhiệm giải quyết."
+  responsibilities:
+    - "Thực hiện nhiệm vụ chuyên môn trong phạm vi workspace được cấp quyền."
+    - "Báo cáo trung thực trạng thái thực thi và xuất kèm bằng chứng kiểm chứng."
+  non_goals:
+    - "Không tự ý vượt quyền hạn của Agent Manifest hoặc sửa đổi mã nguồn production."
+    - "Không tự chấm PASS thay cho bước kiểm chứng độc lập của QA."
+
+capabilities:
+  skills:
+    - "example_capability_a"
+    - "example_capability_b"
+  inputs:
+    - "text"
+    - "structured_json"
+  outputs:
+    - "markdown_report"
+
+engine:
+  default_type: "antigravity"
+  model_tier: "pro"
+  parameters:
+    temperature: 0.2
+    timeout_seconds: 120
+
+memory:
+  scopes:
+    - "private"
+    - "project"
+
+skills:
+  allowed:
+    - "example_skill_template"
+
+tools:
+  allowed:
+    - "tools.files.read"
+    - "tools.code.run_test"
+
+permissions:
+  fs_read:
+    - "workspace/{task_id}/inputs/*"
+  fs_write:
+    - "workspace/{task_id}/outputs/*"
+  network: "none"
+  requires_approval:
+    - "code.exec_custom"
+
+limits:
+  timeout_seconds: 120
+  max_retries: 2

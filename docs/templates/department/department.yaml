@@ -1,0 +1,27 @@
+# Template hồ sơ tĩnh Phòng ban Chức năng (Static Department Manifest Template)
+# Lưu ý: Đây là tệp mẫu cấu trúc theo DEPARTMENT_SPEC.md, đặt tại trạng thái INACTIVE.
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "example_dept"
+name: "Template Functional Department"
+description: "Mẫu cấu hình tĩnh cho một bộ phận chuyên môn trong Department Registry."
+purpose: "Quản lý năng lực chuyên môn và danh mục công cụ khuyến nghị cho các Agent trực thuộc."
+
+responsibilities:
+  - "Quản lý chuẩn hóa năng lực chuyên môn thuộc phạm vi phòng ban."
+  - "Hỗ trợ cung cấp nhân sự tham gia các nhóm công tác liên phòng ban khi Master triệu tập."
+
+supported_capabilities:
+  - "example_capability_a"
+  - "example_capability_b"
+
+default_tools:
+  - "tools.files.read"
+
+status: "INACTIVE"
+
+visual_metadata:
+  color_code: "#64748B"
+  icon: "folder"
+  zone_id: "zone_template"
