@@ -74,14 +74,16 @@ out/
 .next/
 *.tsbuildinfo
 
-# 9. Workspace & Task-specific Private Outputs
-workspace/*
-!workspace/.gitkeep
-output/*
-!output/.gitkeep
-
-# 10. Explicit Tracking Rules
+# 9. Explicit Tracking Rules for Static Markdown
 !*.md
 !agents/**/*.md
 !skills/**/*.md
 !docs/**/*.md
+
+# 10. Workspace & Task-specific Private Outputs (Must override *.md rules above)
+workspace/*
+workspace/**/*
+!workspace/.gitkeep
+output/*
+output/**/*
+!output/.gitkeep
