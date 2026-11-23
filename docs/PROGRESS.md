@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI. **PHASE 01B: DONE** (nhánh bổ sung chuẩn hóa kiến trúc, tiêu chuẩn, templates và audit tại `docs/reviews/PHASE_01B_AUDIT.md`). Các hạng mục của PHASE 00, PHASE 01 và Gate A vẫn giữ nguyên trạng thái chờ hoàn tất. Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI CHẶNG A (`Gate A: PASS_WITH_LIMITATIONS`). **PHASE 00:** `P00.02`–`P00.04` DONE, `P00.01` IN PROGRESS (`vision.md` chờ người vận hành duyệt `PENDING_USER_APPROVAL`). **PHASE 01:** `P01.01`–`P01.15` DONE. **PHASE 01B: DONE** (`docs/reviews/PHASE_01B_AUDIT.md`). Báo cáo nghiệm thu Chặng A tại `docs/reviews/CHANG_A_AUDIT.md`. Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -139,28 +139,28 @@ AI-Village/
 
 **PHASE 00 — Quy tắc nền tảng** *(không viết ứng dụng ở chặng này)*
 
-- [ ] **P00.01 — Đặc tả mục tiêu:** chốt phạm vi MVP, phần chưa làm, định nghĩa DONE/FAIL/BLOCKED. **DoD:** `docs/architecture/vision.md` được duyệt.
-- [ ] **P00.02 — Danh mục ranh giới:** ghi rõ dữ liệu input/output, nơi lưu bí mật, quyền thực thi và các hành động cần người duyệt. **DoD:** `docs/architecture/boundaries.md`.
-- [ ] **P00.03 — Kiểm kê mã cũ:** phân loại thành phần nào được tái sử dụng từ Marketing Village và AutoGen Pentest, không copy bừa. **DoD:** `docs/architecture/reuse_inventory.md`.
-- [ ] **P00.04 — Chốt stack tạm thời:** Python/FastAPI + SQLite; React/Vite + Three.js hoặc React Three Fiber là ứng viên; ghi lý do, chưa khóa framework điều phối. **DoD:** một ADR trong `docs/decisions/`.
+- [~] **P00.01 — Đặc tả mục tiêu:** chốt phạm vi MVP, phần chưa làm, định nghĩa DONE/FAIL/BLOCKED. **DoD:** `docs/architecture/vision.md` được duyệt *(đã tạo nội dung tại commit `ac67b88`, giữ `[~]` chờ người vận hành duyệt `PENDING_USER_APPROVAL`)*.
+- [x] **P00.02 — Danh mục ranh giới:** ghi rõ dữ liệu input/output, nơi lưu bí mật, quyền thực thi và các hành động cần người duyệt. **DoD:** `docs/architecture/boundaries.md` *(SHA: `ac67b88`)*.
+- [x] **P00.03 — Kiểm kê mã cũ:** phân loại thành phần nào được tái sử dụng từ Marketing Village và AutoGen Pentest, không copy bừa. **DoD:** `docs/architecture/reuse_inventory.md` *(SHA: `ac67b88`)*.
+- [x] **P00.04 — Chốt stack tạm thời:** Python/FastAPI + SQLite; React/Vite + Three.js hoặc React Three Fiber là ứng viên; ghi lý do, chưa khóa framework điều phối. **DoD:** một ADR trong `docs/decisions/` *(SHA: `ac67b88`)*.
 
 **PHASE 01 — Khởi tạo cấu trúc** *(mỗi tiểu phase đúng một folder)*
 
-- [ ] **P01.01** — Tạo repo mới, root files (`README.md`, `PROGRESS.md`, `AGENTS.md`, `.gitignore`, `.env.example`) và commit khởi tạo.
-- [ ] **P01.02** — Tạo **`agents/`** với README quy định chỉ giữ agent manifests/definitions.
-- [ ] **P01.03** — Tạo **`core/`** với README các nhóm thuật toán và dependency boundaries.
-- [ ] **P01.04** — Tạo **`engines/`** với hợp đồng adapter tối thiểu, không tích hợp model vội.
-- [ ] **P01.05** — Tạo **`tools/`** với quy tắc đăng ký tool và quyền.
-- [ ] **P01.06** — Tạo **`skills/`** với schema/lifecycle rỗng.
-- [ ] **P01.07** — Tạo **`storage/`** với phân tách mã persistence khỏi data runtime.
-- [ ] **P01.08** — Tạo **`api/`** với contract cho client.
-- [ ] **P01.09** — Tạo **`ui/`** với web app tối thiểu, chưa có 3D.
-- [ ] **P01.10** — Tạo **`sandbox/`** và tài liệu cách ly.
-- [ ] **P01.11** — Tạo **`tests/`** với test runner/fixture tối thiểu.
-- [ ] **P01.12** — Tạo **`docs/`** với nơi ADR, sơ đồ và vận hành.
-- [ ] **P01.13** — Tạo **`workspace/`** (được gitignore; dùng cho input/scratch của task).
-- [ ] **P01.14** — Tạo **`output/`** (được gitignore; dùng cho artifact bàn giao).
-- [ ] **P01.15** — Tạo **`.runtime/`** (được gitignore; chứa state/log/cache/private data).
+- [x] **P01.01** — Tạo repo mới, root files (`README.md`, `PROGRESS.md`, `AGENTS.md`, `.gitignore`, `.env.example`) và commit khởi tạo *(SHA: `d1270da`, `caef2c1`, hoàn thiện `.env.example`, root `PROGRESS.md`, `AGENTS.md` và `.gitignore` tại `6fadd1c`)*.
+- [x] **P01.02** — Tạo **`agents/`** với README quy định chỉ giữ agent manifests/definitions *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.03** — Tạo **`core/`** với README các nhóm thuật toán và dependency boundaries *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.04** — Tạo **`engines/`** với hợp đồng adapter tối thiểu, không tích hợp model vội *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.05** — Tạo **`tools/`** với quy tắc đăng ký tool và quyền *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.06** — Tạo **`skills/`** với schema/lifecycle rỗng *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.07** — Tạo **`storage/`** với phân tách mã persistence khỏi data runtime *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.08** — Tạo **`api/`** với contract cho client *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.09** — Tạo **`ui/`** với web app tối thiểu, chưa có 3D *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.10** — Tạo **`sandbox/`** và tài liệu cách ly *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.11** — Tạo **`tests/`** với test runner/fixture tối thiểu *(SHA: `29e0662`, `3d25cf5`, `6fadd1c`)*.
+- [x] **P01.12** — Tạo **`docs/`** với nơi ADR, sơ đồ và vận hành *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.13** — Tạo **`workspace/`** (được gitignore; dùng cho input/scratch của task) *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.14** — Tạo **`output/`** (được gitignore; dùng cho artifact bàn giao) *(SHA: `29e0662`, `6fadd1c`)*.
+- [x] **P01.15** — Tạo **`.runtime/`** (được gitignore; chứa state/log/cache/private data) *(SHA: `29e0662`, kiểm chứng cục bộ và `.gitignore` tại `6fadd1c`)*.
 
 **PHASE 01B — Tiêu chuẩn và Kiến trúc** *(nhánh bổ sung ngoài lộ trình gốc PHASE 00–17 nhằm chuẩn hóa đặc tả trước khi lập trình)* — **PHASE 01B: DONE**
 
@@ -175,7 +175,7 @@ AI-Village/
 - [x] **P01B.06 — Tạo bộ Template chuẩn:** Khởi tạo 3 mẫu cấu hình tại `docs/templates/` (`agent/agent.yaml`, `department/department.yaml`, `skill/SKILL.md`). (SHA: `74c0b17`)
 - [x] **P01B.07 — Kiểm toán và đồng bộ chéo toàn bộ Specification:** Xử lý 8 phát hiện bất nhất, kiểm thử `tests/standards/test_standards_consistency.py` (6/6 PASSED), xuất báo cáo `docs/reviews/PHASE_01B_AUDIT.md`.
 
-**Gate A:** cấu trúc rõ ràng, Git sạch, có một lệnh chạy test/format; không có mã nghiệp vụ đặt sai folder.
+**Gate A (`PASS_WITH_LIMITATIONS`):** cấu trúc 14 thư mục, UI scaffold và bộ kiểm thử nền tảng đã chạy thật (`11 passed`), Git sạch, không có mã nghiệp vụ sai folder; riêng `P00.01` (`docs/architecture/vision.md`) đang ở trạng thái `PENDING_USER_APPROVAL` chờ người vận hành duyệt để đóng hoàn toàn Gate A (`docs/reviews/CHANG_A_AUDIT.md`).
 
 ### CHẶNG B — Chứng minh bộ não thật, trước khi xây dân làng
 
@@ -571,6 +571,47 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests/standards/test_standards_consistency.py -v` đạt `6 passed`; `git diff --check` sạch; quét từ cấm đạt chuẩn; báo cáo kiểm toán tại `docs/reviews/PHASE_01B_AUDIT.md`.
 Blocking issue: Không có (ghi nhận 1 mục Informational tại `AGENTS.md` dòng 35 giữ nguyên ngoài phạm vi chỉnh sửa P01B.07).
 Next: Dừng sau nghiệm thu PHASE 01B; chờ chỉ đạo thực hiện các hạng mục còn lại của PHASE 00–01 / Gate A trước khi bước sang PHASE 02.
+
+### PHASE 00 (P00.01–P00.04) — Hoàn thiện Tài liệu Kiến trúc Nền tảng
+ID: P00.01–P00.04
+Status: PARTIAL (P00.02–P00.04 DONE; P00.01 IN_PROGRESS / PENDING_USER_APPROVAL)
+Scope: docs/architecture/vision.md, docs/architecture/boundaries.md, docs/architecture/reuse_inventory.md, docs/decisions/ADR-0001-temporary-technology-stack.md
+Git SHA: ac67b88
+Acceptance:
+- `P00.01`: Tạo `docs/architecture/vision.md` tổng hợp Product Vision, MVP, ngoài MVP, trạng thái DoD, tiêu chí nghiệm thu và đối chiếu phê duyệt; đánh dấu `PENDING_USER_APPROVAL` do chưa có xác nhận phê duyệt chính thức từ người vận hành.
+- `P00.02`: Tạo `docs/architecture/boundaries.md` định nghĩa 5 nhóm ranh giới (Trust, Data, Permission, Protected Operations, Failure) khớp `RULE_SPEC.md` và `TOOL_SPEC.md`.
+- `P00.03`: Tạo `docs/architecture/reuse_inventory.md` kiểm kê chỉ đọc `C:\DoCho\marketting` và `C:\Users\taine\Downloads\Multi-Agent-Pentest-System-main.zip` (ghi `UNVERIFIED` cho phần lịch sử git ngoài file nén), phân loại rõ `ADAPT` / `REWRITE` / `REJECT` / `UNVERIFIED`.
+- `P00.04`: Tạo `docs/decisions/ADR-0001-temporary-technology-stack.md` ghi nhận Python/FastAPI/SQLite + React/Vite (3D để sau M4), chưa khóa CrewAI và chưa kiểm chứng Antigravity CLI.
+Tests / Evidence: `python -m pytest tests -v` (`11 passed`), kiểm tra liên kết và không rò rỉ bí mật.
+Blocking issue: `P00.01` cần người vận hành duyệt `docs/architecture/vision.md`.
+Next: Hoàn thiện phần thiếu của PHASE 01 và kiểm toán Gate A.
+
+### PHASE 01 (P01.01–P01.15) — Hoàn thiện Cấu trúc Repository & UI Scaffold
+ID: P01.01–P01.15
+Status: DONE (bổ sung hoàn thiện trên nền các commit P01 `29e0662` và P02 `d1270da`/`caef2c1` trước đây)
+Scope: .env.example, PROGRESS.md, AGENTS.md, .gitignore, README.md trong 11 thư mục kỹ thuật/tài liệu, workspace/.gitkeep, output/.gitkeep, ui/ (React + Vite tối thiểu), tests/stage_a/test_stage_a_baseline.py
+Git SHA: 6fadd1c (kế thừa `29e0662`, `d1270da`, `caef2c1`)
+Acceptance:
+- `P01.01`: Tạo `.env.example` chỉ gồm placeholder an toàn, tạo root `PROGRESS.md` trỏ tới `docs/PROGRESS.md`, sửa ghi chú cũ về `system_role` tại `AGENTS.md` dòng 35, sửa `.gitignore` đảm bảo `workspace/**/*` và `output/**/*` luôn bị ignore kể cả tệp `.md`.
+- `P01.02`–`P01.08`, `P01.10`, `P01.12`: Tạo `README.md` đúng ranh giới thiết kế cho `agents/`, `core/`, `engines/`, `tools/`, `skills/`, `storage/`, `api/`, `sandbox/`, `docs/`.
+- `P01.09`: Tạo scaffold React + Vite tối thiểu tại `ui/` (chưa có 3D, hiển thị trạng thái `Runtime chưa được kết nối`), cài dependencies cục bộ trong `ui/` và build thành công.
+- `P01.11`: Tạo `tests/README.md` và `tests/stage_a/test_stage_a_baseline.py` kiểm chứng cấu trúc, liên kết, bảo mật và hợp đồng scaffold.
+- `P01.13`–`P01.15`: Kiểm chứng trực tiếp `workspace/`, `output/` (có `.gitkeep`) và `.runtime/` (trống, không tạo DB giả) đều tồn tại cục bộ và bị Git bỏ qua dữ liệu tác vụ/runtime.
+Tests / Evidence: `cd ui && npm install && npm run build` (exit 0, `built in 3.28s`); `python -m pytest tests -v` (`11 passed`); `git check-ignore` xác nhận loại trừ `workspace/`, `output/`, `.runtime/`, `.env`.
+Blocking issue: Không có.
+Next: Kiểm toán tổng thể và xuất `docs/reviews/CHANG_A_AUDIT.md`.
+
+### Gate A — Kiểm toán và Nghiệm thu Chặng A
+ID: Gate-A
+Status: PASS_WITH_LIMITATIONS
+Scope: docs/reviews/CHANG_A_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `docs(audit): verify and close stage A` trên git log sau khi push)
+Acceptance:
+- Tổng hợp bằng chứng 19 tiểu mục `P00.01`–`P00.04` và `P01.01`–`P01.15` (18 `PASS`, 1 `PARTIAL` là `P00.01` chờ người vận hành duyệt `vision.md`), giữ nguyên `PHASE 01B: DONE`.
+- Toàn bộ kiểm thử (`11 passed`), build UI (`npm run build`) và kiểm tra `.gitignore` / bảo mật đều vượt qua sau chỉnh sửa cuối.
+Tests / Evidence: `python -m pytest tests -v` (`11 passed`); `cd ui && npm run build` (exit 0); `git diff --check` sạch; báo cáo chi tiết tại `docs/reviews/CHANG_A_AUDIT.md`.
+Blocking issue: Chờ người vận hành xác nhận phê duyệt `docs/architecture/vision.md` để đóng `P00.01` và chuyển Gate A sang `PASS`.
+Next: Sau khi người vận hành phê duyệt `vision.md`, chuyển sang `PHASE 02 — Antigravity Execution Proof`.
 
 
 
