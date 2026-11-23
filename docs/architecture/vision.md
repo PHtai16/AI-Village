@@ -1,6 +1,6 @@
 # AI Village: Tầm nhìn Sản phẩm và Phạm vi MVP (Product Vision & MVP Definition)
 
-Tài liệu này hệ thống hóa tầm nhìn sản phẩm, định hướng kiến trúc đa nhà cung cấp và đa khóa API, phạm vi MVP, ranh giới các hạng mục chưa triển khai trong MVP, định nghĩa hoàn thành và tiêu chí nghiệm thu dựa trên các quyết định nền tảng tại [SYSTEM_BLUEPRINT.md](file:///C:/DoCho/AI-Village/docs/architecture/SYSTEM_BLUEPRINT.md), [README.md](file:///C:/DoCho/AI-Village/README.md) và [PROGRESS.md](file:///C:/DoCho/AI-Village/docs/PROGRESS.md).
+Tài liệu này hệ thống hóa tầm nhìn sản phẩm, định hướng kiến trúc đa nhà cung cấp và đa khóa API, phạm vi MVP, ranh giới các hạng mục chưa triển khai trong MVP, định nghĩa hoàn thành và tiêu chí nghiệm thu dựa trên các quyết định nền tảng tại [SYSTEM_BLUEPRINT.md](SYSTEM_BLUEPRINT.md), [README.md](../../README.md) và [PROGRESS.md](../PROGRESS.md).
 
 ## 1. Tầm nhìn Sản phẩm (Product Vision)
 
@@ -191,8 +191,8 @@ Các năng lực sau thuộc tầm nhìn dài hạn của AI Village và chỉ t
 
 AI Village tách biệt hoàn toàn hai hệ thống trạng thái:
 
-- **Trạng thái Task (`Task Lifecycle`):** Phản ánh trạng thái vận hành của một nhiệm vụ cụ thể trong Runtime, được quản lý bởi máy trạng thái tại `core/` và xác nhận bằng sự kiện hệ thống thực tế. Trong [AGENT_SPEC.md](file:///C:/DoCho/AI-Village/docs/standards/AGENT_SPEC.md), trạng thái hoàn thành hợp lệ của Task là `COMPLETED` (tương ứng khái niệm `DONE` ở mức mô tả nghiệp vụ).
-- **Trạng thái hoàn thành Phase (`Phase / Roadmap Status`):** Phản ánh mức độ hoàn tất của một tiểu phase phát triển phần mềm trong [PROGRESS.md](file:///C:/DoCho/AI-Village/docs/PROGRESS.md) (`TODO`, `IN_PROGRESS`, `BLOCKED`, `DONE`), chỉ được công nhận `DONE` khi có mã nguồn hoặc tài liệu thực tế, test vượt qua và commit Git đã kiểm chứng.
+- **Trạng thái Task (`Task Lifecycle`):** Phản ánh trạng thái vận hành của một nhiệm vụ cụ thể trong Runtime, được quản lý bởi máy trạng thái tại `core/` và xác nhận bằng sự kiện hệ thống thực tế. Trong [AGENT_SPEC.md](../standards/AGENT_SPEC.md), trạng thái hoàn thành hợp lệ của Task là `COMPLETED` (tương ứng khái niệm `DONE` ở mức mô tả nghiệp vụ).
+- **Trạng thái hoàn thành Phase (`Phase / Roadmap Status`):** Phản ánh mức độ hoàn tất của một tiểu phase phát triển phần mềm trong [PROGRESS.md](../PROGRESS.md) (`TODO`, `IN_PROGRESS`, `BLOCKED`, `DONE`), chỉ được công nhận `DONE` khi có mã nguồn hoặc tài liệu thực tế, test vượt qua và commit Git đã kiểm chứng.
 
 Không được dùng trạng thái `DONE` của một tiểu phase tài liệu để suy diễn rằng chức năng Runtime của Task đã chạy được.
 
@@ -220,13 +220,12 @@ MVP chỉ được công nhận đạt khi toàn bộ các tiêu chí kiểm ch�
 
 ### 6.1. Đối chiếu các quyết định đã được người vận hành xác nhận
 
-- Định hướng AI Village là hệ thống Multi-Agent đa chức năng (không phải phần mềm marketing chuyên biệt), tổ chức theo 9 phòng ban mặc định mang tính miền năng lực và điều phối qua Master Agent tại [README.md](file:///C:/DoCho/AI-Village/README.md) và [SYSTEM_BLUEPRINT.md](file:///C:/DoCho/AI-Village/docs/architecture/SYSTEM_BLUEPRINT.md).
-- Nguyên tắc bất biến: Evidence First, tách biệt QA độc lập, không khóa cứng CrewAI trước khi kiểm chứng Phase 03, ưu tiên 2D trước 3D, bảo mật Fail-Closed và cấu trúc 14 thư mục gốc tại [AGENTS.md](file:///C:/DoCho/AI-Village/AGENTS.md) và bộ tiêu chuẩn `docs/standards/`.
-- Yêu cầu chuẩn hóa tầm nhìn Multi-Provider, Multi-Model, Multi-API-Key (BYOK) và Multi-Platform trước khi phê duyệt `P00.01`.
+- Định hướng AI Village là hệ thống Multi-Agent đa chức năng (không phải phần mềm marketing chuyên biệt), tổ chức theo 9 phòng ban mặc định mang tính miền năng lực và điều phối qua Master Agent tại [README.md](../../README.md) và [SYSTEM_BLUEPRINT.md](SYSTEM_BLUEPRINT.md).
+- Nguyên tắc bất biến: Evidence First, tách biệt QA độc lập, không khóa cứng CrewAI trước khi kiểm chứng Phase 03, ưu tiên 2D trước 3D, bảo mật Fail-Closed và cấu trúc 14 thư mục gốc tại [AGENTS.md](../../AGENTS.md) và bộ tiêu chuẩn `docs/standards/`.
+- Yêu cầu chuẩn hóa tầm nhìn Multi-Provider, Multi-Model, Multi-API-Key (BYOK) và Multi-Platform trước khi phê duyệt `P00.01` (commit `e4522aa`).
+- **Xác nhận phê duyệt `vision.md`:** Người vận hành đã xác nhận phê duyệt trực tiếp trong phiên làm việc ngày 2026-11-23 (`"Oke duyệt"`) sau khi rà soát tầm nhìn Multi-Provider, Multi-Model, Multi-API-Key, Multi-Platform và định hướng phát triển hệ thống trước giao diện 3D.
 
-### 6.2. Nội dung chờ người vận hành phê duyệt
+### 6.2. Trạng thái Phê duyệt và Các Quyết định Theo Lộ trình Sau
 
-- **Trạng thái phê duyệt tài liệu `vision.md`:** `PENDING_USER_APPROVAL`
-- **Các mục cụ thể cần người vận hành xác nhận để đóng P00.01 và Mục 5 của `PROGRESS.md`:**
-  1. Phê duyệt chính thức bản tầm nhìn sản phẩm đã cập nhật (bao gồm Multi-Provider, Multi-Model, Multi-API-Key BYOK, ranh giới MVP so với Sau MVP và Tiêu chí nghiệm thu MVP) trong tài liệu này.
-  2. Chốt các quyết định còn mở tại Mục 5 của [PROGRESS.md](file:///C:/DoCho/AI-Village/docs/PROGRESS.md): tên dự án chính thức (`AI Village`), đường dẫn repository (`C:\DoCho\AI-Village`), phạm vi quyền tự động mặc định của Master trong workspace so với các thao tác cần người duyệt, phương án hiển thị 3D và lựa chọn công nghệ 3D sau khi đạt M4, cũng như việc chốt CrewAI chỉ thực hiện sau P03.01–P03.02.
+- **Trạng thái phê duyệt tài liệu `vision.md`:** `APPROVED` (Nguồn quyết định: xác nhận trực tiếp `"Oke duyệt"` của người vận hành trong phiên làm việc 2026-11-23; không tự tạo chữ ký giả lập).
+- **Các mục kỹ thuật dài hạn giữ mở theo đúng lộ trình tại Mục 5 của [PROGRESS.md](../PROGRESS.md):** Tên dự án chính thức / đường dẫn repo (đang sử dụng `AI Village` tại `C:\DoCho\AI-Village`), phương án hiển thị 3D và lựa chọn công nghệ 3D (chỉ chốt sau khi đạt M4 / Gate H), quy tắc mặc định chi tiết của Master trong workspace và quyết định chốt CrewAI (chỉ chốt sau thực nghiệm `P03.01`–`P03.02`). Việc giữ mở các lựa chọn phase sau này không chặn việc đóng `P00.01`.

@@ -1,21 +1,21 @@
 # Báo cáo Kiểm toán và Nghiệm thu Chặng A (`CHANG_A_AUDIT`)
 
-**Ngày kiểm toán:** 2026-11-23  
-**Commit kiểm chứng:** `ac67b88` (PHASE 00) và `6fadd1c` (PHASE 01) trên nền `3d25cf5` (PHASE 01B)  
-**Kết luận Gate A:** `PASS_WITH_LIMITATIONS`
+**Ngày kiểm toán:** 2026-11-23
+**Commit kiểm chứng:** `ac67b88` (PHASE 00), `6fadd1c` (PHASE 01), `e4522aa` (Vision Multi-Provider/Multi-Key) trên nền `3d25cf5` (PHASE 01B)
+**Kết luận Gate A:** `PASS` (đã cập nhật sau khi người vận hành xác nhận phê duyệt `vision.md` bằng phản hồi `"Oke duyệt"` ngày 2026-11-23)
 
 ## 1. Executive Summary
 
-- **PHASE 00 (Quy tắc nền tảng):** Hoàn thiện toàn bộ 4 tài liệu tại `docs/architecture/` và `docs/decisions/` (commit `ac67b88`). Ba hạng mục `P00.02`, `P00.03` và `P00.04` đạt `PASS`. Hạng mục `P00.01` (`docs/architecture/vision.md`) đã viết đủ nội dung theo tài liệu nền tảng nhưng mang trạng thái `PARTIAL` do điều kiện DoD yêu cầu `vision.md` được người vận hành phê duyệt chính thức (`PENDING_USER_APPROVAL`).
+- **PHASE 00 (Quy tắc nền tảng):** Hoàn thiện toàn bộ 4 tài liệu tại `docs/architecture/` và `docs/decisions/` (`ac67b88`, bổ sung Multi-Provider/Multi-Key tại `e4522aa`). Sau khi người vận hành xác nhận phê duyệt trực tiếp `"Oke duyệt"` đối với `docs/architecture/vision.md` ngày 2026-11-23, cả 4/4 hạng mục `P00.01`–`P00.04` đạt `PASS`.
 - **PHASE 01 (Khởi tạo cấu trúc):** Hoàn thiện toàn bộ 15 hạng mục từ `P01.01` đến `P01.15` (commit `6fadd1c`), bổ sung đầy đủ tệp gốc còn thiếu (`.env.example`, `PROGRESS.md` liên kết trỏ tới `docs/PROGRESS.md`), cập nhật ghi chú `system_role` đã đồng bộ trong `AGENTS.md`, sửa quy tắc `.gitignore` bảo vệ thư mục `workspace/` và `output/`, tạo `README.md` cho toàn bộ thư mục kỹ thuật, khởi tạo scaffold React + Vite tối thiểu tại `ui/` và bộ test nền tảng tại `tests/stage_a/test_stage_a_baseline.py`. Toàn bộ 15/15 hạng mục đạt `PASS`.
 - **PHASE 01B (Tiêu chuẩn và Kiến trúc):** Giữ nguyên trạng thái `DONE` đã nghiệm thu tại `docs/reviews/PHASE_01B_AUDIT.md` (`3d25cf5`). Không viết lại hoặc sửa các đặc tả của PHASE 01B.
-- **Gate A:** Đạt `PASS_WITH_LIMITATIONS`. Về mặt kỹ thuật, cấu trúc 14 thư mục, tài liệu, test tự động, UI build và bảo mật Git đều đạt yêu cầu. Chặng A chưa được đóng ở mức `PASS` tuyệt đối cho đến khi người vận hành xác nhận phê duyệt `docs/architecture/vision.md` (`P00.01`).
+- **Gate A:** Đạt **`PASS`**. Toàn bộ 19/19 tiểu mục Chặng A, cấu trúc 14 thư mục, tài liệu nền tảng (bao gồm `vision.md` đã phê duyệt và bản đặc tả bổ sung `MISSION_CONTROL_UX.md`), test tự động, UI build và bảo mật Git đều đáp ứng điều kiện đóng Chặng A.
 
 ## 2. Checklist Verification (19 Tiểu mục PHASE 00–01)
 
 | ID | Expected DoD | Actual Evidence | Result |
 | :--- | :--- | :--- | :--- |
-| **P00.01** | `docs/architecture/vision.md` được duyệt | Tệp [docs/architecture/vision.md](../architecture/vision.md) tồn tại trong commit `ac67b88`, đủ 6 mục theo yêu cầu, đối chiếu `SYSTEM_BLUEPRINT.md`, `README.md` và `PROGRESS.md`; Mục 6 ghi rõ `PENDING_USER_APPROVAL` do chưa có phê duyệt chính thức của người vận hành. | **PARTIAL** |
+| **P00.01** | `docs/architecture/vision.md` được duyệt | Tệp [docs/architecture/vision.md](../architecture/vision.md) khởi tạo tại `ac67b88`, chuẩn hóa Multi-Provider/Multi-Key tại `e4522aa`, được người vận hành xác nhận phê duyệt trực tiếp (`"Oke duyệt"`, 2026-11-23) tại Mục 6 với trạng thái `APPROVED`. | **PASS** |
 | **P00.02** | `docs/architecture/boundaries.md` | Tệp [docs/architecture/boundaries.md](../architecture/boundaries.md) tồn tại trong commit `ac67b88`, định nghĩa đủ 5 mục A–E (Trust, Data, Permission, Protected Operations, Failure Boundaries) khớp `RULE_SPEC.md` và `TOOL_SPEC.md`. | **PASS** |
 | **P00.03** | `docs/architecture/reuse_inventory.md` | Tệp [docs/architecture/reuse_inventory.md](../architecture/reuse_inventory.md) tồn tại trong commit `ac67b88`, kiểm kê chỉ đọc trực tiếp `C:\DoCho\marketting` và `C:\Users\taine\Downloads\Multi-Agent-Pentest-System-main.zip` (ghi nhận `UNVERIFIED` cho lịch sử git ngoài file nén), phân loại rõ `ADAPT` / `REWRITE` / `REJECT` / `UNVERIFIED`, không copy mã cũ hay secrets. | **PASS** |
 | **P00.04** | Một ADR trong `docs/decisions/` | Tệp [docs/decisions/ADR-0001-temporary-technology-stack.md](../decisions/ADR-0001-temporary-technology-stack.md) tồn tại trong commit `ac67b88`, đủ 8 phần bắt buộc, ghi trạng thái `PROPOSED_TEMPORARY`, chưa khóa CrewAI và chưa tuyên bố Antigravity CLI đã kiểm chứng. | **PASS** |
@@ -78,10 +78,9 @@
 
 ## 6. Open Issues
 
-1. **Phê duyệt `docs/architecture/vision.md` (`P00.01`):** Tài liệu đã hoàn thiện đầy đủ nội dung nhưng vẫn ở trạng thái `PENDING_USER_APPROVAL` chờ người vận hành xác nhận phê duyệt chính thức.
-2. **Các quyết định còn mở tại Mục 5 của `docs/PROGRESS.md`:** Tên dự án chính thức, đường dẫn repository, cách hiển thị 3D, quyền mặc định của Master trong workspace, chốt CrewAI (chờ Phase 03) và công nghệ 3D (chờ sau M4) vẫn giữ nguyên trạng thái chưa chốt `[ ]`.
+- Các quyết định kỹ thuật thuộc giai đoạn sau tại Mục 5 của `docs/PROGRESS.md` (chốt CrewAI sau thực nghiệm `PHASE 03`, lựa chọn phương án và công nghệ 3D sau `M4` / `Gate H`, tinh chỉnh quy tắc chi tiết của Master) vẫn tiếp tục giữ mở theo đúng lộ trình và không ảnh hưởng điều kiện đóng Chặng A.
 
 ## 7. Final Gate Decision
 
-- **Quyết định chính thức:** **`PASS_WITH_LIMITATIONS`**
-- **Điều kiện đóng hoàn toàn Chặng A:** 18/19 tiểu mục (`P00.02`–`P00.04` và `P01.01`–`P01.15`) đã `PASS`, PHASE 01B giữ nguyên `DONE`, toàn bộ kiểm thử nền tảng và build UI đã `PASS`. Để chuyển Gate A từ `PASS_WITH_LIMITATIONS` sang `PASS` và đóng hoàn toàn Chặng A trước khi bước sang **PHASE 02 (Antigravity Execution Proof)**, cần người vận hành xem và xác nhận phê duyệt [docs/architecture/vision.md](../architecture/vision.md) để đóng `P00.01`.
+- **Quyết định chính thức:** **`PASS`**
+- **Căn cứ đóng Chặng A:** 19/19 tiểu mục (`P00.01`–`P00.04` và `P01.01`–`P01.15`) đều đạt `PASS` sau khi người vận hành xác nhận phê duyệt `docs/architecture/vision.md` (`"Oke duyệt"`, 2026-11-23), `PHASE 01B` giữ nguyên `DONE`, cấu trúc 14 thư mục và bộ kiểm thử nền tảng `pytest` + UI build đều đạt. Bước triển khai tiếp theo theo lộ trình gốc là **PHASE 02: Antigravity Execution Proof**.
