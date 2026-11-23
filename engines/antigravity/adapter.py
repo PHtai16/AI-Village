@@ -18,10 +18,19 @@ from engines.antigravity.models import (
     AntigravityError,
     AntigravityHandshakeRequest,
     AntigravityHandshakeResult,
+    AntigravityStreamEvent,
+    AntigravityStreamRequest,
+    AntigravityStreamResult,
     AntigravityTelemetry,
     AntigravityToolExecutionRequest,
     AntigravityToolExecutionResult,
     ArtifactVerificationResult,
+)
+from engines.antigravity.streaming import (
+    AntigravityStreamParser,
+    PopenFactory,
+    build_telemetry_from_payload,
+    run_streaming_process,
 )
 from engines.antigravity.verification import (
     resolve_within_workspace,
@@ -156,34 +165,7 @@ def _classify_cli_error(exit_code: int | None, stdout: str, stderr: str) -> Anti
 
 def _build_telemetry(duration_ms: int, payload: dict[str, Any] | None) -> AntigravityTelemetry:
     """Construct telemetry from verified CLI JSON usage fields without fabricating data."""
-    if not payload:
-        return AntigravityTelemetry(
-            duration_ms=duration_ms,
-            telemetry_status="UNAVAILABLE_FROM_PROVIDER",
-        )
-
-    provider_duration = payload.get("duration_seconds")
-    usage = payload.get("usage")
-    if isinstance(usage, dict) and any(
-        isinstance(usage.get(k), int)
-        for k in ("input_tokens", "output_tokens", "total_tokens")
-    ):
-        return AntigravityTelemetry(
-            duration_ms=duration_ms,
-            provider_duration_seconds=float(provider_duration) if isinstance(provider_duration, (int, float)) else None,
-            input_tokens=usage.get("input_tokens") if isinstance(usage.get("input_tokens"), int) else None,
-            output_tokens=usage.get("output_tokens") if isinstance(usage.get("output_tokens"), int) else None,
-            thinking_tokens=usage.get("thinking_tokens") if isinstance(usage.get("thinking_tokens"), int) else None,
-            cache_read_tokens=usage.get("cache_read_tokens") if isinstance(usage.get("cache_read_tokens"), int) else None,
-            total_tokens=usage.get("total_tokens") if isinstance(usage.get("total_tokens"), int) else None,
-            telemetry_status="VERIFIED_MEASURED",
-        )
-
-    return AntigravityTelemetry(
-        duration_ms=duration_ms,
-        provider_duration_seconds=float(provider_duration) if isinstance(provider_duration, (int, float)) else None,
-        telemetry_status="UNAVAILABLE_FROM_PROVIDER",
-    )
+    return build_telemetry_from_payload(duration_ms, payload)
 
 
 def normalize_result(
@@ -354,15 +336,18 @@ class AntigravityAdapter:
         self,
         cli_path: str | None = None,
         runner: RunnerCallable | None = None,
+        popen_factory: PopenFactory | None = None,
     ) -> None:
-        """Initialize the adapter with an optional CLI override and subprocess runner.
+        """Initialize the adapter with optional CLI, subprocess runner, and Popen overrides.
 
         Args:
             cli_path: Optional explicit path to the ``agy`` executable.
             runner: Optional subprocess callable matching ``subprocess.run`` for testing.
+            popen_factory: Optional process spawner matching ``subprocess.Popen`` for streaming.
         """
         self._cli_path = cli_path
         self._runner: RunnerCallable = runner or subprocess.run
+        self._popen_factory: PopenFactory = popen_factory or subprocess.Popen
 
     def discover(self) -> AntigravityDiscoveryResult:
         """Locate the Antigravity CLI executable."""
@@ -852,6 +837,230 @@ class AntigravityAdapter:
         )
 
     @staticmethod
+    def _stream_preflight_failure(
+        *,
+        status: str,
+        executable_path: str | None,
+        version: str | None,
+        command_summary: str,
+        model_id: str | None,
+        error: AntigravityError,
+    ) -> AntigravityStreamResult:
+        """Build a normalized preflight failure result for ``stream_task``."""
+        now = datetime.now(timezone.utc)
+        return AntigravityStreamResult(
+            status=status,  # type: ignore[arg-type]
+            executable_path=executable_path,
+            version=version,
+            command_summary=command_summary,
+            started_at=now,
+            finished_at=now,
+            duration_ms=0,
+            model_id=model_id,
+            telemetry=AntigravityTelemetry(
+                duration_ms=0,
+                telemetry_status="UNAVAILABLE_FROM_PROVIDER",
+            ),
+            error=error,
+        )
+
+    def stream_task(
+        self,
+        request: AntigravityStreamRequest,
+        *,
+        on_event: Callable[[AntigravityStreamEvent], None] | None = None,
+    ) -> AntigravityStreamResult:
+        """Execute ``agy --output-format stream-json`` and stream normalized events.
+
+        Args:
+            request: Validated streaming request specifying prompt, workspace, and caps.
+            on_event: Optional callback invoked as each normalized event arrives.
+
+        Returns:
+            ``AntigravityStreamResult`` containing ordered events, telemetry, and outcome.
+        """
+        discovery = self.discover()
+        if not discovery.found or not discovery.executable_path:
+            return self._stream_preflight_failure(
+                status="BLOCKED",
+                executable_path=None,
+                version=None,
+                command_summary="agy (not found)",
+                model_id=request.model,
+                error=AntigravityError(
+                    error_code="EXECUTABLE_NOT_FOUND",
+                    message=discovery.error or "Antigravity CLI executable not found.",
+                    retryable=False,
+                ),
+            )
+
+        exe = discovery.executable_path
+        workspace = Path(request.workspace_path)
+        if not workspace.is_dir():
+            return self._stream_preflight_failure(
+                status="FAILED",
+                executable_path=exe,
+                version=None,
+                command_summary="agy (invalid workspace)",
+                model_id=request.model,
+                error=AntigravityError(
+                    error_code="PROCESS_LAUNCH_ERROR",
+                    message=f"Workspace directory does not exist: {workspace}",
+                    retryable=False,
+                ),
+            )
+
+        caps = self.probe(timeout_seconds=min(15, request.timeout_seconds))
+        if request.require_sandbox and not caps.supports_sandbox_flag:
+            return self._stream_preflight_failure(
+                status="BLOCKED",
+                executable_path=exe,
+                version=caps.version,
+                command_summary="agy (sandbox flag unsupported)",
+                model_id=request.model,
+                error=AntigravityError(
+                    error_code="SANDBOX_UNVERIFIED",
+                    message="Antigravity CLI does not advertise --sandbox support.",
+                    retryable=False,
+                ),
+            )
+
+        if not (caps.supports_print_mode and caps.supports_stream_json_flag and caps.supports_mode_flag):
+            return self._stream_preflight_failure(
+                status="BLOCKED",
+                executable_path=exe,
+                version=caps.version,
+                command_summary="agy (unsupported print/stream-json/mode flags)",
+                model_id=request.model,
+                error=AntigravityError(
+                    error_code="UNSUPPORTED_MODE",
+                    message="Antigravity CLI lacks required --print, stream-json, or --mode support.",
+                    retryable=False,
+                ),
+            )
+
+        command: list[str] = [exe]
+        if request.require_sandbox:
+            command.append("--sandbox")
+        command.extend(
+            [
+                "--mode",
+                request.execution_mode,
+                "--output-format",
+                "stream-json",
+                f"--print-timeout={request.timeout_seconds}s",
+            ]
+        )
+        if request.model:
+            command.extend(["--model", request.model])
+        command.append(f"--print={request.prompt}")
+
+        parser = AntigravityStreamParser(
+            max_payload_chars=request.max_payload_chars,
+            max_line_bytes=request.max_line_bytes,
+        )
+        outcome = run_streaming_process(
+            command=command,
+            workspace=workspace,
+            timeout_seconds=request.timeout_seconds,
+            parser=parser,
+            on_event=on_event,
+            popen_factory=self._popen_factory,
+        )
+        events = list(outcome.events)
+        telemetry = (
+            parser.final_telemetry.model_copy(update={"duration_ms": outcome.duration_ms})
+            if parser.final_telemetry is not None
+            else AntigravityTelemetry(
+                duration_ms=outcome.duration_ms,
+                telemetry_status="UNAVAILABLE_FROM_PROVIDER",
+            )
+        )
+
+        error: AntigravityError | None = None
+        if outcome.launch_error is not None:
+            status = "FAILED"
+            error = AntigravityError(
+                error_code="PROCESS_LAUNCH_ERROR",
+                message=outcome.launch_error[:500],
+                retryable=False,
+                redacted_stderr=outcome.redacted_stderr,
+            )
+        elif outcome.timed_out:
+            status = "TIMED_OUT"
+            error = AntigravityError(
+                error_code="TIMED_OUT",
+                message=f"Antigravity CLI streaming timed out after {request.timeout_seconds}s.",
+                retryable=False,
+                exit_code=outcome.exit_code,
+                redacted_stderr=outcome.redacted_stderr,
+            )
+        elif outcome.exit_code != 0:
+            status = "FAILED"
+            error = _classify_cli_error(
+                outcome.exit_code,
+                outcome.redacted_stdout_diagnostics,
+                outcome.redacted_stderr,
+            )
+        elif not parser.completion_event_received:
+            status = "FAILED"
+            if parser.final_provider_status is not None and parser.final_provider_status != "SUCCESS":
+                error = AntigravityError(
+                    error_code="PROVIDER_ERROR",
+                    message=f"Antigravity CLI stream reported non-success status: {parser.final_provider_status}",
+                    retryable=False,
+                    exit_code=outcome.exit_code,
+                    redacted_stderr=outcome.redacted_stderr,
+                )
+            else:
+                interrupted = parser.make_adapter_event(
+                    event_type="stream_interrupted",
+                    status="FAILED",
+                    timestamp=outcome.finished_at,
+                    redacted_payload={
+                        "reason": "missing_completion_event",
+                        "exit_code": outcome.exit_code,
+                    },
+                )
+                events.append(interrupted)
+                if on_event is not None:
+                    on_event(interrupted)
+                error = AntigravityError(
+                    error_code="MISSING_COMPLETION_EVENT",
+                    message="Antigravity CLI exited cleanly without emitting a terminal completion event.",
+                    retryable=False,
+                    exit_code=outcome.exit_code,
+                    redacted_stderr=outcome.redacted_stderr,
+                )
+        else:
+            status = "SUCCEEDED"
+
+        return AntigravityStreamResult(
+            status=status,  # type: ignore[arg-type]
+            executable_path=exe,
+            version=caps.version,
+            command_summary=format_command_summary(command),
+            started_at=outcome.started_at,
+            first_event_at=outcome.first_event_at,
+            finished_at=outcome.finished_at,
+            duration_ms=outcome.duration_ms,
+            exit_code=outcome.exit_code,
+            provider_status=parser.final_provider_status,
+            conversation_id=parser.conversation_id,
+            model_id=request.model,
+            num_turns=parser.final_num_turns,
+            response_text=parser.final_response_text,
+            telemetry=telemetry,
+            events=events,
+            observed_tool_names=list(parser.observed_tool_names),
+            completion_event_received=parser.completion_event_received,
+            parse_error_count=parser.parse_error_count,
+            denied_actions=list(parser.final_denied_actions),
+            error=error,
+            redacted_stderr=outcome.redacted_stderr,
+        )
+
+    @staticmethod
     def _classify_verification_failure(verification: ArtifactVerificationResult) -> AntigravityError:
         """Map failed filesystem/hash verification checks to a specific AntigravityError."""
         reason = "; ".join(verification.failure_reasons) or "Artifact verification failed."
@@ -921,3 +1130,28 @@ def execute_tool_task(
         model=model,
     )
     return AntigravityAdapter(cli_path=cli_path).execute_tool_task(request)
+
+
+def stream_task(
+    prompt: str,
+    workspace_path: str,
+    *,
+    cli_path: str | None = None,
+    timeout_seconds: int = 90,
+    require_sandbox: bool = True,
+    execution_mode: str = "accept-edits",
+    model: str | None = None,
+    max_payload_chars: int = 512,
+    on_event: Callable[[AntigravityStreamEvent], None] | None = None,
+) -> AntigravityStreamResult:
+    """Convenience wrapper to stream normalized events from a single Antigravity CLI turn."""
+    request = AntigravityStreamRequest(
+        prompt=prompt,
+        workspace_path=workspace_path,
+        timeout_seconds=timeout_seconds,
+        require_sandbox=require_sandbox,
+        execution_mode=execution_mode,  # type: ignore[arg-type]
+        model=model,
+        max_payload_chars=max_payload_chars,
+    )
+    return AntigravityAdapter(cli_path=cli_path).stream_task(request, on_event=on_event)
