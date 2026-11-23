@@ -131,10 +131,11 @@ Tool Registry chịu trách nhiệm kiểm soát vòng đời khả dụng của
 Tool Runtime được thiết kế độc lập với công nghệ lõi của các AI Provider và không phụ thuộc bắt buộc vào CrewAI:
 
 - **Giao diện trung lập:** Tầng `engines/` giao tiếp với `core/` thông qua một contract trừu tượng, tách biệt logic gọi công cụ khỏi định dạng API riêng của từng nhà cung cấp mô hình.
-- **Tích hợp Antigravity CLI và các Provider khác:**
-  - Khi sử dụng Antigravity hoặc các CLI Agent có khả năng thao tác công cụ nội sinh, Engine Adapter chịu trách nhiệm truyền cấu hình giới hạn workspace, giám sát tiến trình và kiểm chứng lại kết quả thực tế trên đĩa sau khi thực thi.
+- **Tích hợp Antigravity CLI, Agent Execution Platform và LLM API:**
+  - Khi sử dụng Antigravity CLI hoặc các Agent Execution Platform có khả năng thao tác công cụ nội sinh, Engine Adapter chịu trách nhiệm truyền cấu hình giới hạn workspace, giám sát tiến trình và kiểm chứng lại kết quả thực tế trên đĩa sau khi thực thi.
   - Tài liệu này không giả định trước việc Antigravity CLI hỗ trợ một giao thức tool-calling hay streaming JSON cụ thể nào cho đến khi được kiểm chứng thực tế tại Phase 02.
-- **Công cụ nội bộ AI Village:** Khi làm việc với các Provider chỉ trả về văn bản hoặc JSON yêu cầu gọi hàm, Tool Runtime của AI Village sẽ trực tiếp điều phối thực thi các công cụ trong `tools/` và trả về `ToolResult` chuẩn hóa.
+- **Công cụ nội bộ AI Village cho LLM API:** Khi làm việc với các LLM API chỉ hỗ trợ sinh văn bản, dữ liệu có cấu trúc hoặc đề xuất gọi hàm/công cụ, mô hình không tự có quyền chạm đĩa hay tiến trình hệ thống. Toàn bộ lời đề xuất gọi công cụ phải đi qua Permission Manager (`core/governance/`) và được Tool Runtime của AI Village thực thi thực tế trong `tools/` / `sandbox/`, sau đó trả về `ToolResult` chuẩn hóa.
+- **Xử lý khi Provider không hỗ trợ công cụ bắt buộc:** Nếu mô hình hoặc Provider được chỉ định không hỗ trợ function/tool calling hay khả năng bắt buộc của tác vụ, hệ thống tuyệt đối không giả lập kết quả công cụ. Core Runtime chỉ chuyển sang kết nối/model dự phòng hợp lệ nếu chính sách và ngân sách cho phép; nếu không có phương án thay thế hợp lệ, hệ thống trả về `EXECUTION_FAILED` (`TOOL_UNSUPPORTED_BY_PROVIDER`), đưa nhánh nhiệm vụ về `BLOCKED` và leo thang lên Master hoặc người vận hành.
 
 ## 9. An toàn thực thi và Cách ly (Execution Safety & Isolation)
 

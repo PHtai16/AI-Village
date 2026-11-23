@@ -18,12 +18,12 @@ Mã nguồn và dữ liệu của AI Village được phân định thành các 
 | :--- | :--- | :--- | :--- | :--- |
 | `agents/` | Khai báo manifest cho Agent, Department và Master. | Không | Không | Cấu hình tĩnh, vai trò, năng lực và quyền hạn. |
 | `core/` | Điều phối nhiệm vụ, máy trạng thái, phiên làm việc, phân xử và chính sách an ninh. | Có (Toàn quyền điều phối) | Có (State Machine & Session) | Task contracts, event schemas, permission policies. |
-| `engines/` | Lớp adapter trung gian kết nối Antigravity và các AI Provider khác. | Có (Adapter logic) | Không | Request/response mapping, telemetry parsing. |
-| `tools/` | Thư viện công cụ thực thi độc lập (file, code, browser, research, office). | Có (Thực thi công cụ) | Không | Kết quả trả về từ công cụ hệ thống. |
+| `engines/` | Lớp adapter trung gian kết nối Antigravity, các AI Model API và các nền tảng thực thi khác. | Có (Adapter logic) | Không | Provider/Engine Registry metadata, capability metadata, request/response mapping, telemetry parsing. |
+| `tools/` | Thư viện công cụ thực thi độc lập (file, code, browser, research, office). | Có (Thực thi công cụ) | Không | Kết quả trả về từ công cụ hệ thống (`ToolResult`). |
 | `skills/` | Quy trình nghiệp vụ tái sử dụng đã được kiểm chứng độc lập. | Có (Workflow logic) | Không | Hướng dẫn thực thi, schema đầu vào và đầu ra. |
-| `storage/` | Truy xuất cơ sở dữ liệu bền vững, quản lý artifacts, bộ nhớ dài hạn và tri thức. | Có (Persistence logic) | Không | Database migrations, schemas, repositories. |
-| `api/` | Điểm tiếp nhận HTTP và truyền phát sự kiện thời gian thực ra giao diện. | Không (Chỉ định tuyến) | Không | DTOs, endpoint contracts, event streams. |
-| `ui/` | Giao diện người dùng 2D và không gian hiển thị 3D. | Không (Chỉ giao diện) | Có (UI state cục bộ) | Cấu hình hiển thị, components, visual assets. |
+| `storage/` | Truy xuất cơ sở dữ liệu bền vững, quản lý artifacts, bộ nhớ dài hạn, tri thức và metadata kết nối/tham chiếu credential. | Có (Persistence logic) | Không | Database migrations, schemas, repositories, connection metadata & secret reference handles (không giữ secret thô trong Git). |
+| `api/` | Điểm tiếp nhận HTTP và truyền phát sự kiện thời gian thực ra giao diện. | Không (Chỉ định tuyến) | Không | DTOs, endpoint contracts, event streams (chỉ trả metadata kết nối đã che secret). |
+| `ui/` | Giao diện người dùng 2D và không gian hiển thị 3D, bao gồm bảng quản trị kết nối trong tương lai. | Không (Chỉ giao diện) | Có (UI state cục bộ) | Cấu hình hiển thị, components, visual assets (tuyệt đối không lưu hoặc giữ API key thô). |
 | `sandbox/` | Môi trường cách ly an toàn cho việc chạy mã nguồn và công cụ. | Không | Không | Chính sách cách ly, Docker fixtures. |
 | `workspace/` | Không gian làm việc tạm thời và dữ liệu đầu vào theo từng nhiệm vụ. | Không | Có (Tạm thời theo task) | File trung gian, mã nguồn thử nghiệm (gitignore). |
 | `output/` | Sản phẩm hoàn chỉnh được bàn giao cho người dùng theo từng nhiệm vụ. | Không | Không | Artifacts hoàn thiện, biên bản nghiệm thu (gitignore). |
@@ -52,14 +52,14 @@ Chín phòng ban đại diện cho 9 miền năng lực chuyên biệt của h�
 - **Ví dụ thực tế:** Cấu hình và nạp manifest cho vai trò `it.code_reviewer` vào hệ thống khi dự án cần bổ sung chuyên gia kiểm tra mã nguồn.
 
 ### 4.2. Resources: Tài nguyên & Tối ưu
-- **Mục đích:** Giám sát, kiểm soát và tối ưu hóa chi phí tài nguyên phần cứng và quota AI.
-- **Nhiệm vụ cụ thể:** Thu thập số liệu sử dụng CPU, RAM, thời gian chạy từ hệ thống và token thực tế từ AI Provider; phân bổ hạn mức cho từng nhiệm vụ; cảnh báo khi tài nguyên tiệm cận ngưỡng giới hạn; lập báo cáo kiểm kê tài nguyên sau mỗi lần chạy.
+- **Mục đích:** Giám sát, kiểm soát và tối ưu hóa chi phí tài nguyên phần cứng, ngân sách và hạn mức quota AI đa nhà cung cấp.
+- **Nhiệm vụ cụ thể:** Thu thập số liệu sử dụng CPU, RAM, thời gian chạy từ hệ thống và token/chi phí thực tế từ Engine Adapter; theo dõi ngân sách và trạng thái sử dụng theo từng Provider, Project/Billing Scope, Connection và Model; cảnh báo khi tài nguyên tiệm cận ngưỡng giới hạn; lập báo cáo kiểm kê tài nguyên sau mỗi lần chạy.
 - **Đầu vào:** Dữ liệu đo lường runtime từ Engine Adapter và hệ điều hành.
-- **Đầu ra:** Báo cáo kiểm kê tài nguyên, cảnh báo giới hạn quota, khuyến nghị phân bổ.
-- **Quyền hạn:** Đọc telemetry hệ thống, phát tín hiệu yêu cầu tạm dừng tác vụ khi vượt trần chi phí.
+- **Đầu ra:** Báo cáo kiểm kê tài nguyên, cảnh báo giới hạn quota/ngân sách, khuyến nghị phân bổ.
+- **Quyền hạn:** Đọc telemetry hệ thống, phát tín hiệu yêu cầu tạm dừng tác vụ khi vượt trần chi phí; không trực tiếp giải mã API key thô.
 - **Phối hợp thường xuyên:** Master, Reception, IT.
-- **Không thuộc trách nhiệm:** Không bịa đặt số liệu token khi provider không trả về; không tự ý hủy tác vụ khi chưa báo cáo Master.
-- **Ví dụ thực tế:** Ghi nhận phiên làm việc tiêu tốn 12.500 prompt tokens và 45 giây CPU, xác nhận trạng thái đo lường là `VERIFIED_MEASURED`.
+- **Không thuộc trách nhiệm:** Không bịa đặt số liệu token hoặc tự suy đoán hai API key có hai quota độc lập khi provider không trả về dữ liệu xác minh; không tự ý hủy tác vụ khi chưa báo cáo Master.
+- **Ví dụ thực tế:** Ghi nhận phiên làm việc dùng kết nối `gemini_primary` tiêu tốn 12.500 prompt tokens và 45 giây CPU với trạng thái `VERIFIED_MEASURED`, hoặc đặt `null` kèm `UNAVAILABLE_FROM_PROVIDER` nếu provider không cung cấp thông tin quota còn lại.
 
 ### 4.3. Service: Dịch vụ & Trải nghiệm
 - **Mục đích:** Đảm bảo sản phẩm đầu ra đáp ứng đúng kỳ vọng và trải nghiệm của người dùng.
@@ -141,17 +141,30 @@ Cộng tác trong AI Village được tổ chức khoa học để đảm bảo 
 - **Kỷ luật hội họp:** Các phiên họp chỉ được mở khi có bất đồng kỹ thuật phức tạp hoặc cần sự đồng thuận đa chiều. Cuộc họp bắt buộc phải có chủ tọa là Master, có mục tiêu rõ ràng, giới hạn tối đa số lượt trao đổi (ví dụ: không quá 3 vòng phản biện) và bắt buộc phải kết thúc bằng các quyết định và hành động cụ thể.
 - **Chống tranh luận vô hạn:** Nghiêm cấm các vòng lặp tranh luận hoặc thử lại vô tận. Khi hết số lượt tranh luận quy định mà các bên chưa đạt đồng thuận, Master sẽ ra phán quyết cuối cùng dựa trên các bằng chứng kỹ thuật hiện có.
 
-## 6. Nền tảng thực thi và tích hợp Framework (AI Engine & Framework)
+## 6. Nền tảng thực thi, Đa nhà cung cấp và Tích hợp Framework (Multi-Provider, Multi-Key & Framework)
 
-Hệ thống thiết lập ranh giới rõ ràng giữa thực tế đã kiểm chứng và các ý tưởng thiết kế:
+Hệ thống thiết lập ranh giới rõ ràng giữa thực tế đã kiểm chứng và các ý tưởng thiết kế, đồng thời tách biệt tầng điều phối với tầng kết nối AI:
 
 ### 6.1. Phân định mức độ sẵn sàng kỹ thuật
-1. **Khả năng đã kiểm chứng:** Thực thi Antigravity CLI cho các thao tác đơn lẻ trong workspace fixture; cấu trúc tệp tin tĩnh và kiểm soát phiên bản qua Git; quản lý quy tắc an toàn và kiểm thử độc lập qua PowerShell.
-2. **Khả năng đang ở mức thiết kế:** Cơ chế chuyển đổi luồng sự kiện JSON từ CLI thành Event Journal có cấu trúc; giao diện bộ nhớ đa tầng (private, project, global); chuẩn hóa các hợp đồng adapter cho các AI Provider khác.
-3. **Khả năng cần thử nghiệm thực tế trước khi áp dụng:** Khả năng Antigravity CLI hỗ trợ đồng thời nhiều phiên làm việc logic mà không gây xung đột quota hoặc khóa tiến trình; khả năng tự động hóa trình duyệt web thông qua CLI; hiệu năng của việc tích hợp CrewAI so với việc sử dụng orchestrator nội bộ mỏng.
+1. **Khả năng đã kiểm chứng:** Cấu trúc tệp tin tĩnh, bộ hợp đồng đặc tả và kiểm thử nhất quán trong Chặng A; quản lý quy tắc an toàn và kiểm thử độc lập qua PowerShell/pytest; UI scaffold tối thiểu build thành công. *(Lưu ý: khả năng gọi Antigravity CLI thực tế cho thao tác đơn lẻ cần được kiểm chứng chính thức có bằng chứng tại `PHASE 02`.)*
+2. **Khả năng đang ở mức thiết kế:** Cơ chế chuyển đổi luồng sự kiện JSON từ CLI thành Event Journal có cấu trúc; kiến trúc Multi-Provider / Multi-Connection / Multi-Key (BYOK); giao diện bộ nhớ đa tầng (`private`, `project`, `global`); chuẩn hóa các hợp đồng adapter cho nhiều AI Provider và nền tảng thực thi khác nhau.
+3. **Khả năng cần thử nghiệm thực tế trước khi áp dụng:** Khả năng Antigravity CLI hỗ trợ đồng thời nhiều phiên làm việc logic mà không gây xung đột quota hoặc khóa tiến trình; khả năng tích hợp song song API Provider và thực thi công cụ nội bộ qua Tool Runtime; hiệu năng của việc tích hợp CrewAI so với việc sử dụng orchestrator nội bộ mỏng; lựa chọn công nghệ Secret Vault cục bộ phù hợp.
 
-### 6.2. Nguyên tắc tích hợp
-- Antigravity là Execution Engine mặc định dự kiến cho hệ thống.
+### 6.2. Kiến trúc Đa nhà cung cấp, Đa kết nối và Đa khóa (Multi-Provider / Multi-Key)
+Để bảo đảm tính độc lập nhà cung cấp và hỗ trợ BYOK an toàn, kiến trúc phân tách 8 thành phần phối hợp chặt chẽ theo ranh giới tầng:
+
+1. **Provider / Engine Registry (`engines/`):** Khai báo danh mục mở các loại adapter hỗ trợ (Antigravity CLI, Google Gemini API, OpenAI API, Anthropic API, OpenAI-compatible endpoints, Local LLM như Ollama và các nền tảng Agent tương thích). Không hardcode danh sách Provider đóng làm kẹt khả năng mở rộng trong `core/`.
+2. **Connection Registry (`storage/` + `engines/`):** Quản lý nhiều bản ghi kết nối (`connection_id`) cho cùng một Provider (ví dụ hai kết nối `gemini_primary` và `gemini_secondary`), lưu tên hiển thị, `provider_id`, `project_ref` / billing scope tùy chọn, trạng thái bật/tắt, mức ưu tiên và tham chiếu bí mật.
+3. **Credential References (`storage/` + backend secret boundary):** Tách biệt hoàn toàn `connection_id` với thông tin xác thực thô bằng `credential_ref`. Agent Manifest, UI và Git tuyệt đối không chứa API key thô; việc giải mã `credential_ref` chỉ diễn ra tại ranh giới khởi tạo adapter ở backend.
+4. **Model Capability Metadata (`engines/`):** Mô tả khả năng thật của từng nền tảng/model (LLM API thuần text, structured output, function/tool calling, streaming, cancellation, hay Agent Execution Platform có thao tác công cụ nội sinh) để tránh gán nhầm tác vụ cần công cụ cho mô hình không hỗ trợ.
+5. **Routing Policy (`core/orchestration/` + `core/governance/`):** Bộ điều phối trong `core/` lựa chọn kết nối và model dựa trên năng lực yêu cầu, chi phí, độ khả dụng, chính sách bảo mật dữ liệu (như `local_only`) và cấu hình người vận hành. Mọi quyết định chọn hay fallback đều chịu sự kiểm tra của Permission Manager; nghiêm cấm LLM tự chọn kết nối ngoài allowlist hoặc né giới hạn quota bằng cách xoay vòng key.
+6. **Resources Quota & Budget Tracking (`core/optimization/` & bộ phận `resources`):** Theo dõi chi phí và hạn mức thực tế gắn với `provider_id`, `connection_id`, `project_ref` và `model_id`. Hệ thống phân biệt rõ quota cấp Key với quota cấp Project/Account/Organization; khi nhà cung cấp không trả số liệu phải đặt `null` và `UNAVAILABLE_FROM_PROVIDER`.
+7. **Engine Adapter Boundary (`engines/`):** Chuẩn hóa Request/Result/Event/Telemetry/Cancel giữa `core/` và mọi AI Provider hoặc Agent Execution Platform. Thay đổi Provider hoặc Connection không làm thay đổi danh tính, bộ nhớ hay quyền hạn của Agent.
+8. **Tool Runtime & Permission Enforcement (`tools/` & `core/governance/`):** Khi sử dụng LLM API chỉ hỗ trợ sinh văn bản hoặc đề xuất gọi hàm, Tool Runtime của AI Village đứng ra thực thi công cụ thực tế trong `sandbox/` dưới sự kiểm soát Fail-Closed của Permission Manager.
+
+### 6.3. Nguyên tắc tích hợp Framework và Cô lập Phiên
+- Antigravity là một ứng viên Engine mặc định quan trọng nhưng **không phải lựa chọn độc quyền**. Các API Provider là nguồn thực thi song song bình đẳng thông qua lớp Engine Adapter.
+- Mỗi Agent luôn giữ **phiên làm việc (`session_id`) và ngữ cảnh riêng biệt** ngay cả khi nhiều Agent dùng chung một Provider, một Connection hoặc một API key.
 - CrewAI được xem là một ứng viên tiềm năng cho tầng điều phối, nhưng hệ thống không khóa chặt kiến trúc vào CrewAI. Tầng `core/` chỉ giao tiếp thông qua giao diện trừu tượng `AgentRuntime`, cho phép thay thế hoặc nâng cấp công cụ điều phối mà không làm xáo trộn nghiệp vụ của các Agent.
 - Tuyệt đối không công bố các tính năng chưa chạy thực tế là đã hoàn thành.
 
@@ -191,9 +204,9 @@ Tài sản số của AI Village được quản lý chặt chẽ tại tầng `
 
 Hệ thống quản lý tài nguyên dựa trên số liệu thực tế:
 
-- **Các chỉ số theo dõi:** CPU, RAM, thời gian thực thi, hạn ngạch token từ API và chi phí tài chính tương ứng.
-- **Nguyên tắc trung thực:** Nghiêm cấm mọi hành vi tạo số liệu token giả mạo chỉ để lấp đầy trường dữ liệu. Khi AI Provider không hỗ trợ trả về số liệu token, trường dữ liệu phải được đặt giá trị `null` và gắn nhãn `telemetry_status: "UNAVAILABLE_FROM_PROVIDER"`.
-- **Kiểm soát chủ động:** Bộ phận Resources thiết lập các ngưỡng cảnh báo sớm (ví dụ: đạt 80% quota hoặc vượt 180 giây chạy liên tục) để thông báo cho Master có biện pháp điều phối kịp thời.
+- **Các chỉ số theo dõi:** CPU, RAM, thời gian thực thi, hạn ngạch token từ API, chi phí tài chính tương ứng và định danh thực tế (`provider_id`, `connection_id`, `project_ref`, `model_id`) đã sử dụng.
+- **Nguyên tắc trung thực:** Nghiêm cấm mọi hành vi tạo số liệu token giả mạo chỉ để lấp đầy trường dữ liệu. Khi AI Provider không hỗ trợ trả về số liệu token hoặc quota còn lại, trường dữ liệu phải được đặt giá trị `null` và gắn nhãn `telemetry_status: "UNAVAILABLE_FROM_PROVIDER"`. Không suy đoán rằng hai API key thuộc cùng một Project hay Account chắc chắn có hạn mức độc lập.
+- **Kiểm soát chủ động:** Bộ phận Resources thiết lập các ngưỡng cảnh báo sớm (ví dụ: đạt 80% ngân sách/quota hoặc vượt 180 giây chạy liên tục) để thông báo cho Master có biện pháp điều phối kịp thời; mọi lựa chọn hoặc chuyển dự phòng sang model đắt hơn vượt ngân sách phải xin người dùng phê duyệt.
 
 ## 11. Chính sách phân quyền và Nghiệm thu độc lập
 
@@ -218,6 +231,7 @@ Trải nghiệm người dùng được phát triển theo lộ trình từng b�
 6. **Resource Monitor:** Bảng điều khiển giám sát mức tiêu thụ CPU, RAM và chi phí token thực tế.
 7. **Artifact Vault:** Khu vực tìm kiếm, xem trước và tải về các sản phẩm đã được nghiệm thu.
 8. **Approval Center:** Trung tâm xử lý các yêu cầu phê duyệt hành động nhạy cảm từ các Agent.
+*(Trong giai đoạn hoàn thiện quản trị ở `PHASE 12`–`13`, giao diện 2D bổ sung khu vực cấu hình kết nối AI cho phép thêm, đặt tên, bật/tắt `connection_id` và kiểm tra kết nối; chỉ hiển thị metadata và nhận diện đã che, tuyệt đối không lưu hay hiển thị lại API key thô trên trình duyệt.)*
 
 ### 12.2. Không gian văn phòng 3D
 Không gian 3D chỉ đóng vai trò là một lớp kết xuất trực quan phản chiếu trạng thái thực tế từ Agent Runtime thông qua các sự kiện. Animation của các nhân vật ảo phải gắn chặt với trạng thái làm việc thật (`IDLE`, `RUNNING`, `BLOCKED`, `IN_MEETING`), tuyệt đối không tạo hoạt cảnh giả khi hệ thống không có tác vụ chạy. Giao diện 2D phải hoàn thiện và hoạt động ổn định trước khi phát triển thế giới 3D.
@@ -234,7 +248,7 @@ Không gian 3D chỉ đóng vai trò là một lớp kết xuất trực quan ph
 6. **Tách bạch cấu hình và runtime:** Dữ liệu trạng thái thực thi tại `.runtime/` tuyệt đối không được trộn lẫn vào các tệp cấu hình tĩnh của Agent và Department trong Git.
 7. **Phòng ban mở rộng:** Chín phòng ban hiện tại là danh mục mặc định, không phải là giới hạn cứng vĩnh viễn của hệ thống.
 8. **Kiểm soát quyền thực thi:** Việc một phòng ban khai báo `default_tools` chỉ mang tính chất đề xuất; quyền thực thi thực tế của Agent phải do Permission Manager phê chuẩn dựa trên manifest của vai trò.
-9. **Bảo vệ bí mật:** Tuyệt đối không lưu trữ khóa API, mật khẩu hoặc thông tin nhạy cảm trong mã nguồn và lịch sử Git.
+9. **Bảo vệ bí mật:** Tuyệt đối không lưu trữ khóa API, mật khẩu hoặc thông tin nhạy cảm trong mã nguồn, Agent Manifest, trình duyệt và lịch sử Git; tách biệt `connection_id` khỏi `credential_ref` và không xoay vòng key để né chính sách nhà cung cấp.
 
 ## 14. Bảng ma trận truy xuất yêu cầu (Traceability Matrix)
 

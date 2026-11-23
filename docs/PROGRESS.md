@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI CHẶNG A (`Gate A: PASS_WITH_LIMITATIONS`). **PHASE 00:** `P00.02`–`P00.04` DONE, `P00.01` IN PROGRESS (`vision.md` chờ người vận hành duyệt `PENDING_USER_APPROVAL`). **PHASE 01:** `P01.01`–`P01.15` DONE. **PHASE 01B: DONE** (`docs/reviews/PHASE_01B_AUDIT.md`). Báo cáo nghiệm thu Chặng A tại `docs/reviews/CHANG_A_AUDIT.md`. Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** ĐANG TRIỂN KHAI CHẶNG A (`Gate A: PASS_WITH_LIMITATIONS`). **PHASE 00:** `P00.02`–`P00.04` DONE, `P00.01` IN PROGRESS (`vision.md` đã được cập nhật định hướng Multi-Provider/Multi-Key để người dùng xem xét, giữ `PENDING_USER_APPROVAL`). **PHASE 01:** `P01.01`–`P01.15` DONE. **PHASE 01B: DONE** (`docs/reviews/PHASE_01B_AUDIT.md`). Báo cáo nghiệm thu Chặng A tại `docs/reviews/CHANG_A_AUDIT.md`. Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -10,8 +10,8 @@
 
 **AI Village** là hệ thống Multi-Agent đa chức năng dưới dạng môi trường làm việc trực quan. Người dùng giao việc cho **Master**; Master tự lập nhóm nhân viên chuyên môn, cho phép thảo luận/handoff trực tiếp, tự kiểm chứng bằng công cụ và tổng hợp sản phẩm cuối cùng. Phòng ban là **cách tổ chức năng lực**, không phải dây chuyền xử lý cố định. Một nhân viên có phòng ban chủ quản nhưng có thể tham gia nhiều nhóm dự án.
 
-- Engine mặc định: **Antigravity** qua giao diện được hỗ trợ; hỗ trợ thêm API/provider sau này.
-- Framework điều phối: **CrewAI là ứng viên**, chưa được khóa lựa chọn cho đến khi kiểm chứng adapter Antigravity, quản lý phiên, sự kiện và handoff. Không được biến Antigravity thành một model giả chỉ trả JSON.
+- Engine & Provider: thiết kế **Multi-Provider, Multi-Model, Multi-API-Key (BYOK) và Multi-Platform** thông qua lớp Engine Adapter trung lập. **Antigravity không phải Engine độc quyền**; các API Provider là nguồn thực thi song song bình đẳng, hỗ trợ nhiều kết nối cho cùng Provider qua `connection_id` và `credential_ref` (minh họa qua hai kết nối Google Gemini, không mặc định hai key có hai quota độc lập).
+- Framework điều phối: **CrewAI là ứng viên**, chưa được khóa lựa chọn cho đến khi kiểm chứng adapter Antigravity, API Provider, quản lý phiên, sự kiện và handoff. Không được biến Antigravity thành một model giả chỉ trả JSON, và không giả định LLM API có sẵn quyền thao tác công cụ hệ thống mà không qua Tool Runtime.
 - Chủ hệ thống quyết định quyền và các hành động quan trọng. Master điều phối; nhân viên được trao đổi ngang hàng trong phạm vi công việc.
 - Bắt đầu với **một engine và nhiều session logic**; có thể tuần tự để kiểm soát quota. Đồng thời chỉ mở sau khi được kiểm thử.
 - **Evidence first:** trạng thái, số liệu, báo cáo và hành động 3D dựa trên sự kiện thực; Agent không được tự tuyên bố PASS thay cho bộ kiểm chứng.
@@ -139,7 +139,7 @@ AI-Village/
 
 **PHASE 00 — Quy tắc nền tảng** *(không viết ứng dụng ở chặng này)*
 
-- [~] **P00.01 — Đặc tả mục tiêu:** chốt phạm vi MVP, phần chưa làm, định nghĩa DONE/FAIL/BLOCKED. **DoD:** `docs/architecture/vision.md` được duyệt *(đã tạo nội dung tại commit `ac67b88`, giữ `[~]` chờ người vận hành duyệt `PENDING_USER_APPROVAL`)*.
+- [~] **P00.01 — Đặc tả mục tiêu:** chốt phạm vi MVP, phần chưa làm, định nghĩa DONE/FAIL/BLOCKED và định hướng Multi-Provider/Multi-Model/Multi-Key (BYOK). **DoD:** `docs/architecture/vision.md` được duyệt *(đã cập nhật bản trình duyệt trước phê duyệt, giữ `[~]` chờ người vận hành duyệt `PENDING_USER_APPROVAL`; chưa tự đóng Gate A)*.
 - [x] **P00.02 — Danh mục ranh giới:** ghi rõ dữ liệu input/output, nơi lưu bí mật, quyền thực thi và các hành động cần người duyệt. **DoD:** `docs/architecture/boundaries.md` *(SHA: `ac67b88`)*.
 - [x] **P00.03 — Kiểm kê mã cũ:** phân loại thành phần nào được tái sử dụng từ Marketing Village và AutoGen Pentest, không copy bừa. **DoD:** `docs/architecture/reuse_inventory.md` *(SHA: `ac67b88`)*.
 - [x] **P00.04 — Chốt stack tạm thời:** Python/FastAPI + SQLite; React/Vite + Three.js hoặc React Three Fiber là ứng viên; ghi lý do, chưa khóa framework điều phối. **DoD:** một ADR trong `docs/decisions/` *(SHA: `ac67b88`)*.
@@ -186,13 +186,13 @@ AI-Village/
 - [ ] **P02.03 — Streaming events:** chuyển CLI `stream-json` (nếu bản cài hỗ trợ) thành sự kiện có cấu trúc. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
 - [ ] **P02.04 — Session isolation:** tạo hai phiên logic A/B, không trộn lịch sử và file. **DoD:** có test cross-session isolation.
 - [ ] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn.
-- [ ] **P02.06 — Provider contract:** khai báo chung request/result/event, sau đó chỉ làm một API adapter tối giản nếu cần chứng minh thay engine. **DoD:** engine khác có thể thay mà core không đổi.
+- [ ] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities, chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform *(chưa triển khai)*. **DoD:** engine/provider khác có thể thay mà core không đổi.
 
 **PHASE 03 — Quyết định CrewAI**
 
-- [ ] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Antigravity qua adapter, không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật.
-- [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, quota. **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
-- [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI. **DoD:** unit test fake adapter và một live smoke.
+- [ ] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Engine Adapter (Antigravity hoặc API Provider hỗ trợ Tool Runtime), không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật.
+- [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy và quota. **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
+- [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke.
 
 **Gate B — QUAN TRỌNG NHẤT:** một yêu cầu từ ứng dụng → Antigravity **thao tác công cụ thật** → tạo artifact → backend đọc và kiểm chứng. **Nếu chưa đạt, không phát triển các phase kế tiếp**.
 
@@ -200,13 +200,13 @@ AI-Village/
 
 **PHASE 04 — Contracts & Task Runtime**
 
-- [ ] **P04.01** — Định nghĩa `Task`, `Run`, `Agent`, `Session`, `Artifact`, `Event` và ID liên kết trong `core/contracts/`.
-- [ ] **P04.02** — Task state machine: QUEUED → RUNNING → WAITING/FAILED/COMPLETED/CANCELLED; chuyển trạng thái có guard.
-- [ ] **P04.03** — Event journal: event_id, run_id, actor_id, timestamp, loại sự kiện, payload được lọc secrets; replay được.
-- [ ] **P04.04** — SQLite migrations trong `storage/db/`, kiểm foreign keys và transaction.
-- [ ] **P04.05** — Repository task/event/session trong `storage/repositories/`; restart không mất run.
-- [ ] **P04.06** — Cancellation/timeout và idempotency trên core; không hiển thị “đang chạy” nếu đã dừng.
-- [ ] **P04.07** — Governance: workspace scopes, tool allowlist, approval gate, audit và fallback khi không đủ quyền.
+- [ ] **P04.01** — Định nghĩa `Task`, `Run`, `Agent`, `Session`, `Artifact`, `Event`, `ConnectionRef` và ID liên kết trong `core/contracts/` *(không lưu raw API key; chưa triển khai)*.
+- [ ] **P04.02** — Task state machine: QUEUED → RUNNING → WAITING/FAILED/COMPLETED/CANCELLED/BLOCKED; chuyển trạng thái có guard.
+- [ ] **P04.03** — Event journal: event_id, run_id, actor_id, timestamp, loại sự kiện, `provider_id`/`connection_id`/`model_id`, payload được lọc secrets; replay được.
+- [ ] **P04.04** — SQLite migrations trong `storage/db/`, kiểm foreign keys, transaction và metadata kết nối tách khỏi secret thô *(chưa triển khai)*.
+- [ ] **P04.05** — Repository task/event/session/connection metadata trong `storage/repositories/`; restart không mất run *(chưa triển khai)*.
+- [ ] **P04.06** — Cancellation/timeout, fallback hợp lệ theo chính sách và idempotency trên core; không hiển thị “đang chạy” nếu đã dừng *(chưa triển khai)*.
+- [ ] **P04.07** — Governance: workspace scopes, tool allowlist, provider/connection routing policy, approval gate (bao gồm chuyển provider đổi vùng dữ liệu/vượt ngân sách), audit và Fail-Closed khi không đủ quyền *(chưa triển khai)*.
 
 **Gate C:** một task đơn chạy, tạm dừng/khôi phục/hủy đúng; event và artifact traceable; sau restart không giả trạng thái.
 
@@ -214,11 +214,11 @@ AI-Village/
 
 **PHASE 05 — Hồ sơ nhân viên và Master**
 
-- [ ] **P05.01** — Agent manifest schema: name, role, department, capabilities, engine, permissions, memory scope.
+- [ ] **P05.01** — Agent manifest schema: name, role, department, capabilities, engine (hỗ trợ trường tùy chọn `provider_id`, `adapter_id`, `connection_id`, `model_id`, `routing_profile`, `fallback_policy`; cấm raw API key), permissions, memory scope *(chưa triển khai runtime)*.
 - [ ] **P05.02** — Agent Registry: create/update/disable, version và validation (chưa sửa production runtime).
-- [ ] **P05.03** — Master Agent: hiểu yêu cầu, xác định output/acceptance, chọn người cần tham gia.
+- [ ] **P05.03** — Master Agent: hiểu yêu cầu, xác định output/acceptance, chọn người cần tham gia và đề xuất routing phù hợp trong phạm vi Governance cho phép.
 - [ ] **P05.04** — Team Builder: tạo team động từ capability thay vì danh sách phòng ban cứng.
-- [ ] **P05.05** — Worker session lifecycle: mỗi nhân viên có session/context riêng, cùng một engine khi phù hợp.
+- [ ] **P05.05** — Worker session lifecycle: mỗi nhân viên có session/context riêng ngay cả khi dùng chung Provider/Connection.
 - [ ] **P05.06** — Handoff giữa worker: artifact + decision + evidence; không truyền nguyên chat quá dài.
 - [ ] **P05.07** — Agent tuyển mới: đề xuất role, công cụ, quyền và đánh giá; chỉ kích hoạt khi hợp lệ.
 
@@ -259,7 +259,7 @@ AI-Village/
 **PHASE 09 — Department Behaviors** *(mỗi tiểu phase một bộ phận, chỉ xây chức năng cốt lõi trước)*
 
 - [ ] **P09.01 — HR:** quản lý agent, thay role, đề xuất tuyển người và cấp kỹ năng.
-- [ ] **P09.02 — Resources:** đo CPU/RAM/time/token nếu engine trả số liệu; đề xuất phân bổ và kiểm kê sau run.
+- [ ] **P09.02 — Resources:** đo CPU/RAM/time/token nếu engine trả số liệu; theo dõi chi phí và trạng thái quota theo Provider, Project/Billing Scope, `connection_id` và `model_id` (đặt `null` + `UNAVAILABLE_FROM_PROVIDER` nếu thiếu; không mặc định 2 key có 2 quota riêng); đề xuất phân bổ và kiểm kê sau run *(chưa triển khai)*.
 - [ ] **P09.03 — Service/UX:** làm rõ yêu cầu, nhận feedback, so sản phẩm với brief.
 - [ ] **P09.04 — Marketing:** một skill nghiên cứu/lập kế hoạch/content có đầu ra thật, không hardcode mọi task.
 - [ ] **P09.05 — IT/R&D:** tạo project/code và kiểm thử trong workspace cách ly; không tự thay mã production.
@@ -284,8 +284,8 @@ AI-Village/
 
 - [ ] **P11.01** — Nhận yêu cầu mới khi task cũ đang chạy, không mất dữ liệu/nhầm conversation.
 - [ ] **P11.02** — Phân loại mức khẩn, tác động và lựa chọn Agent cần hỏi; khẩn cấp báo Master.
-- [ ] **P11.03** — Scheduler có giới hạn concurrency/rate/quota, hỗ trợ hàng đợi và ưu tiên.
-- [ ] **P11.04** — Resource ledger: thời gian, bộ nhớ, chi phí báo cáo được, ước lượng phải có nhãn.
+- [ ] **P11.03** — Scheduler có giới hạn concurrency/rate/quota theo từng phạm vi kết nối hợp lệ, hỗ trợ hàng đợi và ưu tiên (cấm xoay vòng key để né giới hạn Provider) *(chưa triển khai)*.
+- [ ] **P11.04** — Resource ledger: thời gian, bộ nhớ, chi phí báo cáo được gắn `provider_id`/`connection_id`/`model_id`, ước lượng phải có nhãn *(chưa triển khai)*.
 - [ ] **P11.05** — Sau task, tài nguyên được dọn an toàn, kiểm kê và gửi dữ liệu học hỏi cho Process.
 
 **Gate G:** đang xử lý task A, người dùng bổ sung task B; Reception tiếp nhận, Master quyết định ưu tiên; task A không bị ghi đè; nhiệm vụ hoàn thành có đánh giá tài nguyên và cải tiến.
@@ -296,7 +296,7 @@ AI-Village/
 
 - [ ] **P12.01** — HTTP endpoints: tasks, agents, meetings, artifacts, approvals, skills.
 - [ ] **P12.02** — SSE/WebSocket event stream dựa trên event journal (có reconnect, dedupe).
-- [ ] **P12.03** — API auth/local policy: không công khai quyền tool hoặc secrets sang browser.
+- [ ] **P12.03** — API auth/local policy: không công khai quyền tool, `credential_ref` nội bộ hoặc secrets sang browser; endpoint cấu hình Connection chỉ trả tên, trạng thái và chuỗi nhận diện đã che *(chưa triển khai)*.
 
 **PHASE 13 — Giao diện 2D vận hành trước**
 
@@ -307,7 +307,7 @@ AI-Village/
 - [ ] **P13.05** — Meeting room 2D: ai tham gia, ý kiến, phản biện, quyết định, action items.
 - [ ] **P13.06** — Approval center: người dùng xem rõ hành động đang chờ quyền.
 - [ ] **P13.07** — Vault UI: tìm/lọc/xem/tải artifact theo task và phiên bản.
-- [ ] **P13.08** — Resource & incident dashboard: quota, error, hàng đợi, khẩn cấp.
+- [ ] **P13.08** — Resource, connection & incident dashboard: quota, error, hàng đợi, khẩn cấp và quản trị kết nối BYOK (thêm/đặt tên/bật-tắt/kiểm tra khi cho phép; không lưu key trong `localStorage`, không hiện lại secret thô) *(chưa triển khai)*.
 
 **Gate H:** toàn bộ một nhiệm vụ đa agent chạy **qua UI**, dùng engine thật, thao tác được, có kết quả tải được và có thể can thiệp giữa chừng. Nếu chưa qua gate này thì 3D chỉ được làm prototype tách biệt.
 
@@ -327,10 +327,10 @@ AI-Village/
 **PHASE 15 — Quality & Reliability**
 
 - [ ] **P15.01** — Unit/contract tests: event schemas, task state, role/permission.
-- [ ] **P15.02** — Integration: CLI/API/provider/mock, session isolation, cancellation, restart.
+- [ ] **P15.02** — Integration: CLI/API/multi-provider/multi-connection/mock, fallback hợp lệ, xử lý `TOOL_UNSUPPORTED_BY_PROVIDER`, session isolation, cancellation, restart *(chưa triển khai)*.
 - [ ] **P15.03** — Fault injection: timeout, quota, network, DB rollback, file shared, agent crash.
 - [ ] **P15.04** — Browser E2E: chat, meeting, task board, approval, vault, 3D event binding.
-- [ ] **P15.05** — Security: workspace isolation, secret leakage, unsafe command permission, backup/restore.
+- [ ] **P15.05** — Security: workspace isolation, secret leakage (bao gồm credential BYOK không lọt vào manifest/log/API/browser), unsafe command permission, backup/restore *(chưa triển khai)*.
 
 **PHASE 16 — Nghiệm thu nghiệp vụ live**
 
@@ -345,7 +345,7 @@ AI-Village/
 **PHASE 17 — Distribution & Documentation**
 
 - [ ] **P17.01** — Một lệnh khởi động local, phát hiện dependencies và hiển thị lỗi rõ ràng.
-- [ ] **P17.02** — Config examples cho Antigravity và provider khác; không đóng gói secrets.
+- [ ] **P17.02** — Config examples cho Antigravity và nhiều API Provider / multi-connection (như mẫu hai kết nối Gemini dùng `credential_ref`); không đóng gói secrets *(chưa triển khai)*.
 - [ ] **P17.03** — Hướng dẫn vận hành, backup, restore, quản lý quyền và troubleshoot.
 - [ ] **P17.04** — Release package + source hash + acceptance report theo đúng commit.
 
@@ -612,6 +612,22 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`11 passed`); `cd ui && npm run build` (exit 0); `git diff --check` sạch; báo cáo chi tiết tại `docs/reviews/CHANG_A_AUDIT.md`.
 Blocking issue: Chờ người vận hành xác nhận phê duyệt `docs/architecture/vision.md` để đóng `P00.01` và chuyển Gate A sang `PASS`.
 Next: Sau khi người vận hành phê duyệt `vision.md`, chuyển sang `PHASE 02 — Antigravity Execution Proof`.
+
+### Pre-Vision Approval Alignment — Chuẩn hóa Kiến trúc Multi-Provider, Multi-Model & Multi-Key
+ID: P00.01 (Alignment)
+Status: IN_PROGRESS (`PENDING_USER_APPROVAL`)
+Scope: docs/architecture/vision.md, docs/architecture/SYSTEM_BLUEPRINT.md, docs/architecture/boundaries.md, docs/standards/AGENT_SPEC.md, docs/standards/RULE_SPEC.md, docs/standards/TOOL_SPEC.md, docs/templates/agent/agent.yaml, docs/decisions/ADR-0001-temporary-technology-stack.md, docs/PROGRESS.md, tests/standards/test_standards_consistency.py
+Git SHA: PENDING_COMMIT (xem commit bàn giao trên git log sau khi push)
+Acceptance:
+- Bổ sung tầm nhìn Multi-Provider, Multi-Model, Multi-API-Key (BYOK), Multi-Platform và use case chính thức hai kết nối Google Gemini vào `docs/architecture/vision.md`, phân rõ phạm vi MVP vs Sau MVP.
+- Đồng bộ 8 thành phần kiến trúc Multi-Provider/Multi-Key vào `SYSTEM_BLUEPRINT.md` mà không tạo phòng ban thứ 10 hay thay đổi cơ chế Master điều phối động.
+- Bổ sung các trường tùy chọn mở rộng cho `engine.*` trong `AGENT_SPEC.md` và `docs/templates/agent/agent.yaml` (tương thích ngược, cấm lưu raw API key, không đóng cứng danh sách Provider).
+- Đối chiếu và làm rõ ranh giới quản trị Connection, `credential_ref`, chi phí, bảo mật trình duyệt và `TOOL_UNSUPPORTED_BY_PROVIDER` trong `RULE_SPEC.md`, `TOOL_SPEC.md`, `boundaries.md`.
+- Cập nhật `ADR-0001` khẳng định Antigravity không độc quyền, BYOK/Multi-Key là yêu cầu sản phẩm, tiếp tục giữ mở CrewAI, Routing Framework và Credential Vault.
+- Cập nhật `docs/PROGRESS.md` đối chiếu các phase liên quan, giữ nguyên `P00.01: PENDING_USER_APPROVAL` và `Gate A: PASS_WITH_LIMITATIONS`, không đánh dấu DONE cho chức năng chưa chạy.
+Tests / Evidence: `python -m pytest tests/standards/test_standards_consistency.py -v`, `python -m pytest tests -v`, `git diff --check`.
+Blocking issue: Chờ người vận hành xem xét và phê duyệt `docs/architecture/vision.md` trước khi đóng `P00.01` và Gate A.
+Next: Dừng sau bàn giao bản Vision cập nhật để chờ người vận hành phê duyệt `P00.01`.
 
 
 

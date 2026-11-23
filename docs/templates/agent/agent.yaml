@@ -31,7 +31,13 @@ capabilities:
 
 engine:
   default_type: "antigravity"
+  provider_id: "antigravity"
+  adapter_id: "antigravity_cli"
+  connection_id: "default_local_connection"
   model_tier: "pro"
+  model_id: null
+  routing_profile: "balanced"
+  fallback_policy: "operator_approved_only"
   parameters:
     temperature: 0.2
     timeout_seconds: 120

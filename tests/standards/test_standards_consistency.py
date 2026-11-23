@@ -36,6 +36,32 @@ SECRET_PATTERNS = [
     re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 ]
 
+FORBIDDEN_ENGINE_SECRET_KEYS = {
+    "api_key",
+    "raw_key",
+    "secret",
+    "token",
+    "password",
+    "credential",
+}
+VALID_FALLBACK_POLICIES = {"none", "same_tier_allowed", "operator_approved_only"}
+OPTIONAL_ENGINE_ID_FIELDS = ("provider_id", "adapter_id", "connection_id", "routing_profile")
+
+
+def _validate_engine_config(engine: dict[str, Any]) -> None:
+    """Validate Agent Engine configuration fields and forbid raw credential keys."""
+    assert SKILL_ID_RE.match(engine["default_type"]), "default_type must be snake_case identifier"
+    assert engine["model_tier"] in {"pro", "flash", "code"}
+    for key in engine:
+        assert key.lower() not in FORBIDDEN_ENGINE_SECRET_KEYS, (
+            f"Agent engine config must never store secret key '{key}'"
+        )
+    for field in OPTIONAL_ENGINE_ID_FIELDS:
+        if field in engine and engine[field] is not None:
+            assert SKILL_ID_RE.match(engine[field]), f"Invalid {field}: {engine[field]}"
+    if "fallback_policy" in engine and engine["fallback_policy"] is not None:
+        assert engine["fallback_policy"] in VALID_FALLBACK_POLICIES
+
 
 def extract_fenced_blocks(markdown_text: str, language: str) -> list[str]:
     """Extract fenced code blocks for a given language from markdown text."""
@@ -129,6 +155,7 @@ def test_agent_template_contract(parsed_agent_template: dict[str, Any]) -> None:
     assert AGENT_ID_RE.match(parsed_agent_template["id"])
     assert parsed_agent_template["system_role"] == "worker"
     assert parsed_agent_template["department"] != "orchestration"
+    _validate_engine_config(parsed_agent_template["engine"])
     for skill_id in parsed_agent_template["skills"]["allowed"]:
         assert SKILL_ID_RE.match(skill_id), f"Invalid skill_id: {skill_id}"
     for tool_id in parsed_agent_template["tools"]["allowed"]:
@@ -205,6 +232,7 @@ def test_spec_yaml_examples_valid_and_consistent() -> None:
     assert len(agent_blocks) == 1
     agent_ex = yaml.safe_load(agent_blocks[0])
     assert agent_ex["system_role"] == "worker"
+    _validate_engine_config(agent_ex["engine"])
     for skill_id in agent_ex["skills"]["allowed"]:
         assert SKILL_ID_RE.match(skill_id)
     for tool_id in agent_ex["tools"]["allowed"]:
@@ -251,3 +279,24 @@ def test_spec_yaml_examples_valid_and_consistent() -> None:
         assert tool_ex["status"] == "DRAFT", "Design example tools must not claim AVAILABLE"
         for action_id in tool_ex["permissions_required"]:
             assert ACTION_ID_RE.match(action_id)
+
+
+def test_vision_multi_key_example_and_approval_status() -> None:
+    """Validate two-Gemini-connection YAML example and preserve pending approval state."""
+    vision_path = REPO_ROOT / "docs" / "architecture" / "vision.md"
+    vision_text = vision_path.read_text(encoding="utf-8")
+    assert "PENDING_USER_APPROVAL" in vision_text
+
+    yaml_blocks = extract_fenced_blocks(vision_text, "yaml")
+    assert len(yaml_blocks) == 1
+    cfg = yaml.safe_load(yaml_blocks[0])
+    assert cfg["provider"] == "google_gemini"
+    connections = cfg["connections"]
+    assert len(connections) == 2
+    ids = {conn["connection_id"] for conn in connections}
+    refs = {conn["credential_ref"] for conn in connections}
+    assert ids == {"gemini_primary", "gemini_secondary"}
+    assert len(refs) == 2
+    for conn in connections:
+        for forbidden in FORBIDDEN_ENGINE_SECRET_KEYS:
+            assert forbidden not in conn

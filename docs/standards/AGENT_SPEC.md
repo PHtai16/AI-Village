@@ -6,7 +6,7 @@ Tài liệu này xác lập cấu trúc chuẩn mực cho việc khai báo, qu�
 
 Agent trong AI Village được định nghĩa là một thực thể lao động số có ranh giới trách nhiệm, vai trò cụ thể và quyền hạn rõ ràng:
 
-1. **Thực thể logic độc lập:** Agent không tương đương với một tài khoản AI hay một khóa API riêng biệt. Nhiều Agent với các vai trò khác nhau có thể sử dụng chung một Engine hoặc một mô hình ngôn ngữ nền tảng.
+1. **Thực thể logic độc lập:** Agent không tương đương với một tài khoản AI, một kết nối hay một API key riêng biệt. Nhiều Agent với các vai trò khác nhau có thể sử dụng chung một Provider, một Connection hoặc một mô hình ngôn ngữ nền tảng, đồng thời một Agent có thể định tuyến qua các kết nối khác nhau theo chính sách mà vẫn giữ nguyên danh tính, phạm vi bộ nhớ và quyền hạn. Hồ sơ Agent tuyệt đối không được lưu API key thô.
 2. **Tách biệt tĩnh và động:** Cấu hình tĩnh (Static Manifest) quy định danh tính, năng lực, quyền hạn và ranh giới an toàn. Trạng thái động (Runtime State) phản ánh ngữ cảnh phiên làm việc, tiến độ tác vụ, tài nguyên thực tế và lịch sử tương tác.
 3. **Tổ chức phòng ban linh hoạt:** Hệ thống cung cấp sẵn 9 phòng ban chức năng mặc định (`hr`, `resources`, `service`, `marketing`, `it`, `reception`, `process`, `qa`, `vault`). Danh mục này có thể mở rộng thông qua Department Registry tại `agents/departments/`. Master có thể triệu tập nhân viên vào bất kỳ nhóm công tác liên phòng ban nào tùy theo đòi hỏi thực tế của nhiệm vụ. Riêng Master sử dụng định danh phạm vi điều hành `department: "orchestration"` gắn với `system_role: "orchestrator"`.
 4. **Không phụ thuộc framework điều phối:** Cấu trúc định nghĩa Agent tương thích với các mô hình điều phối phổ biến như CrewAI hoặc orchestrator nội bộ, không gắn chặt mã nguồn vào API riêng của bất kỳ thư viện bên thứ ba nào.
@@ -37,11 +37,19 @@ Liệt kê các năng lực có thể kiểm chứng độc lập:
 - `capabilities.inputs`: Định dạng dữ liệu đầu vào có thể tiếp nhận (`git_diff`, `source_code`, `test_report`).
 - `capabilities.outputs`: Định dạng dữ liệu đầu ra có thể tạo lập (`markdown_review_report`, `structured_findings_json`).
 
-### 2.4. AI Engine (Động cơ trí tuệ)
-Cấu hình kết nối runtime:
-- `engine.default_type`: Engine mặc định là `antigravity`. Có thể cấu hình sang `openai_compatible`, `anthropic_compatible`, hoặc `local_llm`.
-- `engine.model_tier`: Nhóm mô hình ưu tiên phù hợp với độ phức tạp của vai trò (`pro`, `flash`, `code`).
+### 2.4. AI Engine (Động cơ trí tuệ và Định tuyến Đa nhà cung cấp)
+Cấu hình tham chiếu động cơ thực thi tại runtime (tương thích ngược với cấu hình tối giản cũ, toàn bộ các trường mở rộng đều là tùy chọn):
+- `engine.default_type`: Mã định danh loại engine mặc định ở dạng chuỗi mở (`^[a-z0-9_]+$`, ví dụ: `antigravity`, `google_gemini`, `openai`, `anthropic`, `openai_compatible`, `local_llm`). Không đóng cứng danh sách giá trị để tránh phải sửa Core khi tích hợp nền tảng mới.
+- `engine.provider_id` *(Tùy chọn)*: Định danh nhà cung cấp hoặc nền tảng ưu tiên (`^[a-z0-9_]+$`, ví dụ: `antigravity`, `google_gemini`, `openai`, `anthropic`, `ollama`).
+- `engine.adapter_id` *(Tùy chọn)*: Định danh Engine Adapter cụ thể tại `engines/` (ví dụ: `antigravity_cli`, `gemini_api`, `openai_compatible`).
+- `engine.connection_id` *(Tùy chọn)*: Tham chiếu tên kết nối đã đăng ký trong Connection Registry (định dạng `^[a-z0-9_]+$`, ví dụ: `gemini_primary`). Trường này chỉ là định danh kết nối, tuyệt đối không lưu API key thô hoặc bí mật xác thực.
+- `engine.model_tier`: Nhóm phân tầng năng lực ưu tiên phù hợp với độ phức tạp của vai trò (`pro`, `flash`, `code`). Phân biệt rõ `model_tier` (mức năng lực chung) với `model_id` (mã model cụ thể của nhà cung cấp).
+- `engine.model_id` *(Tùy chọn)*: Định danh model cụ thể của nhà cung cấp nếu cần chỉ định hoặc gợi ý (ví dụ: `gemini-2.5-pro`).
+- `engine.routing_profile` *(Tùy chọn)*: Tên hồ sơ chính sách định tuyến (`^[a-z0-9_]+$`, ví dụ: `code_precision`, `cost_balanced`, `local_only`), chịu sự kiểm tra của Permission Manager và Resources.
+- `engine.fallback_policy` *(Tùy chọn)*: Chính sách dự phòng khi kết nối chính lỗi hoặc mất khả dụng (`none`, `same_tier_allowed`, `operator_approved_only`). Nghiêm cấm tự nâng lên model đắt hơn vượt ngân sách hoặc xoay vòng key nhằm né giới hạn quota của nhà cung cấp.
 - `engine.parameters`: Cặp khóa và giá trị tham số vận hành như `temperature`, `timeout_seconds`.
+
+**Ràng buộc bảo mật bắt buộc:** Khối `engine` trong Agent Manifest tuyệt đối không được chứa các trường lưu bí mật thô (`api_key`, `raw_key`, `secret`, `token`, `password`). Mọi credential phải được quản lý tách biệt qua `credential_ref` ở tầng backend.
 
 ### 2.5. Memory (Phạm vi bộ nhớ)
 Phân định phạm vi lưu trữ thông tin:
@@ -120,8 +128,14 @@ Cấu hình tĩnh lưu trữ trong tệp `agent.yaml` (hoặc `manifest.yaml`, `
 | `capabilities.skills` | List[String] | Có | Danh mục nhãn năng lực thực tế có thể kiểm chứng. |
 | `capabilities.inputs` | List[String] | Có | Định dạng dữ liệu chấp nhận đầu vào. |
 | `capabilities.outputs` | List[String] | Có | Định dạng dữ liệu sinh ra ở đầu ra. |
-| `engine.default_type` | String | Có | Loại engine điều khiển, mặc định là `"antigravity"`. |
-| `engine.model_tier` | String | Có | Nhóm mô hình ưu tiên: `"pro"`, `"flash"`, `"code"`. |
+| `engine.default_type` | String | Có | Định danh mở loại engine/provider (`^[a-z0-9_]+$`), ví dụ: `"antigravity"`, `"google_gemini"`, `"openai_compatible"`. |
+| `engine.provider_id` | String | Không | Định danh nhà cung cấp ưu tiên (`^[a-z0-9_]+$`), mở rộng tự do không đóng cứng enum. |
+| `engine.adapter_id` | String | Không | Định danh Engine Adapter trong `engines/` (`^[a-z0-9_]+$`). |
+| `engine.connection_id` | String | Không | Tham chiếu `connection_id` hợp lệ (`^[a-z0-9_]+$`), không chứa API key thô hay bí mật. |
+| `engine.model_tier` | String | Có | Nhóm phân tầng năng lực ưu tiên: `"pro"`, `"flash"`, `"code"`. |
+| `engine.model_id` | String | Không | Mã model cụ thể của nhà cung cấp (khác với `model_tier`). |
+| `engine.routing_profile` | String | Không | Tên hồ sơ định tuyến (`^[a-z0-9_]+$`), áp dụng theo chính sách Governance và ngân sách. |
+| `engine.fallback_policy` | String | Không | Chính sách dự phòng hợp lệ (`"none"`, `"same_tier_allowed"`, `"operator_approved_only"`). |
 | `engine.parameters` | Object | Không | Tham số vận hành bổ sung như `temperature`, `timeout_seconds`. |
 | `memory.scopes` | List[String] | Có | Danh sách phạm vi bộ nhớ, chứa ít nhất `"private"`. |
 | `skills.allowed` | List[String] | Không | Danh sách `skill_id` (định dạng `^[a-z0-9_]+$`) từ `skills/approved/`. |
@@ -145,6 +159,9 @@ Dữ liệu trạng thái được Agent Runtime cập nhật liên tục vào c
 | `status` | String | Có | Trạng thái vòng đời: `QUEUED`, `ASSIGNED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `BLOCKED`, `COMPLETED`, `FAILED`, `CANCELLED`. |
 | `current_step` | Optional[String] | Không | Mô tả hành động đang diễn ra trong runtime. |
 | `assigned_team_id` | Optional[String] | Không | Mã nhóm công tác do Master thiết lập. |
+| `active_provider_id` | Optional[String] | Không | Mã Provider thực tế đang chạy trong phiên (`null` nếu chưa gán). |
+| `active_connection_id` | Optional[String] | Không | Mã `connection_id` thực tế đã dùng (tuyệt đối không ghi API key). |
+| `active_model_id` | Optional[String] | Không | Mã model thực tế do Engine Adapter báo cáo đã thực thi. |
 | `context_tokens_used` | Optional[Integer] | Không | Số token thực tế tiêu thụ trong ngữ cảnh. Nhận giá trị `null` nếu provider không hỗ trợ cung cấp số liệu. |
 | `telemetry_status` | String | Có | Tình trạng số liệu tài nguyên: `VERIFIED_MEASURED`, `UNAVAILABLE_FROM_PROVIDER`, `ESTIMATED_PENDING_AUDIT`. Nghiêm cấm bịa số liệu. |
 | `total_tool_calls` | Integer | Có | Số lượt công cụ đã được thực thi thật trong phiên. |
@@ -190,7 +207,12 @@ capabilities:
 
 engine:
   default_type: "antigravity"
+  provider_id: "antigravity"
+  adapter_id: "antigravity_cli"
+  connection_id: "default_antigravity"
   model_tier: "code"
+  routing_profile: "code_precision"
+  fallback_policy: "operator_approved_only"
   parameters:
     temperature: 0.1
     timeout_seconds: 180
