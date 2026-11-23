@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01 — CLI handshake` DONE với `agy.exe` 1.5.14 tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`; `P02.02`–`P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01 — CLI handshake` DONE tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`; `P02.02 — Tool execution` DONE tại `docs/reviews/PHASE_02_P02_02_AUDIT.md`; `P02.03`–`P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -191,7 +191,7 @@ AI-Village/
 **PHASE 02 — Antigravity Execution Proof** *(tạo nguồn dữ liệu đáng tin cậy cho Mission Control; chưa xây Dashboard trong phase này)*
 
 - [x] **P02.01 — CLI handshake:** kiểm tra phiên bản/các cờ thực tế và gọi `agy` (`C:\Users\taine\.gemini\bin\agy.exe` v`1.5.14`) từ `engines/antigravity/`; ghi exit/status (`exit_code: 0`, `SUCCEEDED`, `conversation_id`, `VERIFIED_MEASURED` tokens) và engine availability phục vụ Engine Status về sau, không hardcode tên model *(chưa kiểm chứng tool execution, streaming `stream-json`, session isolation, cancel hay multi-provider; chi tiết tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`)*. **DoD:** nhận phản hồi live có bằng chứng.
-- [ ] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json`, tạo file mới, đọc lại và xuất tool execution evidence. **DoD:** file và SHA đúng, không dựa vào lời AI.
+- [x] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json` (không đưa `verification_marker` vào prompt), tạo `proof.txt` mới, đọc lại và Python kiểm chứng độc lập trên đĩa khớp nội dung, tính toàn vẹn `package.json` và mã SHA-256 (`VERIFIED_PASS`, `actual_sha256 == expected_sha256`, chi tiết tại `docs/reviews/PHASE_02_P02_02_AUDIT.md`; `Tool events: NOT OBSERVABLE FROM CURRENT CLI OUTPUT`, chưa kiểm chứng `stream-json`, session isolation hay process cancellation). **DoD:** file và SHA đúng, không dựa vào lời AI.
 - [ ] **P02.03 — Streaming events:** chuyển CLI `stream-json` (nếu bản cài hỗ trợ) thành sự kiện có cấu trúc có thể truy xuất cho Activity Journal. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
 - [ ] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt, không trộn lịch sử và file. **DoD:** có test cross-session isolation.
 - [ ] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn.
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** thực hiện **P02.02 — Tool execution** (sau khi Gate A đạt `PASS` và `P02.01` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** thực hiện **P02.03 — Streaming events** (sau khi `P02.01` và `P02.02` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
 
 ---
 
@@ -664,6 +664,20 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`24 passed, 1 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_handshake_live.py -v` (`1 passed in 20.34s`); báo cáo tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`.
 Blocking issue: Không có.
 Next: `P02.02 — Tool execution`.
+
+### P02.02 — Real Tool Execution & Independent Artifact Verification
+ID: P02.02
+Status: DONE
+Scope: engines/antigravity/models.py, engines/antigravity/verification.py, engines/antigravity/adapter.py, engines/antigravity/__init__.py, tests/engines/test_antigravity_tool_execution_unit.py, tests/integration/test_antigravity_tool_execution_live.py, tests/README.md, tests/standards/test_standards_consistency.py, docs/reviews/PHASE_02_P02_02_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(engine): verify real Antigravity tool execution` trên git log sau khi push)
+Acceptance:
+- Mở rộng tối thiểu adapter trên nền `P02.01`: bổ sung `verification.py` kiểm tra canonical path trong workspace, snapshot SHA-256 bảo vệ tệp nguồn và đối chiếu độc lập nội dung + SHA-256 trên đĩa.
+- Xác minh chạy thật với `agy.exe` (`v1.5.15`) dưới `--sandbox --mode accept-edits --output-format json` trong fixture cô lập (`p02_02_evidence__84pdvn5`): Agent đọc `package.json` mà không biết trước marker trong prompt, tạo `proof.txt` (`67` bytes), đọc lại và giữ nguyên SHA-256 của `package.json`; Python xác minh khớp SHA-256 `542d483e2e9286131a5a4f50d4ed6188575e1e65a613cf375d5d35dd124ccba2` (`VERIFIED_PASS`).
+- Kiểm chứng bảo vệ tệp sentinel ngoài workspace (`../p02_02_outer_.../sentinel.txt`): không bị thay đổi (`OUTER_UNCHANGED: True`) và shell `Bash` bị auto-deny trong chế độ headless.
+- Ghi nhận rõ `Tool events: NOT OBSERVABLE FROM CURRENT CLI OUTPUT`; chưa kiểm chứng `stream-json`, session isolation, cancel hay multi-provider (`P02.03`–`P02.06`).
+Tests / Evidence: `python -m pytest tests -v` (`29 passed, 2 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_tool_execution_live.py -v` (`1 passed in 35.86s`); báo cáo tại `docs/reviews/PHASE_02_P02_02_AUDIT.md`.
+Blocking issue: Không có.
+Next: `P02.03 — Streaming events`.
 
 
 
