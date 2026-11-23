@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** ĐANG TRIỂN KHAI CHẶNG A (`Gate A: PASS_WITH_LIMITATIONS`). **PHASE 00:** `P00.02`–`P00.04` DONE, `P00.01` IN PROGRESS (`vision.md` đã được cập nhật định hướng Multi-Provider/Multi-Key để người dùng xem xét, giữ `PENDING_USER_APPROVAL`). **PHASE 01:** `P01.01`–`P01.15` DONE. **PHASE 01B: DONE** (`docs/reviews/PHASE_01B_AUDIT.md`). Báo cáo nghiệm thu Chặng A tại `docs/reviews/CHANG_A_AUDIT.md`. Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE** (`vision.md` đã được người vận hành xác nhận phê duyệt `"Oke duyệt"` ngày 2026-11-23). **PHASE 01: DONE** (`P01.01`–`P01.15`). **PHASE 01B: DONE** (`docs/reviews/PHASE_01B_AUDIT.md`). Đã hoàn tất phân bổ kiến trúc **Mission Control & Văn phòng Tương tác** (`docs/architecture/MISSION_CONTROL_UX.md`) vào lộ trình `PHASE 02`–`17` (chưa triển khai code Runtime/UI). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -131,6 +131,15 @@ AI-Village/
 
 **Quy tắc hợp tác:** một agent có phòng ban chủ quản nhưng được tham gia nhóm liên phòng ban. Nhân viên được trao đổi trực tiếp có cấu trúc; chỉ Master ra quyết định thay đổi hướng lớn/bàn giao. Nhiệm vụ đơn giản không bắt buộc họp. Nhiệm vụ phức tạp có agenda, phản biện, quyết định, action items và giới hạn lượt họp.
 
+### Mission Control & Functional Office — Cross-Phase UX Requirement
+
+- **Mục tiêu:** Xây dựng môi trường điều hành hợp nhất giúp người vận hành giao việc, theo dõi checklist thực tế, giám sát Agent/Engine/Usage/Quota đa nhà cung cấp, nhận cảnh báo và ra quyết định tại Action Inbox, kiểm định QA, truy xuất và đối chiếu phiên bản tài sản, sau đó ánh xạ lên các đồ vật tương tác trong văn phòng 3D mà không phải lục từng thư mục hay log.
+- **Nguyên tắc:** Mission Control không phải phòng ban thứ 10, không phải Agent mới, không phải Runtime thứ hai và không tự tạo số liệu giả (`null` giữ nguyên `Không có dữ liệu từ Provider`, không thay bằng `0`); mọi thông báo và thẻ tổng quan đều dẫn thẳng tới đối tượng gốc; UI chỉ hiển thị và gửi lệnh qua `api/` cùng Permission Manager.
+- **Các thành phần chính (18 thành phần + Bàn Master):** Task Checklist Board, Kanban, Operations Monitor, Usage & Cost Control Center, Task Timing, Notification Center, Action Inbox, Scheduler, Meeting Room, QA Inspection Station, Artifact Cabinet, Comparison Board, Activity Journal, Engine Status Board, Provider & API Key Manager, Trash & Restore, Global Search, Settings & Governance Panel và Master Desk.
+- **Nguồn dữ liệu:** Master, Task Runtime, Agent Registry, Engine Adapter, Tool Runtime, Event Journal, Resource Ledger, Notification System, Approval Center, Artifact Registry, QA Evidence và Provider Connection Registry.
+- **Tài liệu chi tiết:** [docs/architecture/MISSION_CONTROL_UX.md](architecture/MISSION_CONTROL_UX.md) (kèm Mục 12 trong [docs/architecture/SYSTEM_BLUEPRINT.md](architecture/SYSTEM_BLUEPRINT.md)).
+- **Phân bổ sở hữu theo Phase:** Dữ liệu nguồn từ `PHASE 02`–`11`, hợp đồng API/Realtime tại `PHASE 12`, giao diện 2D vận hành đầy đủ tại `PHASE 13` (đạt `Gate H` trước), ánh xạ vật thể 3D tại `PHASE 14`, kiểm thử tổng hợp tại `PHASE 15`–`16` và tài liệu vận hành tại `PHASE 17`.
+
 ---
 
 ## 3. ROADMAP — Phases nhỏ, có điểm nghiệm thu
@@ -139,7 +148,7 @@ AI-Village/
 
 **PHASE 00 — Quy tắc nền tảng** *(không viết ứng dụng ở chặng này)*
 
-- [~] **P00.01 — Đặc tả mục tiêu:** chốt phạm vi MVP, phần chưa làm, định nghĩa DONE/FAIL/BLOCKED và định hướng Multi-Provider/Multi-Model/Multi-Key (BYOK). **DoD:** `docs/architecture/vision.md` được duyệt *(đã cập nhật bản trình duyệt trước phê duyệt, giữ `[~]` chờ người vận hành duyệt `PENDING_USER_APPROVAL`; chưa tự đóng Gate A)*.
+- [x] **P00.01 — Đặc tả mục tiêu:** chốt phạm vi MVP, phần chưa làm, định nghĩa DONE/FAIL/BLOCKED và định hướng Multi-Provider/Multi-Model/Multi-Key (BYOK). **DoD:** `docs/architecture/vision.md` được duyệt *(SHA: `ac67b88`, `e4522aa`; đã được người vận hành xác nhận phê duyệt trực tiếp `"Oke duyệt"` ngày 2026-11-23)*.
 - [x] **P00.02 — Danh mục ranh giới:** ghi rõ dữ liệu input/output, nơi lưu bí mật, quyền thực thi và các hành động cần người duyệt. **DoD:** `docs/architecture/boundaries.md` *(SHA: `ac67b88`)*.
 - [x] **P00.03 — Kiểm kê mã cũ:** phân loại thành phần nào được tái sử dụng từ Marketing Village và AutoGen Pentest, không copy bừa. **DoD:** `docs/architecture/reuse_inventory.md` *(SHA: `ac67b88`)*.
 - [x] **P00.04 — Chốt stack tạm thời:** Python/FastAPI + SQLite; React/Vite + Three.js hoặc React Three Fiber là ứng viên; ghi lý do, chưa khóa framework điều phối. **DoD:** một ADR trong `docs/decisions/` *(SHA: `ac67b88`)*.
@@ -175,61 +184,61 @@ AI-Village/
 - [x] **P01B.06 — Tạo bộ Template chuẩn:** Khởi tạo 3 mẫu cấu hình tại `docs/templates/` (`agent/agent.yaml`, `department/department.yaml`, `skill/SKILL.md`). (SHA: `74c0b17`)
 - [x] **P01B.07 — Kiểm toán và đồng bộ chéo toàn bộ Specification:** Xử lý 8 phát hiện bất nhất, kiểm thử `tests/standards/test_standards_consistency.py` (6/6 PASSED), xuất báo cáo `docs/reviews/PHASE_01B_AUDIT.md`.
 
-**Gate A (`PASS_WITH_LIMITATIONS`):** cấu trúc 14 thư mục, UI scaffold và bộ kiểm thử nền tảng đã chạy thật (`11 passed`), Git sạch, không có mã nghiệp vụ sai folder; riêng `P00.01` (`docs/architecture/vision.md`) đang ở trạng thái `PENDING_USER_APPROVAL` chờ người vận hành duyệt để đóng hoàn toàn Gate A (`docs/reviews/CHANG_A_AUDIT.md`).
+**Gate A (`PASS`):** cấu trúc 14 thư mục, tài liệu nền tảng (`vision.md` đã được người vận hành duyệt `"Oke duyệt"`, `boundaries.md`, `reuse_inventory.md`, `ADR-0001`, `MISSION_CONTROL_UX.md`), bộ chuẩn `PHASE 01B`, UI scaffold và bộ kiểm thử nền tảng đã chạy thật, Git sạch, không có mã nghiệp vụ sai folder (`docs/reviews/CHANG_A_AUDIT.md`).
 
 ### CHẶNG B — Chứng minh bộ não thật, trước khi xây dân làng
 
-**PHASE 02 — Antigravity Execution Proof**
+**PHASE 02 — Antigravity Execution Proof** *(tạo nguồn dữ liệu đáng tin cậy cho Mission Control; chưa xây Dashboard trong phase này)*
 
-- [ ] **P02.01 — CLI handshake:** kiểm tra phiên bản/các cờ thực tế và gọi `agy` từ `engines/antigravity/`; ghi exit/status, không hardcode tên model. **DoD:** nhận phản hồi live có bằng chứng.
-- [ ] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json`, tạo file mới, đọc lại. **DoD:** file và SHA đúng, không dựa vào lời AI.
-- [ ] **P02.03 — Streaming events:** chuyển CLI `stream-json` (nếu bản cài hỗ trợ) thành sự kiện có cấu trúc. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
-- [ ] **P02.04 — Session isolation:** tạo hai phiên logic A/B, không trộn lịch sử và file. **DoD:** có test cross-session isolation.
-- [ ] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn.
-- [ ] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities, chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform *(chưa triển khai)*. **DoD:** engine/provider khác có thể thay mà core không đổi.
+- [ ] **P02.01 — CLI handshake:** kiểm tra phiên bản/các cờ thực tế và gọi `agy` từ `engines/antigravity/`; ghi exit/status và engine availability phục vụ Engine Status về sau, không hardcode tên model. **DoD:** nhận phản hồi live có bằng chứng.
+- [ ] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json`, tạo file mới, đọc lại và xuất tool execution evidence. **DoD:** file và SHA đúng, không dựa vào lời AI.
+- [ ] **P02.03 — Streaming events:** chuyển CLI `stream-json` (nếu bản cài hỗ trợ) thành sự kiện có cấu trúc có thể truy xuất cho Activity Journal. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
+- [ ] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt, không trộn lịch sử và file. **DoD:** có test cross-session isolation.
+- [ ] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn.
+- [ ] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities (`provider_id`, `connection_id`, `model_id` metadata và telemetry khả dụng cho Usage Monitor), chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform *(chưa triển khai)*. **DoD:** engine/provider khác có thể thay mà core không đổi.
 
 **PHASE 03 — Quyết định CrewAI**
 
 - [ ] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Engine Adapter (Antigravity hoặc API Provider hỗ trợ Tool Runtime), không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật.
-- [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy và quota. **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
+- [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy, quota, liên kết Task/Agent/Run, truy vết công cụ, báo cáo lỗi và khả năng cung cấp dữ liệu quan sát cho UI (không chọn chỉ vì dễ tạo nhiều Agent). **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
 - [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke.
 
 **Gate B — QUAN TRỌNG NHẤT:** một yêu cầu từ ứng dụng → Antigravity **thao tác công cụ thật** → tạo artifact → backend đọc và kiểm chứng. **Nếu chưa đạt, không phát triển các phase kế tiếp**.
 
 ### CHẶNG C — Lõi quản lý nhiệm vụ và trạng thái
 
-**PHASE 04 — Contracts & Task Runtime**
+**PHASE 04 — Contracts & Task Runtime** *(nền tảng dữ liệu lõi cho Mission Control)*
 
-- [ ] **P04.01** — Định nghĩa `Task`, `Run`, `Agent`, `Session`, `Artifact`, `Event`, `ConnectionRef` và ID liên kết trong `core/contracts/` *(không lưu raw API key; chưa triển khai)*.
-- [ ] **P04.02** — Task state machine: QUEUED → RUNNING → WAITING/FAILED/COMPLETED/CANCELLED/BLOCKED; chuyển trạng thái có guard.
-- [ ] **P04.03** — Event journal: event_id, run_id, actor_id, timestamp, loại sự kiện, `provider_id`/`connection_id`/`model_id`, payload được lọc secrets; replay được.
-- [ ] **P04.04** — SQLite migrations trong `storage/db/`, kiểm foreign keys, transaction và metadata kết nối tách khỏi secret thô *(chưa triển khai)*.
-- [ ] **P04.05** — Repository task/event/session/connection metadata trong `storage/repositories/`; restart không mất run *(chưa triển khai)*.
-- [ ] **P04.06** — Cancellation/timeout, fallback hợp lệ theo chính sách và idempotency trên core; không hiển thị “đang chạy” nếu đã dừng *(chưa triển khai)*.
-- [ ] **P04.07** — Governance: workspace scopes, tool allowlist, provider/connection routing policy, approval gate (bao gồm chuyển provider đổi vùng dữ liệu/vượt ngân sách), audit và Fail-Closed khi không đủ quyền *(chưa triển khai)*.
+- [ ] **P04.01** — Định nghĩa `Task`, `Run`, `Agent`, `Session`, `Artifact`, `Event`, `ConnectionRef` cùng các tham chiếu nền tảng cho Project grouping (`project_id` mang tính tổ chức, không phải Runtime thứ hai), `ChecklistItem` và `NotificationRef` trong `core/contracts/` *(không dồn logic chi tiết mọi miền vào P04.01; không lưu raw API key; chưa triển khai)*.
+- [ ] **P04.02** — Task state machine: QUEUED → RUNNING → WAITING/FAILED/COMPLETED/CANCELLED/BLOCKED; chuyển trạng thái có guard bảo đảm Kanban, Checklist và Timing hiển thị trung thực từ timestamp gốc (không ETA giả).
+- [ ] **P04.03** — Event journal: event_id, task_id, run_id, session_id, actor_id, timestamp, loại sự kiện, `provider_id`/`connection_id`/`model_id`, `artifact_id`/`evidence_id`, payload được lọc secrets; replay được làm nguồn chính cho Activity Timeline.
+- [ ] **P04.04** — SQLite migrations trong `storage/db/`, kiểm foreign keys, transaction, bảng lưu checklist/history/notification metadata và connection metadata tách khỏi secret thô *(chưa triển khai)*.
+- [ ] **P04.05** — Repository task/run/checklist/event/session/connection metadata trong `storage/repositories/`; restart không mất run và tái dựng được trạng thái Task cùng các bước của nó từ dữ liệu thật *(chưa triển khai)*.
+- [ ] **P04.06** — Cancellation/timeout, fallback hợp lệ theo chính sách và idempotency trên core; bảo đảm UI không bao giờ hiển thị `RUNNING` nếu tác vụ đã dừng *(chưa triển khai)*.
+- [ ] **P04.07** — Governance: workspace scopes, tool allowlist, provider/connection routing policy, approval gate và permission cho mọi thao tác từ Mission Control (kể cả chuyển trạng thái Kanban, xóa hàng loạt, sửa kết nối, chuyển provider đổi vùng dữ liệu/vượt ngân sách), audit và Fail-Closed *(chưa triển khai)*.
 
-**Gate C:** một task đơn chạy, tạm dừng/khôi phục/hủy đúng; event và artifact traceable; sau restart không giả trạng thái.
+**Gate C:** một task đơn chạy, tạm dừng/khôi phục/hủy đúng; event, checklist và artifact traceable; sau restart tái dựng đúng trạng thái từ dữ liệu thật, không giả trạng thái.
 
 ### CHẶNG D — Agent động và phối hợp thông minh
 
 **PHASE 05 — Hồ sơ nhân viên và Master**
 
 - [ ] **P05.01** — Agent manifest schema: name, role, department, capabilities, engine (hỗ trợ trường tùy chọn `provider_id`, `adapter_id`, `connection_id`, `model_id`, `routing_profile`, `fallback_policy`; cấm raw API key), permissions, memory scope *(chưa triển khai runtime)*.
-- [ ] **P05.02** — Agent Registry: create/update/disable, version và validation (chưa sửa production runtime).
-- [ ] **P05.03** — Master Agent: hiểu yêu cầu, xác định output/acceptance, chọn người cần tham gia và đề xuất routing phù hợp trong phạm vi Governance cho phép.
+- [ ] **P05.02** — Agent Registry: create/update/disable, version và validation; cung cấp dữ liệu Registry tách biệt rõ với Runtime State đang chạy cho Agent Explorer (chưa sửa production runtime).
+- [ ] **P05.03** — Master Agent: hiểu yêu cầu, tạo và quản lý kế hoạch nhiệm vụ dạng Checklist có cấu trúc (gồm các bước và Agent phụ trách), xác định output/acceptance, chọn người cần tham gia và đề xuất routing phù hợp trong phạm vi Governance cho phép.
 - [ ] **P05.04** — Team Builder: tạo team động từ capability thay vì danh sách phòng ban cứng.
-- [ ] **P05.05** — Worker session lifecycle: mỗi nhân viên có session/context riêng ngay cả khi dùng chung Provider/Connection.
-- [ ] **P05.06** — Handoff giữa worker: artifact + decision + evidence; không truyền nguyên chat quá dài.
+- [ ] **P05.05** — Worker session lifecycle: mỗi nhân viên có session/context riêng ngay cả khi dùng chung Provider/Connection; phân biệt rõ Agent có trong Registry với Agent thực sự đang chạy.
+- [ ] **P05.06** — Handoff giữa worker: liên kết chặt Task, Run, Artifact, decision và bằng chứng; không truyền nguyên chat quá dài.
 - [ ] **P05.07** — Agent tuyển mới: đề xuất role, công cụ, quyền và đánh giá; chỉ kích hoạt khi hợp lệ.
 
 **PHASE 06 — Họp và phản biện**
 
-- [ ] **P06.01** — Agenda & participant selection: chỉ gọi người liên quan; nhiệm vụ đơn giản được phép bỏ họp.
-- [ ] **P06.02** — Phản biện có cấu trúc: proposal, objection, evidence, uncertainty, action items.
+- [ ] **P06.01** — Agenda & participant selection: chỉ gọi người liên quan; nhiệm vụ đơn giản được phép bỏ họp (không dựng hội thoại giả).
+- [ ] **P06.02** — Phản biện có cấu trúc: proposal, objection, evidence references, uncertainty, action items phục vụ Meeting Timeline.
 - [ ] **P06.03** — Giới hạn lượt và chống đồng thuận giả/vòng tranh luận vô tận.
-- [ ] **P06.04** — Quyết định của Master: ghi rationale và tiếp tục công việc; không thay thế QA.
-- [ ] **P06.05** — Worker-to-worker collaboration; xử lý khi hai worker tranh chấp cùng file/task.
-- [ ] **P06.06** — Bàn giao Master: tổng hợp artifact cuối, các giới hạn và link tải; thiếu bằng chứng thì NOT VERIFIED.
+- [ ] **P06.04** — Quyết định của Master: lưu Decision Records với lý do hiển thị được cho người dùng (user-visible rationale) và tiếp tục công việc; không thay thế QA.
+- [ ] **P06.05** — Worker-to-worker collaboration & handoff history; xử lý khi hai worker tranh chấp cùng file/task.
+- [ ] **P06.06** — Bàn giao Master: tổng hợp Master delivery summary kèm artifact cuối, các giới hạn và link tải; thiếu bằng chứng thì NOT VERIFIED.
 
 **Gate D:** nhiệm vụ cần 2 Agent có một cuộc họp thật (không phải đoạn văn dựng sẵn), handoff có định danh, QA tìm được lỗi được sửa trước khi Master bàn giao.
 
@@ -237,36 +246,36 @@ AI-Village/
 
 **PHASE 07 — Tools độc lập với phòng ban**
 
-- [ ] **P07.01** — File tools: read/write/list, path scope, không ghi đè ngoài ý muốn.
-- [ ] **P07.02** — Code tools: chạy test/script trong sandbox, lưu stdout/stderr có kiểm soát.
-- [ ] **P07.03** — Browser tools: mở web, chụp ảnh, ghi hành động thật theo phiên được cấp quyền.
+- [ ] **P07.01** — File tools: read/write/list, path scope, không ghi đè ngoài ý muốn; ghi Tool Execution Records với input/output metadata đã lọc secret.
+- [ ] **P07.02** — Code tools: chạy test/script trong sandbox, lưu stdout/stderr có kiểm soát, đo execution duration và exit/error state.
+- [ ] **P07.03** — Browser tools: mở web, chụp ảnh, ghi hành động thật theo phiên được cấp quyền, xuất evidence references.
 - [ ] **P07.04** — Research tools: truy xuất web/API và lưu URL, thời điểm, bằng chứng, ranh giới dữ liệu.
 - [ ] **P07.05** — Office tools: đọc/ghi Word, Excel, PDF và tính toán bằng code.
-- [ ] **P07.06** — Tool Registry: khả năng, quyền, chi phí, inputs/outputs; không cài công cụ ngẫu nhiên vào host.
+- [ ] **P07.06** — Tool Registry & Tool Usage Summary: khả năng, quyền, chi phí, inputs/outputs và tổng hợp lượt dùng công cụ theo Task/Agent (không log nội dung bí mật, không cài công cụ ngẫu nhiên vào host).
 
 **PHASE 08 — Storage, Vault & Knowledge**
 
-- [ ] **P08.01** — Artifact Registry: task/run/owner/version/hash/content type/đường dẫn.
-- [ ] **P08.02** — Kho sản phẩm: lưu và tìm lại file đã bàn giao; không nhân bản tùy tiện.
-- [ ] **P08.03** — Kho bằng chứng: QA logs, nguồn research, trace, build/test.
-- [ ] **P08.04** — Knowledge retrieval: tìm theo metadata trước, semantic search tùy chọn sau.
-- [ ] **P08.05** — Backup/restore, retention, trash, dữ liệu dùng chung và bảo vệ file tham chiếu.
+- [ ] **P08.01** — Artifact Registry: task/run/owner/version/hash/content type/đường dẫn cùng lịch sử phiên bản (`artifact version history`).
+- [ ] **P08.02** — Kho sản phẩm: lưu, tìm lại, cung cấp khả năng xem trước theo loại file (`file preview capability`) và cung cấp comparison metadata (không tạo diff giả bằng LLM); không nhân bản tùy tiện.
+- [ ] **P08.03** — Kho bằng chứng: QA logs, evidence links, nguồn research, trace, build/test phục vụ truy vết QA Inspection Station.
+- [ ] **P08.04** — Knowledge retrieval & Metadata search: tìm kiếm theo metadata có phân quyền trước, semantic search chỉ thêm khi có hạ tầng phù hợp.
+- [ ] **P08.05** — Backup/restore, retention, trash & restore, safe bulk actions (kiểm tra kỹ tình huống dữ liệu dùng chung giữa nhiều Task và bảo vệ file tham chiếu).
 
 **Gate E:** một nhiệm vụ mới sử dụng lại được artifact/tri thức cũ đúng phiên bản, tạo DOCX/XLSX thật và tải về qua API; xóa/restore không mất file của task khác.
 
 ### CHẶNG F — Chuyển 9 bộ phận từ ý tưởng thành chức năng
 
-**PHASE 09 — Department Behaviors** *(mỗi tiểu phase một bộ phận, chỉ xây chức năng cốt lõi trước)*
+**PHASE 09 — Department Behaviors** *(mỗi tiểu phase một bộ phận, chỉ xây chức năng cốt lõi trước; giữ nguyên 9 phòng ban và không đặt logic Mission Control vào riêng một phòng ban)*
 
-- [ ] **P09.01 — HR:** quản lý agent, thay role, đề xuất tuyển người và cấp kỹ năng.
-- [ ] **P09.02 — Resources:** đo CPU/RAM/time/token nếu engine trả số liệu; theo dõi chi phí và trạng thái quota theo Provider, Project/Billing Scope, `connection_id` và `model_id` (đặt `null` + `UNAVAILABLE_FROM_PROVIDER` nếu thiếu; không mặc định 2 key có 2 quota riêng); đề xuất phân bổ và kiểm kê sau run *(chưa triển khai)*.
-- [ ] **P09.03 — Service/UX:** làm rõ yêu cầu, nhận feedback, so sản phẩm với brief.
+- [ ] **P09.01 — HR:** quản lý agent, thay role, đề xuất tuyển người, cấp kỹ năng và cung cấp Agent status/capability metadata cho Explorer.
+- [ ] **P09.02 — Resources:** đo CPU/RAM/time/token nếu engine trả số liệu; theo dõi ngân sách, chi phí và trạng thái quota theo Provider, Project/Billing Scope, `connection_id` và `model_id` (đặt `null` + `UNAVAILABLE_FROM_PROVIDER` nếu thiếu; không mặc định 2 key có 2 quota riêng); đề xuất phân bổ và kiểm kê sau run *(chưa triển khai)*.
+- [ ] **P09.03 — Service/UX:** làm rõ yêu cầu, nhận phản hồi người dùng (feedback/chỉnh sửa), so sản phẩm với brief.
 - [ ] **P09.04 — Marketing:** một skill nghiên cứu/lập kế hoạch/content có đầu ra thật, không hardcode mọi task.
 - [ ] **P09.05 — IT/R&D:** tạo project/code và kiểm thử trong workspace cách ly; không tự thay mã production.
-- [ ] **P09.06 — Reception:** lắng nghe yêu cầu mới/sự kiện phát sinh, định tuyến hoặc báo động lên Master.
-- [ ] **P09.07 — Process/Skills:** ghi nhận lỗi, công cụ, thời gian sau mỗi task, đề xuất skill khi gặp mẫu lặp.
-- [ ] **P09.08 — Operations/QA:** kiểm chứng độc lập, cảnh báo lỗi và từ chối PASS thiếu chứng cứ.
-- [ ] **P09.09 — Vault:** luồng nộp tài liệu, gắn metadata, truy xuất và giao lại artifact cũ.
+- [ ] **P09.06 — Reception:** lắng nghe yêu cầu mới/sự kiện phát sinh, định tuyến hoặc báo động lên Master; đóng góp phân loại cảnh báo, thông báo và đầu việc cho Action Inbox.
+- [ ] **P09.07 — Process/Skills:** ghi nhận lỗi, công cụ, thời gian và lịch sử cải tiến sau mỗi task, đề xuất skill khi gặp mẫu lặp.
+- [ ] **P09.08 — Operations/QA:** kiểm chứng độc lập, xuất trạng thái xác minh và evidence (`PASS`/`FAIL`/`UNVERIFIED`), cảnh báo lỗi và từ chối PASS thiếu chứng cứ.
+- [ ] **P09.09 — Vault:** luồng nộp tài liệu, gắn metadata, quản lý dữ liệu hồ sơ/phiên bản, truy xuất và giao lại artifact cũ.
 
 **Gate F:** giao 3 đề bài khác loại (code / research / Office), Master huy động nhóm khác nhau và tạo sản phẩm thật. Không yêu cầu mọi phòng ban cùng tham gia.
 
@@ -274,62 +283,62 @@ AI-Village/
 
 **PHASE 10 — Continuous Improvement (phương án C)**
 
-- [ ] **P10.01** — Mỗi task tạo bản tóm tắt thực thi bằng dữ liệu: steps, errors, fixes, tools, time, source, cost nếu biết.
-- [ ] **P10.02** — Tìm pattern từ nhiều task: lỗi lặp, thao tác dư, kỹ năng thiếu.
+- [ ] **P10.01** — Mỗi task tạo bản tóm tắt thực thi bằng dữ liệu: steps, errors, fixes, tools, time, source, cost nếu biết, kèm skill usage history.
+- [ ] **P10.02** — Tìm pattern từ nhiều task: lỗi lặp, thao tác dư, kỹ năng thiếu và đề xuất cải tiến (suggested improvements) dựa trên dữ liệu kiểm tra được.
 - [ ] **P10.03** — Skill candidate: điều kiện dùng, inputs/outputs, rủi ro, thử nghiệm và version.
-- [ ] **P10.04** — IT + QA kiểm chứng candidate bằng benchmark A/B trên fixture.
-- [ ] **P10.05** — Master đề xuất kích hoạt; người dùng duyệt khi skill thay quyền, code hoặc workflow nhạy cảm; rollback được.
+- [ ] **P10.04** — IT + QA kiểm chứng candidate bằng benchmark A/B trên fixture và lưu benchmark status minh bạch.
+- [ ] **P10.05** — Master đề xuất kích hoạt (pending skill approvals); người dùng duyệt khi skill thay quyền, code hoặc workflow nhạy cảm; lưu improvement outcomes và rollback được.
 
 **PHASE 11 — Interrupts & Resources**
 
 - [ ] **P11.01** — Nhận yêu cầu mới khi task cũ đang chạy, không mất dữ liệu/nhầm conversation.
-- [ ] **P11.02** — Phân loại mức khẩn, tác động và lựa chọn Agent cần hỏi; khẩn cấp báo Master.
-- [ ] **P11.03** — Scheduler có giới hạn concurrency/rate/quota theo từng phạm vi kết nối hợp lệ, hỗ trợ hàng đợi và ưu tiên (cấm xoay vòng key để né giới hạn Provider) *(chưa triển khai)*.
-- [ ] **P11.04** — Resource ledger: thời gian, bộ nhớ, chi phí báo cáo được gắn `provider_id`/`connection_id`/`model_id`, ước lượng phải có nhãn *(chưa triển khai)*.
+- [ ] **P11.02** — Phân loại mức khẩn, tác động, phát sinh notification theo chính sách severity & deduplication (không tạo thông báo lặp vô hạn) và lựa chọn Agent cần hỏi; khẩn cấp báo Master.
+- [ ] **P11.03** — Scheduler có giới hạn concurrency/rate/quota theo từng phạm vi kết nối hợp lệ, hỗ trợ hàng đợi, hiển thị task queue visibility, active execution tracking và scheduled task metadata cho Lịch làm việc thật (cấm xoay vòng key để né giới hạn Provider) *(chưa triển khai)*.
+- [ ] **P11.04** — Resource ledger: thời gian, bộ nhớ, chi phí báo cáo được gắn `provider_id`/`connection_id`/`model_id`, phát budget warnings và quota alerts; ước lượng phải có nhãn *(chưa triển khai)*.
 - [ ] **P11.05** — Sau task, tài nguyên được dọn an toàn, kiểm kê và gửi dữ liệu học hỏi cho Process.
 
 **Gate G:** đang xử lý task A, người dùng bổ sung task B; Reception tiếp nhận, Master quyết định ưu tiên; task A không bị ghi đè; nhiệm vụ hoàn thành có đánh giá tài nguyên và cải tiến.
 
 ### CHẶNG H — Giao diện thật, sau đó mới 3D
 
-**PHASE 12 — API & Realtime**
+**PHASE 12 — API & Realtime** *(cung cấp DTO và read model thống nhất cho Mission Control, tránh duplicate logic)*
 
-- [ ] **P12.01** — HTTP endpoints: tasks, agents, meetings, artifacts, approvals, skills.
-- [ ] **P12.02** — SSE/WebSocket event stream dựa trên event journal (có reconnect, dedupe).
-- [ ] **P12.03** — API auth/local policy: không công khai quyền tool, `credential_ref` nội bộ hoặc secrets sang browser; endpoint cấu hình Connection chỉ trả tên, trạng thái và chuỗi nhận diện đã che *(chưa triển khai)*.
+- [ ] **P12.01** — HTTP endpoints / unified read models: overview, projects/tasks/checklist, activity timeline, notifications/action inbox, agents/runtime status, meetings, resource usage, provider connections, artifacts/versions/comparison/preview, trash/restore, approvals, skills, QA evidence và global search.
+- [ ] **P12.02** — SSE/WebSocket event stream dựa trên event journal (có reconnect, dedupe và đồng bộ snapshot với event stream).
+- [ ] **P12.03** — API auth/local policy: mọi hành động nhạy cảm qua Permission Manager và Approval Gate; không công khai quyền tool, `credential_ref` nội bộ hoặc secrets sang browser; endpoint cấu hình Connection chỉ trả tên, trạng thái và chuỗi nhận diện đã che *(chưa triển khai)*.
 
-**PHASE 13 — Giao diện 2D vận hành trước**
+**PHASE 13 — Giao diện 2D vận hành trước** *(Notifications và Global Search là năng lực dùng chung của App Shell; Mission Control Home tổng hợp từ cùng nguồn dữ liệu)*
 
-- [ ] **P13.01** — App shell + navigation.
-- [ ] **P13.02** — Chat với Master: text, attachment, stream, interrupt, cancel; lịch sử đúng phiên.
-- [ ] **P13.03** — Task dashboard: progress dựa trên stage thật, log và retry status.
-- [ ] **P13.04** — Agent & department explorer: chọn nhân viên xem role/session/capabilities.
-- [ ] **P13.05** — Meeting room 2D: ai tham gia, ý kiến, phản biện, quyết định, action items.
-- [ ] **P13.06** — Approval center: người dùng xem rõ hành động đang chờ quyền.
-- [ ] **P13.07** — Vault UI: tìm/lọc/xem/tải artifact theo task và phiên bản.
-- [ ] **P13.08** — Resource, connection & incident dashboard: quota, error, hàng đợi, khẩn cấp và quản trị kết nối BYOK (thêm/đặt tên/bật-tắt/kiểm tra khi cho phép; không lưu key trong `localStorage`, không hiện lại secret thô) *(chưa triển khai)*.
+- [ ] **P13.01** — App shell + navigation: Mission Control Home (7 khu vực Overview, My Tasks, Resource Snapshot, Action Required, Recent Deliveries, Activity Timeline, Global Search), thanh thông báo dùng chung, truy cập cài đặt hợp lệ, responsive trên màn hình lớn và nhỏ.
+- [ ] **P13.02** — Chat với Master: chat gắn Task/Project, attachment, plan display, stream, interrupt, cancel; lịch sử đúng phiên và deep-link thẳng tới Checklist, Artifact và QA.
+- [ ] **P13.03** — Task dashboard: Task Checklist Board (số bước/tổng bước, không suy đoán `%`), Kanban đồng bộ runtime (kéo/thả theo guard), Task Timing (tính từ timestamp gốc), Activity Journal gốc, Scheduler view (chỉ khi có Scheduler thật), QA summary, log và retry/failure display.
+- [ ] **P13.04** — Agent & department explorer: chọn nhân viên xem capabilities, department, runtime status thực tế (tách với registry), model/provider metadata hợp lệ, Engine/Session status (không báo `Online` giả) và các Task liên quan.
+- [ ] **P13.05** — Meeting room 2D: ai tham gia, agenda, transcript/events, ý kiến, phản biện, quyết định Master, bằng chứng và action items.
+- [ ] **P13.06** — Approval center & Action Inbox: tách biệt thông báo đọc với hộp thư việc cần quyết định (duyệt lệnh, câu hỏi Master, thiếu file, QA fail, thiếu cấu hình), risk summary, thao tác approve/reject và decision history.
+- [ ] **P13.07** — Vault UI (Artifact Cabinet): tìm/lọc/xem trước theo định dạng/tải artifact theo task và phiên bản, QA inspection & evidence links, Comparison board (diff xác định/metadata, không LLM bịa diff), Trash & restore kèm xử lý hàng loạt có xác nhận và bảo vệ tệp dùng chung.
+- [ ] **P13.08** — Resource, connection & incident dashboard: Usage Monitor & Cost (tách nguồn dữ liệu, giữ nguyên `null` / `Không có dữ liệu từ Provider`), Provider/Connection BYOK manager (thêm/đặt tên/bật-tắt/kiểm tra kết nối; không lộ key thô hay `localStorage`), Engine status, incident history, resource warnings và bảng cài đặt hợp lệ *(chưa triển khai)*.
 
-**Gate H:** toàn bộ một nhiệm vụ đa agent chạy **qua UI**, dùng engine thật, thao tác được, có kết quả tải được và có thể can thiệp giữa chừng. Nếu chưa qua gate này thì 3D chỉ được làm prototype tách biệt.
+**Gate H:** toàn bộ một nhiệm vụ đa agent chạy **qua UI**, dùng engine thật, thao tác được, có kết quả tải được và có thể can thiệp giữa chừng; người dùng theo dõi được từ lúc giao việc đến khi hoàn thành, truy cập checklist, thông báo, usage, QA và artifact mà không cần tra cứu thủ công trong log hoặc các thư mục hệ thống. Nếu chưa qua gate này thì 3D chỉ được làm prototype tách biệt.
 
-**PHASE 14 — Thế giới văn phòng 3D**
+**PHASE 14 — Thế giới văn phòng 3D** *(chỉ ánh xạ vật thể lên các bảng 2D đã có, không chứa logic nghiệp vụ riêng)*
 
-- [ ] **P14.01** — 3D scene shell + camera + di chuyển cơ bản; không gắn logic AI vào animation.
+- [ ] **P14.01** — 3D scene shell + camera + di chuyển cơ bản + chế độ chuyển đổi 2D/3D; không gắn logic AI vào animation.
 - [ ] **P14.02** — Sơ đồ phòng ban từ Agent Registry, không hardcode phòng ban trong scene.
-- [ ] **P14.03** — Avatar/nhân viên từ dữ liệu Agent Registry, trạng thái idle/running/blocked.
-- [ ] **P14.04** — Phòng họp: sự kiện họp thật quyết định nhân vật tham gia.
-- [ ] **P14.05** — Click nhân viên/phòng → mở bảng 2D chứa dữ liệu live tương ứng.
-- [ ] **P14.06** — Kiểm hiệu năng, giảm tải GPU và fallback sang UI 2D khi cần.
+- [ ] **P14.03** — Avatar/nhân viên từ dữ liệu Agent Registry, trạng thái idle/running/blocked/in_meeting gắn sự kiện thật (không tự tạo hoạt ảnh đang làm việc giả).
+- [ ] **P14.04** — Phòng họp: sự kiện họp thật quyết định nhân vật tham gia và trạng thái Bàn họp (`mc.meeting_room`).
+- [ ] **P14.05** — Đồ vật tương tác & liên kết 2D: ánh xạ đủ 18 thành phần chức năng (`Bảng trắng`, `Bảng ghim công việc`, `Màn hình trung tâm`, `Màn hình thống kê`, `Đồng hồ treo tường`, `Chuông/đèn cảnh báo`, `Khay thư`, `Lịch treo tường`, `Bàn họp`, `Bàn kiểm định`, `Tủ hồ sơ`, `Bảng đối chiếu`, `Sổ nhật ký`, `Tủ máy chủ`, `Bảng cấu hình`, `Thùng rác`, `Bảng tra cứu`, `Bàn Master`); click vật thể/nhân viên/phòng chỉ xác định `component_id`/`action_id` để mở bảng 2D tương ứng dùng chung API/Store và Permission Manager.
+- [ ] **P14.06** — Kiểm hiệu năng, giảm tải GPU và fallback sang UI 2D khi cần (không ép buộc dùng 3D cho bất kỳ tác vụ cốt lõi nào).
 
-**Gate I:** 3D phản chiếu cùng event/session với UI 2D; reload đồng nhất; không dựng hoạt cảnh hoặc tiến độ “đang làm” giả.
+**Gate I:** 3D phản chiếu cùng event/session/object state với UI 2D; reload đồng nhất; không dựng hoạt cảnh hoặc tiến độ “đang làm” giả; không có logic nghiệp vụ riêng trong 3D.
 
 ### CHẶNG I — Vận hành, nghiệm thu và bàn giao
 
 **PHASE 15 — Quality & Reliability**
 
-- [ ] **P15.01** — Unit/contract tests: event schemas, task state, role/permission.
-- [ ] **P15.02** — Integration: CLI/API/multi-provider/multi-connection/mock, fallback hợp lệ, xử lý `TOOL_UNSUPPORTED_BY_PROVIDER`, session isolation, cancellation, restart *(chưa triển khai)*.
-- [ ] **P15.03** — Fault injection: timeout, quota, network, DB rollback, file shared, agent crash.
-- [ ] **P15.04** — Browser E2E: chat, meeting, task board, approval, vault, 3D event binding.
+- [ ] **P15.01** — Unit/contract tests: event schemas, checklist/kanban mapping, task state, role/permission.
+- [ ] **P15.02** — Integration: CLI/API/multi-provider/multi-connection/mock, fallback hợp lệ, xử lý `TOOL_UNSUPPORTED_BY_PROVIDER`, two-key Gemini không giả định quota độc lập, session isolation, cancellation, restart/reconnect không sai dashboard *(chưa triển khai)*.
+- [ ] **P15.03** — Fault injection: timeout, quota, network, DB rollback, file shared, agent crash, không rò rỉ hoặc sai lệch notification/dedupe.
+- [ ] **P15.04** — Browser E2E: Mission Control Home, chat, checklist, kanban, usage (không bịa số liệu / `null` giữ nguyên), notifications dẫn đúng đối tượng, action inbox, meeting, QA evidence liên kết đúng artifact version, comparison, global search tuân quyền, trash/restore & batch delete có xác nhận không mất file Task khác, 2D/3D đồng bộ.
 - [ ] **P15.05** — Security: workspace isolation, secret leakage (bao gồm credential BYOK không lọt vào manifest/log/API/browser), unsafe command permission, backup/restore *(chưa triển khai)*.
 
 **PHASE 16 — Nghiệm thu nghiệp vụ live**
@@ -340,13 +349,13 @@ AI-Village/
 - [ ] **P16.04 — Họp & phản biện:** hai Agent nêu bất đồng thực chất và xử lý bằng bằng chứng.
 - [ ] **P16.05 — Phản ứng nhanh:** bổ sung yêu cầu giữa lúc chạy → Reception báo đúng người → Master quyết định.
 - [ ] **P16.06 — Self-improvement:** chạy các task tương tự → tạo skill candidate → benchmark → phê duyệt hoặc từ chối.
-- [ ] **P16.07 — Bàn giao:** restart, phục hồi lịch sử, sản phẩm nguyên vẹn, chạy cả UI 2D và 3D.
+- [ ] **P16.07 — Bàn giao & Mission Control End-to-End:** giao nhiệm vụ nhiều bước cho Master và xác minh xuyên suốt 11 bước trên Mission Control (Checklist được tạo -> Task hiện ở Home -> phân công Agent -> Timeline ghi nhận việc thật -> Usage hiện số liệu có nguồn hoặc `Không có dữ liệu từ Provider` -> Notification xuất hiện khi sự cố -> Action Inbox hiện yêu cầu duyệt -> QA kiểm chứng -> Artifact bàn giao -> tìm lại, xem lịch sử và đối chiếu phiên bản -> reload không sai lệch, chạy cả 2D và 3D).
 
 **PHASE 17 — Distribution & Documentation**
 
 - [ ] **P17.01** — Một lệnh khởi động local, phát hiện dependencies và hiển thị lỗi rõ ràng.
 - [ ] **P17.02** — Config examples cho Antigravity và nhiều API Provider / multi-connection (như mẫu hai kết nối Gemini dùng `credential_ref`); không đóng gói secrets *(chưa triển khai)*.
-- [ ] **P17.03** — Hướng dẫn vận hành, backup, restore, quản lý quyền và troubleshoot.
+- [ ] **P17.03** — Hướng dẫn vận hành Mission Control, đọc usage và hiểu trạng thái chưa khả dụng, quản lý notifications, tìm và khôi phục artifact, quản lý Provider connections, backup/restore, quản lý quyền và quy trình xử lý lỗi UI/Realtime.
 - [ ] **P17.04** — Release package + source hash + acceptance report theo đúng commit.
 
 **Gate cuối:** hệ thống **thực sự nhận việc mới, dùng công cụ, các Agent trao đổi và tạo sản phẩm sử dụng được**, QA xác minh bằng chứng; nhiệm vụ đang chạy/đang lỗi/hết quota được mô tả trung thực. Không có khái niệm “100% không bao giờ lỗi”; yêu cầu là không còn lỗi nghiêm trọng đã biết, có kiểm thử và phục hồi đáng tin cậy.
@@ -628,6 +637,19 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests/standards/test_standards_consistency.py -v`, `python -m pytest tests -v`, `git diff --check`.
 Blocking issue: Chờ người vận hành xem xét và phê duyệt `docs/architecture/vision.md` trước khi đóng `P00.01` và Gate A.
 Next: Dừng sau bàn giao bản Vision cập nhật để chờ người vận hành phê duyệt `P00.01`.
+
+### Mission Control UX Planning & Vision Approval (`P00.01` DONE / `Gate A: PASS`)
+ID: P00.01 + Gate-A + Roadmap UX Alignment
+Status: DONE (đối với chuẩn hóa kế hoạch UX, phê duyệt `vision.md` và đóng Gate A; các tiểu mục triển khai PHASE 02–17 giữ nguyên chưa thực hiện)
+Scope: docs/architecture/MISSION_CONTROL_UX.md, docs/architecture/SYSTEM_BLUEPRINT.md, docs/architecture/vision.md, docs/PROGRESS.md, docs/README.md, docs/reviews/CHANG_A_AUDIT.md, tests/standards/test_standards_consistency.py
+Git SHA: PENDING_COMMIT (xem commit bàn giao trên git log sau khi push; kế thừa `e4522aa`, `3bd20de`, `6fadd1c`, `ac67b88`, `3d25cf5`)
+Acceptance:
+- Xây dựng đặc tả `docs/architecture/MISSION_CONTROL_UX.md` gồm định nghĩa Mission Control, User Journeys, Mission Control Home (7 khu vực A–G), 18 thành phần chức năng + Bàn Master, ánh xạ 18 vật thể 3D (`PHASE 14`), 7 nhóm hợp đồng dữ liệu đầu cuối, ma trận truy xuất giai đoạn, phân quyền bảo mật và quy chuẩn 5 trạng thái UI.
+- Đồng bộ Mục 12 và REQ-15/16 trong `docs/architecture/SYSTEM_BLUEPRINT.md`; phân bổ chi tiết yêu cầu dữ liệu/API/2D/3D/kiểm thử vào `PHASE 02`–`17` trong `docs/PROGRESS.md` mà không tạo Phase mới hay đánh dấu DONE cho chức năng chưa chạy.
+- Ghi nhận xác nhận phê duyệt trực tiếp `"Oke duyệt"` của người vận hành (2026-11-23) vào `docs/architecture/vision.md`, chuyển `P00.01` sang DONE và `Gate A` sang `PASS` tại `docs/PROGRESS.md` và `docs/reviews/CHANG_A_AUDIT.md`.
+Tests / Evidence: `python -m pytest tests -v`, `git diff --check`.
+Blocking issue: Không còn blocker Chặng A.
+Next: `PHASE 02 — Antigravity Execution Proof` (`P02.01 — CLI handshake`).
 
 
 

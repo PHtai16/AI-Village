@@ -218,23 +218,31 @@ Hệ thống thiết lập cơ chế kiểm soát 3 cấp độ thẩm quyền:
 
 **Nguyên tắc nghiệm thu độc lập:** Trạng thái `COMPLETED` chỉ được cấp khi sản phẩm vượt qua bài kiểm chứng độc lập của bộ phận QA với đầy đủ bằng chứng cụ thể (mã băm, log kiểm thử, kết quả thẩm định). Agent sản xuất không có quyền tự quyết định trạng thái hoàn thành của chính mình.
 
-## 12. Giao diện người dùng và Thế giới văn phòng 3D
+## 12. Giao diện người dùng, Mission Control và Thế giới văn phòng 3D
 
-Trải nghiệm người dùng được phát triển theo lộ trình từng bước:
+Trải nghiệm người dùng được phát triển theo lộ trình từng bước, lấy **Mission Control** làm trung tâm quan sát và điều hành chung thay vì chỉ là một hộp chat rời rạc (chi tiết đặc tả chức năng tại [MISSION_CONTROL_UX.md](MISSION_CONTROL_UX.md)):
 
-### 12.1. Tám phân khu chức năng giao diện 2D
-1. **Chat với Master:** Điểm giao tiếp chính để người dùng giao việc, thảo luận và nhận báo cáo bàn giao.
-2. **Task Dashboard:** Bảng theo dõi tiến độ công việc dựa trên trạng thái thực tế từ Event Bus.
-3. **Agent & Department Explorer:** Khám phá danh mục phòng ban, vai trò nhân sự và năng lực hiện có.
-4. **Meeting Room:** Không gian quan sát các phiên thảo luận và phản biện của các nhóm tác vụ.
-5. **Skill Library:** Kho tra cứu các kỹ năng chuẩn hóa và trạng thái vòng đời của các kỹ năng.
-6. **Resource Monitor:** Bảng điều khiển giám sát mức tiêu thụ CPU, RAM và chi phí token thực tế.
-7. **Artifact Vault:** Khu vực tìm kiếm, xem trước và tải về các sản phẩm đã được nghiệm thu.
-8. **Approval Center:** Trung tâm xử lý các yêu cầu phê duyệt hành động nhạy cảm từ các Agent.
-*(Trong giai đoạn hoàn thiện quản trị ở `PHASE 12`–`13`, giao diện 2D bổ sung khu vực cấu hình kết nối AI cho phép thêm, đặt tên, bật/tắt `connection_id` và kiểm tra kết nối; chỉ hiển thị metadata và nhận diện đã che, tuyệt đối không lưu hay hiển thị lại API key thô trên trình duyệt.)*
+### 12.1. Mission Control và Trải nghiệm Quan sát Điều hành (Giao diện 2D)
+Mission Control không phải phòng ban thứ 10, không phải Agent mới, không phải Runtime thứ hai và không tự lưu trạng thái độc lập. Đây là lớp giao diện tổng hợp dữ liệu thật từ Master, Task Runtime, Agent Registry, Engine Adapter, Tool Runtime, Event Journal, Resource Ledger, Notification System, Approval Center, Artifact Registry, QA Evidence và Provider Connection Registry qua tầng `api/`.
 
-### 12.2. Không gian văn phòng 3D
-Không gian 3D chỉ đóng vai trò là một lớp kết xuất trực quan phản chiếu trạng thái thực tế từ Agent Runtime thông qua các sự kiện. Animation của các nhân vật ảo phải gắn chặt với trạng thái làm việc thật (`IDLE`, `RUNNING`, `BLOCKED`, `IN_MEETING`), tuyệt đối không tạo hoạt cảnh giả khi hệ thống không có tác vụ chạy. Giao diện 2D phải hoàn thiện và hoạt động ổn định trước khi phát triển thế giới 3D.
+Ngay tại màn hình chính (**Mission Control Home**), người vận hành quan sát theo thứ tự ưu tiên: việc cần người dùng xử lý (`Action Inbox` / `Approvals`), nhiệm vụ đang chạy, nhiệm vụ lỗi hoặc bị chặn, sản phẩm vừa hoàn thành, trạng thái tài nguyên/quota/kết nối và hoạt động gần đây, kèm khả năng truy cập trực tiếp (deep-link) tới đúng đối tượng gốc mà không cần tự nhớ ID hay lục log/thư mục.
+
+Tám phân khu vận hành 2D và các công cụ điều hành tích hợp bao gồm:
+1. **Chat với Master & Điều khiển Tác vụ:** Giao việc gắn Task/Project, đính kèm tệp, xem kế hoạch checklist, ngắt/hủy an toàn và mở thẳng Artifact/QA liên quan.
+2. **Task Dashboard (Checklist Board, Kanban, Timing & Activity Journal):** Hiển thị bảng bước công việc có bằng chứng thật, bảng Kanban đồng bộ State Machine, đồng hồ thời gian tính từ timestamp gốc (không ETA giả) và dòng nhật ký Event Journal gốc.
+3. **Agent & Department Explorer + Engine Status:** Khám phá vai trò/năng lực, phân biệt Agent đăng ký tĩnh với phiên thực sự đang chạy, xem trạng thái Engine/Session thật (không báo `Online` khi chưa kiểm tra kết nối).
+4. **Meeting Room:** Quan sát agenda, ý kiến, phản biện có bằng chứng, quyết định Master và action items từ sự kiện họp thật.
+5. **Skill Library:** Tra cứu kỹ năng chuẩn hóa, vòng đời 7 trạng thái, lịch sử cải tiến Phương án C và trạng thái benchmark A/B.
+6. **Resource Monitor (Usage & Cost & Provider/Connection Manager):** Giám sát tiêu thụ CPU/RAM, token, chi phí có nguồn và trạng thái kết nối theo Provider, Project/Billing Scope, `connection_id`, `model_id`; tách biệt `null` (`Không có dữ liệu từ Provider`) với `0`; quản trị kết nối BYOK mà không lộ secret thô; kết hợp bảng cài đặt hợp lệ qua Governance.
+7. **Artifact Vault (Artifact Cabinet, QA Inspection Station, Comparison Board, Trash & Restore):** Tìm kiếm toàn hệ thống (`Global Search` theo metadata có phân quyền), xem trước/tải phiên bản, truy vết biên bản kiểm thử QA, so sánh phiên bản xác định và khôi phục/xóa hàng loạt có bảo vệ tệp dùng chung.
+8. **Approval Center & Action Inbox / Notification Center:** Tách biệt thông báo sự kiện (có khử trùng lặp và deep-link) với hộp thư đầu việc cần người dùng ra quyết định, mọi hành động nhạy cảm đi qua Approval Gate.
+
+**Nguyên tắc trung thực dữ liệu UI:** Tuyệt đối không hiển thị số liệu giả, không suy đoán `%` tiến độ hoặc quota còn lại khi thiếu dữ liệu đo, không biến `null` thành `0` và luôn hiển thị đầy đủ trạng thái `Loading`, `Empty`, `Error`, `Offline` và `Unavailable`.
+
+### 12.2. Không gian văn phòng 3D và Đồ vật Tương tác
+Không gian 3D (`PHASE 14`) chỉ đóng vai trò một lớp kết xuất trực quan phản chiếu trạng thái thực tế từ Agent Runtime và Event Journal trên cùng nguồn dữ liệu với UI 2D. Animation của nhân vật ảo phải gắn chặt với trạng thái làm việc thật (`IDLE`, `RUNNING`, `BLOCKED`, `IN_MEETING`), tuyệt đối không tạo hoạt cảnh giả khi hệ thống không có tác vụ chạy.
+
+Các thành phần chức năng của Mission Control được ánh xạ thành đồ vật tương tác trong văn phòng 3D (như Bảng trắng cho Task Checklist, Bảng ghim cho Kanban, Màn hình trung tâm cho Mission Control, Màn hình thống kê cho Resource Monitor, Bàn họp, Bàn kiểm định QA, Tủ hồ sơ, Bảng đối chiếu, Sổ nhật ký, Tủ máy chủ, Bảng cấu hình kết nối, Thùng rác, Bảng tra cứu và Bàn Master). Khi người dùng click vào vật thể, 3D chỉ xác định `component_id`/`action_id` để mở đúng bảng 2D tương ứng, đọc chung API/Store và đi qua cùng Permission Manager; không có logic nghiệp vụ riêng trong 3D và không bắt buộc người dùng dùng 3D mới hoàn thành được công việc. Giao diện 2D phải hoàn thiện và đạt Gate H trước khi phát triển thế giới 3D.
 
 ## 13. Các nguyên tắc bất biến của kiến trúc (Architectural Invariants)
 
@@ -270,8 +278,8 @@ Ma trận liên kết giữa yêu cầu kiến trúc, thành phần phụ trách
 | **REQ-12** | Kích hoạt chức năng của 9 phòng ban | `agents/departments/` | P09.01 – P09.09 | Từng phòng ban có chức năng cốt lõi và bài toán mẫu. |
 | **REQ-13** | Cơ chế tự học và tối ưu kỹ năng (Phương án C) | `skills/`, `core/` | P10.01 – P10.05 | Đúc kết kinh nghiệm sau task, benchmark kỹ năng A/B trước khi duyệt. |
 | **REQ-14** | Tiếp nhận ngắt và kiểm soát tài nguyên | `core/`, `agents/` | P11.01 – P11.05 | Sàng lọc 5 cấp độ yêu cầu, ghi nhận telemetry trung thực. |
-| **REQ-15** | Xây dựng API và giao diện 2D hoàn chỉnh | `api/`, `ui/` | P12.01 – P13.08 | Vận hành toàn bộ tác vụ live qua 8 phân khu giao diện 2D. |
-| **REQ-16** | Kết xuất thế giới văn phòng 3D | `ui/src/village3d/` | P14.01 – P14.06 | 3D phản chiếu sự kiện thực tế từ Event Bus, không có logic riêng. |
+| **REQ-15** | Xây dựng API và giao diện 2D Mission Control hoàn chỉnh | `api/`, `ui/` | P12.01 – P13.08 | Vận hành toàn bộ tác vụ live qua Mission Control Home và 8 phân khu 2D, truy vết checklist/usage/QA/artifact không cần lục log. |
+| **REQ-16** | Kết xuất thế giới văn phòng 3D và đồ vật tương tác | `ui/src/village3d/` | P14.01 – P14.06 | 3D phản chiếu sự kiện thực tế từ Event Bus, ánh xạ vật thể về đúng bảng 2D qua `component_id`, không có logic riêng. |
 | **REQ-17** | Nghiệm thu tổng thể và bàn giao hệ thống | Toàn hệ thống | P15.01 – P17.04 | Vượt qua các kịch bản live đa lĩnh vực, có tài liệu vận hành. |
 
 *Lưu ý: Các yêu cầu từ REQ-05 trở đi đang ở trạng thái kế hoạch và chưa được đánh dấu hoàn thành.*

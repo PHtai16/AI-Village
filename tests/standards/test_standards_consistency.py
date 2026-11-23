@@ -282,10 +282,12 @@ def test_spec_yaml_examples_valid_and_consistent() -> None:
 
 
 def test_vision_multi_key_example_and_approval_status() -> None:
-    """Validate two-Gemini-connection YAML example and preserve pending approval state."""
+    """Validate two-Gemini-connection YAML example and valid vision approval metadata."""
     vision_path = REPO_ROOT / "docs" / "architecture" / "vision.md"
     vision_text = vision_path.read_text(encoding="utf-8")
-    assert "PENDING_USER_APPROVAL" in vision_text
+    assert "APPROVED" in vision_text or "PENDING_USER_APPROVAL" in vision_text
+    if "Trạng thái phê duyệt tài liệu `vision.md`:** `APPROVED`" in vision_text:
+        assert "Oke duyệt" in vision_text
 
     yaml_blocks = extract_fenced_blocks(vision_text, "yaml")
     assert len(yaml_blocks) == 1
@@ -300,3 +302,47 @@ def test_vision_multi_key_example_and_approval_status() -> None:
     for conn in connections:
         for forbidden in FORBIDDEN_ENGINE_SECRET_KEYS:
             assert forbidden not in conn
+
+
+def test_mission_control_ux_and_roadmap_consistency() -> None:
+    """Verify Mission Control 18 components, Stage A completion, and unimplemented Phase 02-17."""
+    mc_path = REPO_ROOT / "docs" / "architecture" / "MISSION_CONTROL_UX.md"
+    assert mc_path.is_file()
+    mc_text = mc_path.read_text(encoding="utf-8")
+
+    expected_components = [
+        "mc.task_checklist",
+        "mc.kanban",
+        "mc.operations_monitor",
+        "mc.usage_cost",
+        "mc.task_timing",
+        "mc.notifications",
+        "mc.action_inbox",
+        "mc.scheduler",
+        "mc.meeting_room",
+        "mc.qa_station",
+        "mc.artifact_cabinet",
+        "mc.comparison_board",
+        "mc.activity_journal",
+        "mc.engine_status",
+        "mc.provider_manager",
+        "mc.trash_restore",
+        "mc.global_search",
+        "mc.settings_governance",
+        "mc.master_desk",
+    ]
+    for comp_id in expected_components:
+        assert comp_id in mc_text, f"Missing Mission Control component: {comp_id}"
+
+    progress_text = (REPO_ROOT / "docs" / "PROGRESS.md").read_text(encoding="utf-8")
+    assert "PHASE 01C" not in progress_text
+    assert "- [x] **P00.01" in progress_text
+    assert "**Gate A (`PASS`):**" in progress_text
+    assert "MISSION_CONTROL_UX.md" in (
+        REPO_ROOT / "docs" / "architecture" / "SYSTEM_BLUEPRINT.md"
+    ).read_text(encoding="utf-8")
+
+    # Ensure no Phase 02-17 implementation item is prematurely marked DONE
+    for line in progress_text.splitlines():
+        if re.match(r"^- \[x\] \*\*P(0[2-9]|1[0-7])\.", line):
+            raise AssertionError(f"Premature DONE marker in Phase 02-17: {line}")
