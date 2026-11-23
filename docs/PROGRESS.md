@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE** (`vision.md` đã được người vận hành xác nhận phê duyệt `"Oke duyệt"` ngày 2026-11-23). **PHASE 01: DONE** (`P01.01`–`P01.15`). **PHASE 01B: DONE** (`docs/reviews/PHASE_01B_AUDIT.md`). Đã hoàn tất phân bổ kiến trúc **Mission Control & Văn phòng Tương tác** (`docs/architecture/MISSION_CONTROL_UX.md`) vào lộ trình `PHASE 02`–`17` (chưa triển khai code Runtime/UI). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01 — CLI handshake` DONE với `agy.exe` 1.5.14 tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`; `P02.02`–`P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -190,7 +190,7 @@ AI-Village/
 
 **PHASE 02 — Antigravity Execution Proof** *(tạo nguồn dữ liệu đáng tin cậy cho Mission Control; chưa xây Dashboard trong phase này)*
 
-- [ ] **P02.01 — CLI handshake:** kiểm tra phiên bản/các cờ thực tế và gọi `agy` từ `engines/antigravity/`; ghi exit/status và engine availability phục vụ Engine Status về sau, không hardcode tên model. **DoD:** nhận phản hồi live có bằng chứng.
+- [x] **P02.01 — CLI handshake:** kiểm tra phiên bản/các cờ thực tế và gọi `agy` (`C:\Users\taine\.gemini\bin\agy.exe` v`1.5.14`) từ `engines/antigravity/`; ghi exit/status (`exit_code: 0`, `SUCCEEDED`, `conversation_id`, `VERIFIED_MEASURED` tokens) và engine availability phục vụ Engine Status về sau, không hardcode tên model *(chưa kiểm chứng tool execution, streaming `stream-json`, session isolation, cancel hay multi-provider; chi tiết tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`)*. **DoD:** nhận phản hồi live có bằng chứng.
 - [ ] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json`, tạo file mới, đọc lại và xuất tool execution evidence. **DoD:** file và SHA đúng, không dựa vào lời AI.
 - [ ] **P02.03 — Streaming events:** chuyển CLI `stream-json` (nếu bản cài hỗ trợ) thành sự kiện có cấu trúc có thể truy xuất cho Activity Journal. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
 - [ ] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt, không trộn lịch sử và file. **DoD:** có test cross-session isolation.
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo sau khi duyệt kế hoạch:** thực hiện **P00.01** (chốt phạm vi/MVP) rồi **P00.02**, chưa cần tạo mã nguồn hoặc lập tức dựng 3D.
+**Công việc tiếp theo hiện tại:** thực hiện **P02.02 — Tool execution** (sau khi Gate A đạt `PASS` và `P02.01` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
 
 ---
 
@@ -650,6 +650,20 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v`, `git diff --check`.
 Blocking issue: Không còn blocker Chặng A.
 Next: `PHASE 02 — Antigravity Execution Proof` (`P02.01 — CLI handshake`).
+
+### P02.01 — Antigravity CLI Handshake (Real Execution Proof)
+ID: P02.01
+Status: DONE
+Scope: engines/__init__.py, engines/antigravity/__init__.py, engines/antigravity/models.py, engines/antigravity/diagnostics.py, engines/antigravity/adapter.py, pyproject.toml, tests/engines/test_antigravity_adapter_unit.py, tests/integration/test_antigravity_handshake_live.py, tests/stage_a/test_stage_a_baseline.py, tests/README.md, docs/reviews/PHASE_02_P02_01_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(engine): verify antigravity CLI handshake` trên git log sau khi push)
+Acceptance:
+- Xác minh thực tế trên Windows tồn tại CLI độc lập `C:\Users\taine\.gemini\bin\agy.exe` (`1.5.14`), tách biệt với IDE launcher `C:\Antigravity\Antigravity\bin\antigravity.cmd` (`1.107.0`); phát hiện `--help` ghi ra `stderr` và `--print` cần truyền dạng `--print=<prompt>`.
+- Triển khai adapter tối thiểu tại `engines/antigravity/` với Pydantic v2, tách biệt `discover()`, `probe()`, `handshake()`, `normalize_result()`, phân loại lỗi và `redact_secrets()`, không hardcode model hay API key, không phụ thuộc CrewAI.
+- Thực thi live handshake thật qua `AntigravityAdapter` trong workspace cô lập (`exit_code: 0`, `status: SUCCEEDED`, `conversation_id: 2253c701-19da-438b-abd9-a05bb8d187b3`, `duration_ms: 20573`, `response_text: AI_VILLAGE_HANDSHAKE_OK`, `telemetry_status: VERIFIED_MEASURED`).
+- Các năng lực `tool execution`, `stream-json` live, `session isolation`, `cancellation` và `multi-provider` giữ nguyên trạng thái chưa kiểm chứng cho `P02.02`–`P02.06`.
+Tests / Evidence: `python -m pytest tests -v` (`24 passed, 1 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_handshake_live.py -v` (`1 passed in 20.34s`); báo cáo tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`.
+Blocking issue: Không có.
+Next: `P02.02 — Tool execution`.
 
 
 
