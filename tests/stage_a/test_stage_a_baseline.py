@@ -117,7 +117,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     # Phase 02 authorizes adapter and contract code inside engines/ (antigravity/ and providers/).
     # Phase 03 authorizes core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
-    # Phase 04 (P04.01) adds core/contracts/*.py without loosening other Stage A boundaries.
+    # Phase 04 authorizes core/contracts/*.py (P04.01) and core/tasks/*.py (P04.02).
     no_code_dirs = ["agents", "tools", "skills", "storage", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
@@ -131,6 +131,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         core_root / "orchestration",
         core_root / "runtime",
         core_root / "contracts",
+        core_root / "tasks",
     }
     unexpected_core_py = [
         p.relative_to(core_root).as_posix()
