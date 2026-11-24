@@ -38,6 +38,7 @@ EventType = Literal[
     "task.created",
     "task.status_changed",
     "run.started",
+    "run.status_changed",
     "run.completed",
     "run.failed",
     "run.cancelled",

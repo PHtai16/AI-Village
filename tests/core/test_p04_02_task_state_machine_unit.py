@@ -597,7 +597,7 @@ def test_run_lifecycle_and_independent_outcomes(
     assert r_start.accepted and r_start.run is not None and r_start.event is not None
     assert r_start.event.event_type == "run.started"
 
-    # RUNNING -> WAITING_INPUT omits event honestly instead of faking run.completed/run.failed
+    # RUNNING -> WAITING_INPUT emits run.status_changed resolved in P04.03
     r_wait = transition_run(
         RunTransitionRequest(
             run=r_start.run,
@@ -606,10 +606,13 @@ def test_run_lifecycle_and_independent_outcomes(
         )
     )
     assert r_wait.accepted and r_wait.run is not None
-    assert r_wait.event is None
-    assert r_wait.event_omitted_reason is not None and "P04.03" in r_wait.event_omitted_reason
+    assert r_wait.event is not None
+    assert r_wait.event.event_type == "run.status_changed"
+    assert r_wait.event.redacted_payload["previous_status"] == "RUNNING"
+    assert r_wait.event.redacted_payload["new_status"] == "WAITING_INPUT"
+    assert r_wait.event_omitted_reason is None
 
-    # WAITING_INPUT -> RUNNING -> SUCCEEDED -> run.completed
+    # WAITING_INPUT -> RUNNING (run.status_changed) -> SUCCEEDED -> run.completed
     r_resume = transition_run(
         RunTransitionRequest(
             run=r_wait.run,
@@ -621,6 +624,10 @@ def test_run_lifecycle_and_independent_outcomes(
         )
     )
     assert r_resume.accepted and r_resume.run is not None
+    assert r_resume.event is not None
+    assert r_resume.event.event_type == "run.status_changed"
+    assert r_resume.event.redacted_payload["previous_status"] == "WAITING_INPUT"
+    assert r_resume.event.redacted_payload["new_status"] == "RUNNING"
     r_succ = transition_run(
         RunTransitionRequest(
             run=r_resume.run,

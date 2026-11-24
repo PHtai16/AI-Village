@@ -262,40 +262,31 @@ def transition_run(request: RunTransitionRequest) -> RunTransitionResult:
             error=err,
         )
 
-    event_type: EventType | None = None
     if run.status == "PENDING" and target_status == "RUNNING":
-        event_type = "run.started"
+        event_type: EventType = "run.started"
     else:
-        event_type = _RUN_TRANSITION_EVENT_MAP.get(target_status)
+        event_type = _RUN_TRANSITION_EVENT_MAP.get(target_status, "run.status_changed")
 
-    event: Event | None = None
-    omitted_reason: str | None = None
-    if event_type is not None:
-        evidence_id = context.execution_evidence.evidence_id if context.execution_evidence else None
-        event = Event(
-            timestamp=context.timestamp,
-            event_type=event_type,
-            source=_ACTOR_KIND_TO_EVENT_SOURCE[context.actor_kind],
-            task_id=new_run.task_id,
-            run_id=new_run.run_id,
-            session_id=new_run.session_ids[0] if len(new_run.session_ids) == 1 else None,
-            actor_id=context.actor_id,
-            provider_id=new_run.provider_id,
-            connection_id=new_run.connection_id,
-            model_id=new_run.model_id,
-            evidence_id=evidence_id,
-            correlation_id=context.correlation_id or new_run.correlation_id,
-            redacted_payload=_build_transition_payload(
-                previous_status=run.status,
-                new_status=new_run.status,
-                context=context,
-            ),
-        )
-    else:
-        omitted_reason = (
-            f"Run transition {run.status} -> {new_run.status} has no run.status_changed "
-            "EventType in P04.01 Event contract; deferred to P04.03 Event Journal extension."
-        )
+    evidence_id = context.execution_evidence.evidence_id if context.execution_evidence else None
+    event = Event(
+        timestamp=context.timestamp,
+        event_type=event_type,
+        source=_ACTOR_KIND_TO_EVENT_SOURCE[context.actor_kind],
+        task_id=new_run.task_id,
+        run_id=new_run.run_id,
+        session_id=new_run.session_ids[0] if len(new_run.session_ids) == 1 else None,
+        actor_id=context.actor_id,
+        provider_id=new_run.provider_id,
+        connection_id=new_run.connection_id,
+        model_id=new_run.model_id,
+        evidence_id=evidence_id,
+        correlation_id=context.correlation_id or new_run.correlation_id,
+        redacted_payload=_build_transition_payload(
+            previous_status=run.status,
+            new_status=new_run.status,
+            context=context,
+        ),
+    )
 
     return RunTransitionResult(
         entity_id=new_run.run_id,
@@ -308,7 +299,7 @@ def transition_run(request: RunTransitionRequest) -> RunTransitionResult:
         guard_decisions=decisions,
         run=new_run,
         event=event,
-        event_omitted_reason=omitted_reason,
+        event_omitted_reason=None,
         error=None,
     )
 
