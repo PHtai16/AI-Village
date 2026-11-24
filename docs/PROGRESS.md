@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03 chưa triển khai.** Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: ĐANG TRIỂN KHAI** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02`–`P03.03` TODO). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -199,7 +199,7 @@ AI-Village/
 
 **PHASE 03 — Quyết định CrewAI**
 
-- [ ] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Engine Adapter (Antigravity hoặc API Provider hỗ trợ Tool Runtime), không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật.
+- [x] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Engine Adapter (Antigravity hoặc API Provider hỗ trợ Tool Runtime), không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật (`docs/reviews/PHASE_03_P03_01_AUDIT.md`).
 - [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy, quota, liên kết Task/Agent/Run, truy vết công cụ, báo cáo lỗi và khả năng cung cấp dữ liệu quan sát cho UI (không chọn chỉ vì dễ tạo nhiều Agent). **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
 - [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke.
 
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **P03.01 — Spike tích hợp** của `PHASE 03 — Quyết định CrewAI` sau khi `PHASE 02` (`P02.01`–`P02.06`) và `Gate B` đã đạt. Chưa triển khai `PHASE 03`, Master Runtime, Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **P03.02 — Đánh giá đối chứng `CrewAI` với `Custom Orchestrator`** của `PHASE 03 — Quyết định CrewAI` sau khi `P03.01` đã hoàn thành kiểm chứng live. Chưa khóa framework, chưa triển khai `agents/*.yaml`, `PHASE 04`, Mission Control UI hay dựng 3D.
 
 ---
 
@@ -747,6 +747,19 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`53 passed, 20 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_gate_b_end_to_end_live.py -v` (`2 passed in 48.55s`); biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md` và kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`.
 Blocking issue: Không có đối với luồng Antigravity-first và `Gate B` (hai bài kiểm thử HTTP live của Google Gemini vẫn giữ ở trạng thái tùy chọn `SKIPPED` thuộc backlog `P15.02`).
 Next: `P03.01 — Spike tích hợp` (chỉ bắt đầu khi có lệnh triển khai `PHASE 03`).
+
+### P03.01 — Master -> Worker Integration Spike
+ID: P03.01
+Status: DONE (P03.01: DONE; P03.02-P03.03: TODO)
+Scope: engines/contract.py, engines/providers/antigravity.py, core/__init__.py, core/orchestration/__init__.py, core/orchestration/spike_models.py, core/orchestration/spike_coordinator.py, tests/stage_a/test_stage_a_baseline.py, tests/standards/test_standards_consistency.py, tests/README.md, tests/core/test_master_worker_spike_unit.py, tests/integration/test_master_worker_spike_live.py, docs/reviews/PHASE_03_P03_01_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(orchestration): verify real master worker handoff` trên git log sau khi push)
+Acceptance:
+- Mở rộng `EngineRequest` (`denied_paths`, `deny_shell_commands`) và chuyển tiếp qua `AntigravityEngineAdapter` vào `AntigravityStreamRequest`, bảo đảm `agy.exe --sandbox --settings` nhận danh sách chặn chéo thư mục và chặn shell trên đường dẫn gọi chuẩn `EngineRegistry`.
+- Triển khai `core/orchestration/spike_models.py` (`parse_strict_json_object`, `SpikeAgentSpec`, `MasterPlan`, `WorkerHandoff`, `WorkerExecutionRecord`, `MasterSynthesis`, `AttributedSpikeEvent`, `MasterWorkerSpikeResult`, `OrchestrationError`) và `core/orchestration/spike_coordinator.py` (`validate_master_plan_policy`, `run_master_worker_spike`) tuân thủ fail-closed, phân tách vai trò `core.master` (`plan`, không quyền ghi) với `it.artifact_worker` (`accept-edits`, không quyền shell), kiểm soát snapshot cây thư mục trước và sau mỗi bước.
+- Chứng minh live end-to-end thật qua Antigravity CLI (`corr-59b284583d7f`, trạng thái `DELIVERED`, tổng thời lượng `105618 ms`, `211` sự kiện gắn nhãn): `master_plan` chạy trong `master_ws` (`conv ff24c4f4-537c-4495-9e25-11fc74cf000b`, `32714 ms`, `25240` tokens `VERIFIED_MEASURED`), `worker_execute` chạy trong `worker_ws` (`conv 7d469871-272a-49da-88ac-a2dbb6609946`, `43022 ms`, `31504` tokens `VERIFIED_MEASURED`, `read_file` và `write_file`), `verify_engine_artifact()` xác nhận `package.json` nguyên vẹn và `proof.txt` đạt `VERIFIED_PASS` khớp SHA-256 `c50b77fd0ab5f284d208122b3c98620d85382870405238f92e8e6efb1d871d0f`, `master_synthesize` tổng hợp chuẩn theo QA (`conv 1030d732-fb38-4b90-9617-53ba6f50a24a`, `26244 ms`, `25467` tokens `VERIFIED_MEASURED`); sau chạy `workspace/` sạch còn `[".gitkeep"]` và `agents/` giữ nguyên `[".gitkeep", "README.md"]`.
+Tests / Evidence: `python -m pytest tests -v` (`76 passed, 21 skipped in 4.06s`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_master_worker_spike_live.py -v -rs --log-cli-level=INFO` (`1 passed in 106.24s`); báo cáo kiểm toán tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`.
+Blocking issue: Không có.
+Next: `P03.02 — Đánh giá đối chứng CrewAI với Custom Orchestrator` (chỉ bắt đầu khi có lệnh triển khai tiếp).
 
 
 

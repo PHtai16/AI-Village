@@ -10,7 +10,7 @@ Từ thư mục gốc của repository (`C:\DoCho\AI-Village`), chạy toàn b�
 python -m pytest tests -v
 ```
 
-Chạy kiểm thử live handshake `P02.01`, tool execution `P02.02`, event streaming `P02.03`, session isolation `P02.04`, process lifecycle `P02.05`, provider contract `P02.06` và `Gate B` End-to-End với CLI/Provider thật (không chạy mặc định trong unit test):
+Chạy kiểm thử live handshake `P02.01`, tool execution `P02.02`, event streaming `P02.03`, session isolation `P02.04`, process lifecycle `P02.05`, provider contract `P02.06`, `Gate B` End-to-End và `P03.01` Master -> Worker Spike với CLI/Provider thật (không chạy mặc định trong unit test):
 
 ```powershell
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_handshake_live.py -v
@@ -20,6 +20,7 @@ $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravit
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_lifecycle_live.py -v
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_engine_provider_contract_live.py -v
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_gate_b_end_to_end_live.py -v
+$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_master_worker_spike_live.py -v -rs --log-cli-level=INFO
 ```
 
 Hoặc chạy riêng từng nhóm kiểm thử hiện có:
@@ -34,6 +35,7 @@ python -m pytest tests/engines/test_antigravity_session_isolation_unit.py -v
 python -m pytest tests/engines/test_antigravity_lifecycle_unit.py -v
 python -m pytest tests/engines/test_engine_provider_contract_unit.py -v
 python -m pytest tests/engines/test_gate_b_verification_unit.py -v
+python -m pytest tests/core/test_master_worker_spike_unit.py -v
 ```
 
 Để kiểm tra build giao diện `ui/` tối thiểu:

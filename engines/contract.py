@@ -283,6 +283,8 @@ class EngineRequest(BaseModel):
     response_schema: dict[str, Any] | None = None
     tool_declarations: list[dict[str, Any]] = Field(default_factory=list)
     session_reference: EngineSessionReference | None = None
+    denied_paths: list[str] = Field(default_factory=list)
+    deny_shell_commands: bool = False
     metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
 
     @field_validator("provider_id", "adapter_id", "connection_id")

@@ -353,6 +353,8 @@ class AntigravityEngineAdapter(EngineAdapter):
             or "workspace_access" in required_caps
             or "session_continuation" in required_caps
             or request.execution_mode in ("accept-edits", "plan")
+            or bool(request.denied_paths)
+            or request.deny_shell_commands
         )
 
         if use_streaming:
@@ -400,6 +402,8 @@ class AntigravityEngineAdapter(EngineAdapter):
                     if request.session_reference
                     else None
                 ),
+                denied_read_write_paths=list(request.denied_paths),
+                deny_shell_commands=request.deny_shell_commands,
             )
         except ValidationError as exc:
             return self.build_blocked_result(

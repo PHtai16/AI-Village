@@ -116,12 +116,23 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         assert dir_path.is_dir(), f"Missing top-level directory: {folder}"
 
     # Phase 02 authorizes adapter and contract code inside engines/ (antigravity/ and providers/).
-    no_code_dirs = ["agents", "core", "tools", "skills", "storage", "api", "sandbox"]
+    # Phase 03 P03.01 authorizes only core/__init__.py and core/orchestration/*.py for the spike.
+    no_code_dirs = ["agents", "tools", "skills", "storage", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
         js_files = list((REPO_ROOT / folder).rglob("*.js"))
         assert not py_files, f"Unexpected Python files in Stage A folder {folder}: {py_files}"
         assert not js_files, f"Unexpected JS files in Stage A folder {folder}: {js_files}"
+
+    core_root = REPO_ROOT / "core"
+    assert not list(core_root.rglob("*.js")), "Unexpected JS files inside core/."
+    unexpected_core_py = [
+        p.relative_to(core_root).as_posix()
+        for p in core_root.rglob("*.py")
+        if p.relative_to(core_root).as_posix() != "__init__.py"
+        and p.parent != (core_root / "orchestration")
+    ]
+    assert not unexpected_core_py, f"Unexpected Python modules inside core/: {unexpected_core_py}"
 
     runtime_db_files = [
         p for p in (REPO_ROOT / ".runtime").rglob("*")
