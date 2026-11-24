@@ -157,14 +157,14 @@ Thiết kế hướng tới mô hình lưu trữ bí mật ưu tiên cục bộ 
 
 Phiên bản MVP (tương ứng chặng chứng minh lõi từ Gate B đến Gate D cùng lớp kiểm chứng cơ bản, trước khi mở rộng toàn bộ 9 phòng ban đầy đủ hay giao diện 3D) phân biệt rõ giữa hạng mục thiết kế cấu hình và hạng mục bắt buộc kiểm chứng chạy thật:
 
-1. **Thực thi thật qua Engine kiểm chứng:** Antigravity hoặc một Agent Engine được kiểm chứng có thể thực thi công cụ thật trên workspace, tạo artifact thật kèm mã băm SHA-256 xác minh trên đĩa.
+1. **Thực thi thật qua Engine kiểm chứng:** Antigravity CLI là Engine thực thi chính được ưu tiên hoàn thiện và kiểm chứng chạy công cụ thật trên workspace, tạo artifact thật kèm mã băm SHA-256 xác minh trên đĩa.
 2. **Hợp đồng Engine Adapter độc lập Provider:** Tồn tại hợp đồng Request/Result/Event/Telemetry/Cancel thống nhất tại `engines/`, tách biệt khỏi logic điều phối của `core/`.
-3. **Tích hợp tối thiểu một API Provider khác Antigravity:** Chứng minh khả năng tích hợp và gọi thật ít nhất một API Provider song song thông qua adapter chung.
+3. **Mở rộng đa Provider tùy chọn qua cùng hợp đồng:** Hệ thống hỗ trợ tích hợp thêm API Provider ngoài Antigravity như Google Gemini, OpenAI, Anthropic hoặc Ollama thông qua cùng hợp đồng Engine Adapter khi có nhu cầu và kết nối được cấp phép, không bắt buộc cho luồng vận hành lõi dùng Antigravity CLI.
 4. **Cấu hình linh hoạt theo Agent:** Cho phép cấu hình lựa chọn Provider, Connection hoặc Model cho Agent qua manifest hoặc cấu hình hợp lệ mà không phải sửa mã nguồn Core Runtime.
 5. **Thiết kế Multi-Connection an toàn cho cùng Provider:** Thiết kế quản lý credential hỗ trợ nhiều kết nối thuộc cùng một Provider, tối thiểu biểu diễn và phân biệt được hai kết nối Google Gemini ở mức cấu hình và kiểm tra phân quyền hợp lệ.
 6. **Không rò rỉ API key:** Chứng minh qua kiểm thử rằng API key không xuất hiện trong mã nguồn, log, Event Journal, phản hồi API hay trình duyệt.
 7. **Lựa chọn kết nối theo quyền và phạm vi:** Chứng minh cơ chế chọn kết nối hợp lệ tuân thủ Permission Manager và phạm vi nhiệm vụ (có kiểm tra Fail-Closed).
-8. **Thực thi công cụ qua Tool Runtime cho API Provider:** Agent dùng LLM API có thể thực thi công cụ nội bộ của AI Village thông qua Tool Runtime và Sandbox khi Provider và adapter hỗ trợ gọi công cụ.
+8. **Thực thi công cụ qua Tool Runtime cho API Provider (khi kích hoạt mở rộng):** Agent dùng LLM API có thể thực thi công cụ nội bộ của AI Village thông qua Tool Runtime và Sandbox khi Provider, kết nối và adapter hỗ trợ gọi công cụ được kích hoạt.
 9. **Nghiệm thu có bằng chứng và vòng đời Task cơ bản:** Người dùng gửi nhiệm vụ cho Master; Master tuyển chọn Agent theo năng lực; Runtime quản lý trạng thái Task, lỗi, timeout, hủy tác vụ cơ bản; QA kiểm chứng độc lập trước khi Master bàn giao sản phẩm có bằng chứng.
 
 MVP **không** yêu cầu phải lưu hai API key thật trong repository hay bắt buộc tiêu thụ thực tế đồng thời cả hai API key Gemini để nghiệm thu MVP. Không yêu cầu triển khai đầy đủ đồng thời toàn bộ 9 phòng ban ở quy mô hoàn chỉnh trong MVP.
@@ -173,7 +173,8 @@ MVP **không** yêu cầu phải lưu hai API key thật trong repository hay b�
 
 Các năng lực sau thuộc tầm nhìn dài hạn của AI Village và chỉ triển khai ở các phase sau khi các Gate tiền điều kiện đã đạt:
 
-- Dashboard quản trị đa Provider và nhiều API key đầy đủ trên giao diện 2D (`PHASE 12`–`13`).
+- Dashboard quản trị đa Provider và nhiều API key đầy đủ trên giao diện 2D (`PHASE 12`–`13`, với `P13.08` là điểm kích hoạt khi cấu hình kết nối ngoài).
+- Kiểm chứng tích hợp HTTP live cho các API Provider mở rộng ngoài Antigravity như Google Gemini, OpenAI, Anthropic hoặc Ollama khi có kết nối hợp lệ (`P15.02`, kèm cấu hình mẫu `P17.02`).
 - Credential Pool nâng cao với chính sách phân bổ theo tải và ngân sách chi tiết.
 - Tối ưu hóa động chi phí và hiệu năng giữa các model theo lịch sử thực nghiệm.
 - Phân phối tải qua nhiều kết nối hợp lệ theo đúng điều khoản nhà cung cấp.
@@ -210,7 +211,7 @@ Không được dùng trạng thái `DONE` của một tiểu phase tài liệu 
 
 MVP chỉ được công nhận đạt khi toàn bộ các tiêu chí kiểm chứng sau có bằng chứng thực thi thật (chưa có tiêu chí nào trong số này được tuyên bố đã triển khai tại Chặng A):
 
-1. **Thực thi thật qua Engine Adapter mặc định và Provider thay thế:** Từ yêu cầu gửi vào ứng dụng, hệ thống gọi được Antigravity CLI (hoặc engine chuẩn hóa theo contract) thao tác công cụ thật trên workspace tạo tệp có SHA-256 khớp thực tế, đồng thời chứng minh thay thế được tối thiểu một API Provider khác qua cùng hợp đồng Engine Adapter mà không đổi mã Core.
+1. **Thực thi thật qua Engine chính Antigravity và hợp đồng chuẩn thay thế Provider:** Từ yêu cầu gửi vào ứng dụng qua Universal Engine Contract tại `engines/`, hệ thống gọi được Antigravity CLI thao tác công cụ thật trên workspace tạo tệp có SHA-256 khớp thực tế, đồng thời bảo đảm cấu trúc hợp đồng cho phép hoán đổi sang API Provider tùy chọn như Google Gemini qua `EngineRegistry` mà không đổi mã Core (kiểm chứng HTTP live tới Provider thứ hai thực hiện khi có kết nối hợp lệ tại `P15.02`).
 2. **Cách ly phiên và xử lý sự cố:** Hai phiên nhiệm vụ chạy tách biệt không trộn ngữ cảnh hay tệp tin dù dùng chung Provider/Connection; các tình huống timeout, cancel, lỗi xác thực và hết quota trả về trạng thái chuẩn xác mà không lặp vô hạn.
 3. **Vòng đời Task bền vững:** Nhiệm vụ chuyển trạng thái đúng guard (`QUEUED` -> `RUNNING` -> `WAITING_APPROVAL`/`BLOCKED`/`COMPLETED`/`FAILED`/`CANCELLED`), lưu vào SQLite và không mất hoặc giả mạo trạng thái sau khi khởi động lại hệ thống.
 4. **Phối hợp Master và Worker có kiểm chứng độc lập:** Master chọn đúng nhân sự theo năng lực, ghi nhận handoff kèm định danh và QA độc lập phát hiện hoặc xác minh lỗi trước khi Master bàn giao sản phẩm cuối cùng.
@@ -224,6 +225,7 @@ MVP chỉ được công nhận đạt khi toàn bộ các tiêu chí kiểm ch�
 - Nguyên tắc bất biến: Evidence First, tách biệt QA độc lập, không khóa cứng CrewAI trước khi kiểm chứng Phase 03, ưu tiên 2D trước 3D, bảo mật Fail-Closed và cấu trúc 14 thư mục gốc tại [AGENTS.md](../../AGENTS.md) và bộ tiêu chuẩn `docs/standards/`.
 - Yêu cầu chuẩn hóa tầm nhìn Multi-Provider, Multi-Model, Multi-API-Key (BYOK) và Multi-Platform trước khi phê duyệt `P00.01` (commit `e4522aa`).
 - **Xác nhận phê duyệt `vision.md`:** Người vận hành đã xác nhận phê duyệt trực tiếp trong phiên làm việc ngày 2026-11-23 (`"Oke duyệt"`) sau khi rà soát tầm nhìn Multi-Provider, Multi-Model, Multi-API-Key, Multi-Platform và định hướng phát triển hệ thống trước giao diện 3D.
+- **Xác nhận định hướng Antigravity-first (2026-11-24):** Người vận hành phê duyệt xác lập Antigravity CLI là Engine thực thi chính cần ưu tiên hoàn thiện, giữ nguyên Universal Engine Contract cùng mã nguồn Multi-Provider/BYOK hiện có và chuyển kiểm chứng live HTTP tới API Provider thứ hai sang backlog mở rộng tùy chọn tại `P15.02`.
 
 ### 6.2. Trạng thái Phê duyệt và Các Quyết định Theo Lộ trình Sau
 

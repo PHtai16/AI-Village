@@ -21,7 +21,7 @@ AI Village là hệ thống Multi-Agent đa chức năng yêu cầu:
 1. **Backend & Core Runtime:** Sử dụng **Python (3.10+, hiện có 3.13 trên môi trường cục bộ)** kết hợp **FastAPI** cho tầng `api/` và **SQLite** cho lưu trữ bền vững giai đoạn phát triển ban đầu tại `storage/`.
 2. **Frontend (UI 2D & định hướng 3D):** Sử dụng **React** và **Vite** cho ứng dụng web tại `ui/`. Trong Chặng A và giai đoạn 2D đầu tiên tuyệt đối chưa tích hợp 3D. **Three.js** hoặc **React Three Fiber** được ghi nhận là hai ứng viên cho giai đoạn văn phòng 3D ở `PHASE 14`, chỉ đánh giá lựa chọn chính thức sau khi hoàn tất giao diện 2D tại Gate H (`M4`).
 3. **AI Runtime, Multi-Provider & Orchestration:**
-   - **Antigravity không phải Engine độc quyền:** Antigravity CLI là một ứng viên nền tảng thực thi mặc định dự kiến, song song với các **API Provider là nguồn thực thi AI bình đẳng** thông qua lớp **Engine Adapter trung lập** tại `engines/`.
+   - **Antigravity CLI là Engine thực thi chính, giữ mở đa Provider qua cùng hợp đồng:** Antigravity CLI là nền tảng thực thi chính được ưu tiên hoàn thiện và kiểm chứng trước; các API Provider như Google Gemini, OpenAI, Anthropic hay Ollama là khả năng mở rộng tùy chọn nối qua lớp **Engine Adapter trung lập** tại `engines/` khi có nhu cầu và kết nối được cấp phép.
    - **BYOK và Multi-Key là yêu cầu sản phẩm:** Hệ thống phải hỗ trợ nhiều kết nối (`connection_id`) và nhiều API key qua tham chiếu `credential_ref` cho cùng một Provider (như trường hợp hai kết nối Google Gemini), tách biệt với Agent Manifest và trình duyệt.
    - **Chưa khóa lựa chọn CrewAI, Framework Routing hoặc Credential Vault:** CrewAI chỉ là ứng viên cho tầng điều phối; quyết định sử dụng CrewAI hay tự xây orchestrator mỏng chỉ được đưa ra sau khi hoàn thành spike tích hợp và so sánh thực nghiệm tại `PHASE 03` (`P03.01`–`P03.02`). Tương tự, chưa tự chốt một thư viện routing hay công nghệ Credential Vault cụ thể trước khi đủ bằng chứng kiểm thử ở các phase phù hợp.
 4. **Testing (Kiểm thử):**
@@ -62,7 +62,7 @@ AI Village là hệ thống Multi-Agent đa chức năng yêu cầu:
 
 | Mục tiêu cần kiểm chứng | Phase thực hiện | Tiêu chí xác nhận |
 | :--- | :--- | :--- |
-| **Antigravity CLI handshake, tool execution, streaming, isolation & lifecycle** | `PHASE 02` (`P02.01`–`P02.06`) | Xác nhận lệnh `agy` thật hoạt động trên máy, thao tác tệp thật có kiểm chứng SHA-256, bắt được exit code, timeout, cancel và telemetry trung thực. |
+| **Antigravity CLI execution proof & Universal Engine Contract (`P02.01`–`P02.06`, `Gate B`)** | `PHASE 02` (ưu tiên Antigravity-first; API Provider thứ hai nằm ở `P15.02`) | Xác nhận lệnh `agy` thật hoạt động end-to-end qua Universal Engine Contract, tạo file thật có kiểm chứng SHA-256 độc lập, bắt exit code, timeout, win32 job cancel, session isolation và telemetry trung thực; giữ nguyên kiến trúc Multi-Provider và BYOK. |
 | **Đánh giá CrewAI vs Custom Orchestrator** | `PHASE 03` (`P03.01`–`P03.03`) | Chạy spike Master + Worker qua Engine Adapter thật; lập ADR mới (`use_crewai` hoặc `custom_orchestrator`) dựa trên số liệu về session, handoff, cancel, recovery và quota. |
 | **Độ bền vững SQLite & State Machine** | `PHASE 04` (`P04.01`–`P04.07`) | Kiểm chứng migrations, khóa ngoại, transaction, event replay và khôi phục trạng thái sau restart. |
 | **Tích hợp FastAPI + React/Vite 2D end-to-end** | `PHASE 12`–`13` (`Gate H`) | Chạy trọn vẹn tác vụ live qua 8 phân khu giao diện 2D trước khi bắt đầu đánh giá Three.js / R3F cho `PHASE 14`. |

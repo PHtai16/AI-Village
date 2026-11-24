@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01`–`P02.05` DONE; `P02.06` BLOCKED do chưa có khóa API/Provider thứ hai được cấp phép cho kiểm thử live; chi tiết tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03 chưa triển khai.** Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -10,7 +10,7 @@
 
 **AI Village** là hệ thống Multi-Agent đa chức năng dưới dạng môi trường làm việc trực quan. Người dùng giao việc cho **Master**; Master tự lập nhóm nhân viên chuyên môn, cho phép thảo luận/handoff trực tiếp, tự kiểm chứng bằng công cụ và tổng hợp sản phẩm cuối cùng. Phòng ban là **cách tổ chức năng lực**, không phải dây chuyền xử lý cố định. Một nhân viên có phòng ban chủ quản nhưng có thể tham gia nhiều nhóm dự án.
 
-- Engine & Provider: thiết kế **Multi-Provider, Multi-Model, Multi-API-Key (BYOK) và Multi-Platform** thông qua lớp Engine Adapter trung lập. **Antigravity không phải Engine độc quyền**; các API Provider là nguồn thực thi song song bình đẳng, hỗ trợ nhiều kết nối cho cùng Provider qua `connection_id` và `credential_ref` (minh họa qua hai kết nối Google Gemini, không mặc định hai key có hai quota độc lập).
+- Engine & Provider: **Antigravity CLI là Engine thực thi chính** được ưu tiên hoàn thiện và kiểm chứng vận hành thật qua Universal Engine Contract tại `engines/`. Thiết kế vẫn duy trì kiến trúc **Multi-Provider, Multi-Model, Multi-API-Key (BYOK) và Multi-Platform** để mở rộng tùy chọn sang Google Gemini, OpenAI, Ollama hoặc các API Provider khác qua `connection_id` và `credential_ref` khi có nhu cầu và kết nối được cấp phép (không mặc định hai key cùng Project có hai quota độc lập).
 - Framework điều phối: **CrewAI là ứng viên**, chưa được khóa lựa chọn cho đến khi kiểm chứng adapter Antigravity, API Provider, quản lý phiên, sự kiện và handoff. Không được biến Antigravity thành một model giả chỉ trả JSON, và không giả định LLM API có sẵn quyền thao tác công cụ hệ thống mà không qua Tool Runtime.
 - Chủ hệ thống quyết định quyền và các hành động quan trọng. Master điều phối; nhân viên được trao đổi ngang hàng trong phạm vi công việc.
 - Bắt đầu với **một engine và nhiều session logic**; có thể tuần tự để kiểm soát quota. Đồng thời chỉ mở sau khi được kiểm thử.
@@ -195,7 +195,7 @@ AI-Village/
 - [x] **P02.03 — Streaming events:** chuyển CLI `stream-json` thành luồng NDJSON chuẩn hóa `AntigravityStreamEvent` trong `engines/antigravity/streaming.py` và `stream_task()`; quan sát thực thời `execution_started`, `tool_call_started`, `tool_call_completed` cho `read_file`/`write_file`, `text_delta`, `execution_completed` với `source='provider_cli'`, tách biệt sự kiện tiến trình `source='adapter'`, xử lý đường lỗi và kiểm chứng file/SHA-256 trên đĩa tại `docs/reviews/PHASE_02_P02_03_AUDIT.md` *(chưa kiểm chứng session isolation, full process cancel hay multi-provider; `tool_call_id` để `None` do CLI `1.5.15` chưa phát)*. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
 - [x] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt (`AntigravitySessionManager`), ràng buộc thư mục không lồng nhau ngoài `%TEMP%`, truyền `--conversation <id>` tường minh (không dùng `--continue`) và `--settings` với `permissions.deny` chặn đọc/ghi sang workspace anh em cùng `command(*)`, gắn `AntigravitySessionEvent` theo phiên, chạy song song A/B và kiểm chứng SHA-256 độc lập cho `proof_A.txt`, `proof_B.txt` cùng chặn truy cập `a_sentinel.txt` tại `docs/reviews/PHASE_02_P02_04_AUDIT.md` *(quản lý phiên trong bộ nhớ, chưa lưu SQLite của PHASE 04; chưa kiểm chứng process cancel đầy đủ của P02.05)*. **DoD:** có test cross-session isolation.
 - [x] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn. Chi tiết tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`: chuẩn hóa `ProcessLifecycleState`, triển khai `AntigravityProcessManager` tại `engines/antigravity/lifecycle.py` và `Win32JobGuard` dùng `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` cho từng `execution_id`/`pid`, chứng minh real cancellation `CANCELLED`, cross-session isolation hủy A giữ nguyên B, controlled timeout `TIMED_OUT`, phân loại `UNSUPPORTED_ARGUMENT` live và `AUTH_ERROR`/`QUOTA_EXCEEDED`/`RATE_LIMITED`/`retry_after_seconds` unit; đạt 5/5 live tests và unit suite không hồi quy; giới hạn là chưa cố ý kích hoạt `AUTH_ERROR`/`QUOTA_EXCEEDED`/`RATE_LIMITED` hay treo inference trên tài khoản live.
-- [!] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities (`provider_id`, `connection_id`, `model_id` metadata và telemetry khả dụng cho Usage Monitor), chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform. **DoD:** engine/provider khác có thể thay mà core không đổi. Chi tiết tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`: đã triển khai `engines/contract.py`, `engines/connections.py`, `engines/registry.py`, `AntigravityEngineAdapter` và `GoogleGeminiAdapter`, đạt `49 passed, 18 skipped` ở suite mặc định cùng `3 passed, 2 skipped` ở live suite với Antigravity `LIVE_VERIFIED`, capability `TOOL_UNSUPPORTED_BY_PROVIDER` và multi-connection BYOK metadata; đang `BLOCKED` ở kiểm chứng HTTP live tới Provider thứ hai do chưa có `GEMINI_API_KEY` hay Provider thay thế được cấu hình.
+- [x] **P02.06 — Provider contract:** triển khai Universal Engine Contract trong `engines/` gồm `EngineRequest`, `EngineResult`, `EngineEvent`, `EngineTelemetry`, `EngineCapabilities`, `EngineRegistry`, `ConnectionRegistry`, `EnvCredentialResolver`, `verify_engine_artifact()`, `AntigravityEngineAdapter` và `GoogleGeminiAdapter`, tách biệt `agent_execution_platform` với `model_api` và không sửa `core/`. **DoD (Antigravity-first đã phê duyệt 2026-11-24 tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`):** chứng minh Antigravity chạy thật qua hợp đồng chung, chặn Fail-Closed `TOOL_UNSUPPORTED_BY_PROVIDER` cùng `DATA_BOUNDARY_VIOLATION` và bảo toàn kiến trúc đa kết nối BYOK; kiểm chứng HTTP live tới API Provider thứ hai như Gemini/OpenAI/Ollama là hạng mục mở rộng tùy chọn chuyển sang `P15.02` (bảo toàn lịch sử `BLOCKED` tại `docs/reviews/PHASE_02_P02_06_AUDIT.md` và hai bài live Gemini đang `SKIPPED`). Chi tiết tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`.
 
 **PHASE 03 — Quyết định CrewAI**
 
@@ -203,7 +203,7 @@ AI-Village/
 - [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy, quota, liên kết Task/Agent/Run, truy vết công cụ, báo cáo lỗi và khả năng cung cấp dữ liệu quan sát cho UI (không chọn chỉ vì dễ tạo nhiều Agent). **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
 - [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke.
 
-**Gate B — QUAN TRỌNG NHẤT:** một yêu cầu từ ứng dụng → Antigravity **thao tác công cụ thật** → tạo artifact → backend đọc và kiểm chứng. **Nếu chưa đạt, không phát triển các phase kế tiếp**.
+**Gate B (`PASS`):** đã kiểm chứng trọn vẹn chuỗi End-to-End thật `Ứng dụng -> EngineRegistry -> Universal Engine Contract -> AntigravityEngineAdapter -> agy.exe (v1.5.15) -> thao tác read_file/write_file thật -> tạo proof.txt -> verify_engine_artifact() kiểm tra độc lập nội dung và SHA-256` (`req-ea47a176818c`, khớp `866664c9a1e95842c185b0b8d849dd61ee5fb41b03096f698973a520e1aecaf0`, tách biệt `business_verification_status='UNVERIFIED'` khỏi `VERIFIED_PASS`, phát hiện tệp sai SHA-256 trả `VERIFIED_FAIL`, và chặn Fail-Closed `TOOL_UNSUPPORTED_BY_PROVIDER` khi gọi Gemini Model API). Đối soát toàn bộ `P02.01`–`P02.06` tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`. **Đủ điều kiện chuyển tiếp sang `PHASE 03` khi có lệnh.**
 
 ### CHẶNG C — Lõi quản lý nhiệm vụ và trạng thái
 
@@ -316,7 +316,7 @@ AI-Village/
 - [ ] **P13.05** — Meeting room 2D: ai tham gia, agenda, transcript/events, ý kiến, phản biện, quyết định Master, bằng chứng và action items.
 - [ ] **P13.06** — Approval center & Action Inbox: tách biệt thông báo đọc với hộp thư việc cần quyết định (duyệt lệnh, câu hỏi Master, thiếu file, QA fail, thiếu cấu hình), risk summary, thao tác approve/reject và decision history.
 - [ ] **P13.07** — Vault UI (Artifact Cabinet): tìm/lọc/xem trước theo định dạng/tải artifact theo task và phiên bản, QA inspection & evidence links, Comparison board (diff xác định/metadata, không LLM bịa diff), Trash & restore kèm xử lý hàng loạt có xác nhận và bảo vệ tệp dùng chung.
-- [ ] **P13.08** — Resource, connection & incident dashboard: Usage Monitor & Cost (tách nguồn dữ liệu, giữ nguyên `null` / `Không có dữ liệu từ Provider`), Provider/Connection BYOK manager (thêm/đặt tên/bật-tắt/kiểm tra kết nối; không lộ key thô hay `localStorage`), Engine status, incident history, resource warnings và bảng cài đặt hợp lệ *(chưa triển khai)*.
+- [ ] **P13.08** — Resource, connection & incident dashboard: Usage Monitor & Cost (tách nguồn dữ liệu, giữ nguyên `null` / `Không có dữ liệu từ Provider`), Provider/Connection BYOK manager cho phép thêm, đặt tên, bật/tắt và kiểm tra kết nối mở rộng tùy chọn như Gemini/OpenAI/Ollama bên cạnh Engine chính Antigravity (không lộ key thô hay `localStorage`), Engine status, incident history, resource warnings và bảng cài đặt hợp lệ *(chưa triển khai)*.
 
 **Gate H:** toàn bộ một nhiệm vụ đa agent chạy **qua UI**, dùng engine thật, thao tác được, có kết quả tải được và có thể can thiệp giữa chừng; người dùng theo dõi được từ lúc giao việc đến khi hoàn thành, truy cập checklist, thông báo, usage, QA và artifact mà không cần tra cứu thủ công trong log hoặc các thư mục hệ thống. Nếu chưa qua gate này thì 3D chỉ được làm prototype tách biệt.
 
@@ -336,7 +336,7 @@ AI-Village/
 **PHASE 15 — Quality & Reliability**
 
 - [ ] **P15.01** — Unit/contract tests: event schemas, checklist/kanban mapping, task state, role/permission.
-- [ ] **P15.02** — Integration: CLI/API/multi-provider/multi-connection/mock, fallback hợp lệ, xử lý `TOOL_UNSUPPORTED_BY_PROVIDER`, two-key Gemini không giả định quota độc lập, session isolation, cancellation, restart/reconnect không sai dashboard *(chưa triển khai)*.
+- [ ] **P15.02** — Integration: CLI/API/multi-provider/multi-connection/mock, fallback hợp lệ, xử lý `TOOL_UNSUPPORTED_BY_PROVIDER`, two-key Gemini không giả định quota độc lập, session isolation, cancellation, restart/reconnect không sai dashboard; tiếp nhận backlog kiểm chứng HTTP live và chuyển đổi live tới API Provider thứ hai như Google Gemini (`test_live_alternative_api_provider_gemini`, `test_live_provider_switching_without_core_changes`), OpenAI hoặc Ollama khi có kết nối hợp lệ *(chưa triển khai)*.
 - [ ] **P15.03** — Fault injection: timeout, quota, network, DB rollback, file shared, agent crash, không rò rỉ hoặc sai lệch notification/dedupe.
 - [ ] **P15.04** — Browser E2E: Mission Control Home, chat, checklist, kanban, usage (không bịa số liệu / `null` giữ nguyên), notifications dẫn đúng đối tượng, action inbox, meeting, QA evidence liên kết đúng artifact version, comparison, global search tuân quyền, trash/restore & batch delete có xác nhận không mất file Task khác, 2D/3D đồng bộ.
 - [ ] **P15.05** — Security: workspace isolation, secret leakage (bao gồm credential BYOK không lọt vào manifest/log/API/browser), unsafe command permission, backup/restore *(chưa triển khai)*.
@@ -354,7 +354,7 @@ AI-Village/
 **PHASE 17 — Distribution & Documentation**
 
 - [ ] **P17.01** — Một lệnh khởi động local, phát hiện dependencies và hiển thị lỗi rõ ràng.
-- [ ] **P17.02** — Config examples cho Antigravity và nhiều API Provider / multi-connection (như mẫu hai kết nối Gemini dùng `credential_ref`); không đóng gói secrets *(chưa triển khai)*.
+- [ ] **P17.02** — Config examples cho Engine chính Antigravity và cấu hình mở rộng tùy chọn cho nhiều API Provider / multi-connection như mẫu hai kết nối Gemini, OpenAI hoặc Ollama dùng `credential_ref` đồng bộ với backlog `P15.02` và `P13.08`; không đóng gói secrets *(chưa triển khai)*.
 - [ ] **P17.03** — Hướng dẫn vận hành Mission Control, đọc usage và hiểu trạng thái chưa khả dụng, quản lý notifications, tìm và khôi phục artifact, quản lý Provider connections, backup/restore, quản lý quyền và quy trình xử lý lỗi UI/Realtime.
 - [ ] **P17.04** — Release package + source hash + acceptance report theo đúng commit.
 
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** người vận hành cung cấp tối thiểu một khóa API hợp lệ của Provider thay thế như `GEMINI_API_KEY` để hoàn tất kiểm chứng live cho **P02.06 — Provider contract** và chuyển sang kiểm toán tổng hợp `PHASE 02` / `Gate B`. Chưa triển khai `PHASE 03`, Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **P03.01 — Spike tích hợp** của `PHASE 03 — Quyết định CrewAI` sau khi `PHASE 02` (`P02.01`–`P02.06`) và `Gate B` đã đạt. Chưa triển khai `PHASE 03`, Master Runtime, Mission Control UI hay dựng 3D.
 
 ---
 
@@ -734,6 +734,19 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`49 passed, 18 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_engine_provider_contract_live.py -v -rs` (`3 passed, 2 skipped in 17.15s`); báo cáo tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`.
 Blocking issue: Máy trạm chưa có `.env`, biến môi trường hoặc Windows Registry chứa khóa API hợp lệ của Provider thay thế như `GEMINI_API_KEY` hay `GOOGLE_API_KEY`, và không có server mô hình cục bộ nào đang chạy nên Test B và Test C chưa thể gọi API thật.
 Next: Người vận hành cấu hình khóa API hợp lệ của một Provider độc lập để chạy lại Test B và Test C trước khi kiểm toán tổng hợp `PHASE 02` và `Gate B`.
+
+### PHASE 02 / Gate B — Antigravity-First P02.06 Closure & Gate B End-to-End Audit
+ID: P02.06 / Gate B
+Status: DONE (P02.06: DONE; PHASE 02: DONE; Gate B: PASS)
+Scope: engines/__init__.py, engines/verification.py, tests/engines/test_gate_b_verification_unit.py, tests/integration/test_gate_b_end_to_end_live.py, tests/README.md, tests/standards/test_standards_consistency.py, docs/architecture/vision.md, docs/architecture/SYSTEM_BLUEPRINT.md, docs/decisions/ADR-0001-temporary-technology-stack.md, docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md, docs/reviews/PHASE_02_GATE_B_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(engine): complete Gate B end-to-end audit under Antigravity-first criteria` trên git log sau khi push; bảo toàn commit lịch sử `094dd83`)
+Acceptance:
+- Phê duyệt của người vận hành ngày 2026-11-24 chốt Antigravity CLI là Engine thực thi chính tại `PHASE 02`, giữ nguyên Universal Engine Contract, `GoogleGeminiAdapter` cùng cấu trúc Multi-Provider/BYOK và chuyển kiểm chứng HTTP live tới API Provider thứ hai sang backlog `P15.02` (`P13.08`, `P17.02`), giữ nguyên bản ghi lịch sử `BLOCKED` trong `docs/reviews/PHASE_02_P02_06_AUDIT.md` và hai bài Gemini live ở trạng thái `SKIPPED`.
+- Triển khai `verify_engine_artifact()` tại `engines/verification.py` để tách biệt trạng thái kỹ thuật `EngineResult.status == 'SUCCEEDED'` và `business_verification_status == 'UNVERIFIED'` khỏi kiểm chứng độc lập trên đĩa `VERIFIED_PASS`/`VERIFIED_FAIL`.
+- Chứng minh End-to-End thật xuyên suốt `Ứng dụng -> EngineRegistry.execute() -> AntigravityEngineAdapter -> agy.exe (v1.5.15) -> read_file/write_file -> proof.txt -> verify_engine_artifact()`: lượt chạy `req-ea47a176818c` đạt `SUCCEEDED`, nhận 36 sự kiện với `tool_execution_observed` cho `["read_file", "write_file"]`, `VERIFIED_MEASURED` `30799` tokens trong `45320 ms`, `package.json` nguyên vẹn SHA-256 `11019d5793d2fbef107ad81331b630215f6d33189c27f42fe53b1b09d521f00c`, `proof.txt` (`68` bytes) khớp SHA-256 `866664c9a1e95842c185b0b8d849dd61ee5fb41b03096f698973a520e1aecaf0` với `VERIFIED_PASS`; chặn Fail-Closed `TOOL_UNSUPPORTED_BY_PROVIDER` trên Gemini Model API và trả `VERIFIED_FAIL` khi `proof.txt` bị làm sai nội dung/SHA-256.
+Tests / Evidence: `python -m pytest tests -v` (`53 passed, 20 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_gate_b_end_to_end_live.py -v` (`2 passed in 48.55s`); biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md` và kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`.
+Blocking issue: Không có đối với luồng Antigravity-first và `Gate B` (hai bài kiểm thử HTTP live của Google Gemini vẫn giữ ở trạng thái tùy chọn `SKIPPED` thuộc backlog `P15.02`).
+Next: `P03.01 — Spike tích hợp` (chỉ bắt đầu khi có lệnh triển khai `PHASE 03`).
 
 
 

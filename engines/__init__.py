@@ -30,6 +30,13 @@ from engines.contract import (
 )
 from engines.providers import AntigravityEngineAdapter, GoogleGeminiAdapter
 from engines.registry import EngineRegistry
+from engines.verification import (
+    EngineArtifactVerificationResult,
+    compute_sha256_bytes,
+    compute_sha256_file,
+    snapshot_file_hashes,
+    verify_engine_artifact,
+)
 
 __all__ = [
     "AntigravityEngineAdapter",
@@ -38,6 +45,7 @@ __all__ = [
     "ConnectionRegistry",
     "CredentialResolver",
     "EngineAdapter",
+    "EngineArtifactVerificationResult",
     "EngineCapabilities",
     "EngineConnectionRef",
     "EngineError",
@@ -59,4 +67,8 @@ __all__ = [
     "EnvCredentialResolver",
     "GoogleGeminiAdapter",
     "ProviderConnectionGroup",
+    "compute_sha256_bytes",
+    "compute_sha256_file",
+    "snapshot_file_hashes",
+    "verify_engine_artifact",
 ]

@@ -146,9 +146,9 @@ Cộng tác trong AI Village được tổ chức khoa học để đảm bảo 
 Hệ thống thiết lập ranh giới rõ ràng giữa thực tế đã kiểm chứng và các ý tưởng thiết kế, đồng thời tách biệt tầng điều phối với tầng kết nối AI:
 
 ### 6.1. Phân định mức độ sẵn sàng kỹ thuật
-1. **Khả năng đã kiểm chứng:** Cấu trúc tệp tin tĩnh, bộ hợp đồng đặc tả và kiểm thử nhất quán trong Chặng A; quản lý quy tắc an toàn và kiểm thử độc lập qua PowerShell/pytest; UI scaffold tối thiểu build thành công. *(Lưu ý: khả năng gọi Antigravity CLI thực tế cho thao tác đơn lẻ cần được kiểm chứng chính thức có bằng chứng tại `PHASE 02`.)*
-2. **Khả năng đang ở mức thiết kế:** Cơ chế chuyển đổi luồng sự kiện JSON từ CLI thành Event Journal có cấu trúc; kiến trúc Multi-Provider / Multi-Connection / Multi-Key (BYOK); giao diện bộ nhớ đa tầng (`private`, `project`, `global`); chuẩn hóa các hợp đồng adapter cho nhiều AI Provider và nền tảng thực thi khác nhau.
-3. **Khả năng cần thử nghiệm thực tế trước khi áp dụng:** Khả năng Antigravity CLI hỗ trợ đồng thời nhiều phiên làm việc logic mà không gây xung đột quota hoặc khóa tiến trình; khả năng tích hợp song song API Provider và thực thi công cụ nội bộ qua Tool Runtime; hiệu năng của việc tích hợp CrewAI so với việc sử dụng orchestrator nội bộ mỏng; lựa chọn công nghệ Secret Vault cục bộ phù hợp.
+1. **Khả năng đã kiểm chứng qua Chặng A và Phase 02:** Cấu trúc tệp tin tĩnh, bộ hợp đồng đặc tả và kiểm thử nhất quán trong Chặng A; UI scaffold tối thiểu build thành công; đồng thời `Antigravity CLI` cùng `Universal Engine Contract` tại `engines/` đã được kiểm chứng chạy thật từ handshake, thao tác công cụ trên đĩa kèm SHA-256, streaming events, session isolation đến process cancellation.
+2. **Khả năng ở mức thiết kế hoặc mở rộng tùy chọn:** Cơ chế Event Journal bền vững trên SQLite tại `.runtime/`; kiểm thử gọi HTTP live cho các API Provider mở rộng như Google Gemini, OpenAI hoặc Ollama khi được cấp kết nối hợp lệ; giao diện bộ nhớ đa tầng (`private`, `project`, `global`) và Permission Manager đầy đủ ở các phase sau.
+3. **Khả năng cần kiểm chứng tiếp ở Phase 03–15:** Đánh giá tích hợp CrewAI với orchestrator mỏng trên nền `EngineAdapter` và `AgentRuntime` (`PHASE 03`), thực thi công cụ nội bộ AI Village trong `tools/`/`sandbox/` (`PHASE 07`), và tích hợp kiểm chứng live nhiều API Provider trong backlog `P15.02` cùng lựa chọn Secret Vault cục bộ phù hợp.
 
 ### 6.2. Kiến trúc Đa nhà cung cấp, Đa kết nối và Đa khóa (Multi-Provider / Multi-Key)
 Để bảo đảm tính độc lập nhà cung cấp và hỗ trợ BYOK an toàn, kiến trúc phân tách 8 thành phần phối hợp chặt chẽ theo ranh giới tầng:
@@ -163,7 +163,7 @@ Hệ thống thiết lập ranh giới rõ ràng giữa thực tế đã kiểm 
 8. **Tool Runtime & Permission Enforcement (`tools/` & `core/governance/`):** Khi sử dụng LLM API chỉ hỗ trợ sinh văn bản hoặc đề xuất gọi hàm, Tool Runtime của AI Village đứng ra thực thi công cụ thực tế trong `sandbox/` dưới sự kiểm soát Fail-Closed của Permission Manager.
 
 ### 6.3. Nguyên tắc tích hợp Framework và Cô lập Phiên
-- Antigravity là một ứng viên Engine mặc định quan trọng nhưng **không phải lựa chọn độc quyền**. Các API Provider là nguồn thực thi song song bình đẳng thông qua lớp Engine Adapter.
+- **Antigravity CLI là Engine thực thi chính** được ưu tiên hoàn thiện và kiểm chứng end-to-end đầu tiên; các API Provider như Gemini, OpenAI, Anthropic hay Ollama là khả năng mở rộng tùy chọn nối qua cùng Universal Engine Contract tại `engines/` khi có nhu cầu và kết nối được cấp phép.
 - Mỗi Agent luôn giữ **phiên làm việc (`session_id`) và ngữ cảnh riêng biệt** ngay cả khi nhiều Agent dùng chung một Provider, một Connection hoặc một API key.
 - CrewAI được xem là một ứng viên tiềm năng cho tầng điều phối, nhưng hệ thống không khóa chặt kiến trúc vào CrewAI. Tầng `core/` chỉ giao tiếp thông qua giao diện trừu tượng `AgentRuntime`, cho phép thay thế hoặc nâng cấp công cụ điều phối mà không làm xáo trộn nghiệp vụ của các Agent.
 - Tuyệt đối không công bố các tính năng chưa chạy thực tế là đã hoàn thành.
