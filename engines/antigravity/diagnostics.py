@@ -46,8 +46,17 @@ def format_command_summary(command: Sequence[str]) -> str:
         Redacted command string with inline prompt payload replaced by length metadata.
     """
     summarized: list[str] = []
+    skip_next_settings = False
     for arg in command:
-        if arg.startswith("--print="):
+        if skip_next_settings:
+            summarized.append("<redacted_rules>")
+            skip_next_settings = False
+        elif arg == "--settings":
+            summarized.append("--settings")
+            skip_next_settings = True
+        elif arg.startswith("--settings="):
+            summarized.append("--settings=<redacted_rules>")
+        elif arg.startswith("--print="):
             prompt_len = len(arg.removeprefix("--print="))
             summarized.append(f"--print=<{prompt_len}_chars>")
         else:

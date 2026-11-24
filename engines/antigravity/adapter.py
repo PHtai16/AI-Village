@@ -32,6 +32,7 @@ from engines.antigravity.streaming import (
     build_telemetry_from_payload,
     run_streaming_process,
 )
+from engines.antigravity.sessions import build_ephemeral_deny_settings
 from engines.antigravity.verification import (
     resolve_within_workspace,
     snapshot_file_hashes,
@@ -410,6 +411,8 @@ class AntigravityAdapter:
             supports_sandbox_flag=("--sandbox" in help_text),
             supports_mode_flag=("--mode" in help_text),
             supports_models_subcommand=("models" in help_text),
+            supports_conversation_flag=("--conversation" in help_text),
+            supports_settings_flag=("--settings" in help_text),
             probe_exit_code=help_proc.returncode,
             error=redact_secrets(help_proc.stderr) if help_proc.returncode != 0 else None,
         )
@@ -939,6 +942,35 @@ class AntigravityAdapter:
                 ),
             )
 
+        if request.conversation_id and not caps.supports_conversation_flag:
+            return self._stream_preflight_failure(
+                status="BLOCKED",
+                executable_path=exe,
+                version=caps.version,
+                command_summary="agy (unsupported --conversation flag)",
+                model_id=request.model,
+                error=AntigravityError(
+                    error_code="UNSUPPORTED_MODE",
+                    message="Antigravity CLI lacks required --conversation support.",
+                    retryable=False,
+                ),
+            )
+
+        requires_settings = bool(request.denied_read_write_paths or request.deny_shell_commands)
+        if requires_settings and not caps.supports_settings_flag:
+            return self._stream_preflight_failure(
+                status="BLOCKED",
+                executable_path=exe,
+                version=caps.version,
+                command_summary="agy (unsupported --settings flag)",
+                model_id=request.model,
+                error=AntigravityError(
+                    error_code="UNSUPPORTED_MODE",
+                    message="Antigravity CLI lacks required --settings support for session isolation.",
+                    retryable=False,
+                ),
+            )
+
         command: list[str] = [exe]
         if request.require_sandbox:
             command.append("--sandbox")
@@ -953,6 +985,14 @@ class AntigravityAdapter:
         )
         if request.model:
             command.extend(["--model", request.model])
+        if request.conversation_id:
+            command.extend(["--conversation", request.conversation_id])
+        if requires_settings:
+            settings_payload = build_ephemeral_deny_settings(
+                [Path(denied) for denied in request.denied_read_write_paths],
+                deny_shell_commands=request.deny_shell_commands,
+            )
+            command.extend(["--settings", json.dumps(settings_payload, separators=(",", ":"))])
         command.append(f"--print={request.prompt}")
 
         parser = AntigravityStreamParser(

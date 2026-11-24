@@ -1,6 +1,7 @@
 """Independent filesystem and SHA-256 artifact verification for Antigravity tool runs."""
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Sequence
 
@@ -8,6 +9,52 @@ from engines.antigravity.models import (
     AntigravityHandshakeResult,
     ArtifactVerificationResult,
 )
+
+
+def is_symlink_or_junction(path: Path) -> bool:
+    """Return True when ``path`` is a symbolic link or Windows NTFS junction."""
+    try:
+        if path.is_symlink():
+            return True
+    except OSError:
+        return True
+    is_junction_fn = getattr(os.path, "isjunction", None)
+    if callable(is_junction_fn):
+        try:
+            if bool(is_junction_fn(path)):
+                return True
+        except OSError:
+            return True
+    return False
+
+
+def has_symlink_or_junction_component(
+    path: Path,
+    stop_at: Path | None = None,
+) -> bool:
+    """Inspect ``path`` and its parent chain for symlinks or Windows junctions.
+
+    Args:
+        path: Directory or file path inspected without following links.
+        stop_at: Optional ancestor directory where traversal stops once reached.
+
+    Returns:
+        True if any inspected component is a symlink or junction.
+    """
+    current = path.absolute()
+    stop_abs = stop_at.absolute() if stop_at is not None else None
+    visited: set[Path] = set()
+
+    while current not in visited:
+        visited.add(current)
+        if stop_abs is not None and current == stop_abs:
+            break
+        if is_symlink_or_junction(current):
+            return True
+        if current.parent == current:
+            break
+        current = current.parent
+    return False
 
 
 def compute_sha256_bytes(data: bytes) -> str:
@@ -44,7 +91,12 @@ def resolve_within_workspace(workspace_dir: Path, relpath: str) -> Path:
         raise ValueError(f"Path must be relative to workspace, got absolute path: {relpath}")
 
     canonical_root = workspace_dir.resolve()
-    resolved = (canonical_root / candidate_rel).resolve()
+    unfollowed = canonical_root / candidate_rel
+    if has_symlink_or_junction_component(unfollowed, stop_at=canonical_root):
+        raise ValueError(
+            f"SYMLINK_ESCAPE_REJECTED: Path '{relpath}' traverses a symlink or junction."
+        )
+    resolved = unfollowed.resolve()
     try:
         resolved.relative_to(canonical_root)
     except ValueError as exc:

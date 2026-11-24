@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01 — CLI handshake`, `P02.02 — Tool execution` và `P02.03 — Streaming events` đã DONE; chi tiết tại `docs/reviews/PHASE_02_P02_03_AUDIT.md`; `P02.04`–`P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01`–`P02.04` DONE; chi tiết tại `docs/reviews/PHASE_02_P02_04_AUDIT.md`; `P02.05`–`P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -193,7 +193,7 @@ AI-Village/
 - [x] **P02.01 — CLI handshake:** kiểm tra phiên bản/các cờ thực tế và gọi `agy` (`C:\Users\taine\.gemini\bin\agy.exe` v`1.5.14`) từ `engines/antigravity/`; ghi exit/status (`exit_code: 0`, `SUCCEEDED`, `conversation_id`, `VERIFIED_MEASURED` tokens) và engine availability phục vụ Engine Status về sau, không hardcode tên model *(chưa kiểm chứng tool execution, streaming `stream-json`, session isolation, cancel hay multi-provider; chi tiết tại `docs/reviews/PHASE_02_P02_01_AUDIT.md`)*. **DoD:** nhận phản hồi live có bằng chứng.
 - [x] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json` (không đưa `verification_marker` vào prompt), tạo `proof.txt` mới, đọc lại và Python kiểm chứng độc lập trên đĩa khớp nội dung, tính toàn vẹn `package.json` và mã SHA-256 (`VERIFIED_PASS`, `actual_sha256 == expected_sha256`, chi tiết tại `docs/reviews/PHASE_02_P02_02_AUDIT.md`; `Tool events: NOT OBSERVABLE FROM CURRENT CLI OUTPUT`, chưa kiểm chứng `stream-json`, session isolation hay process cancellation). **DoD:** file và SHA đúng, không dựa vào lời AI.
 - [x] **P02.03 — Streaming events:** chuyển CLI `stream-json` thành luồng NDJSON chuẩn hóa `AntigravityStreamEvent` trong `engines/antigravity/streaming.py` và `stream_task()`; quan sát thực thời `execution_started`, `tool_call_started`, `tool_call_completed` cho `read_file`/`write_file`, `text_delta`, `execution_completed` với `source='provider_cli'`, tách biệt sự kiện tiến trình `source='adapter'`, xử lý đường lỗi và kiểm chứng file/SHA-256 trên đĩa tại `docs/reviews/PHASE_02_P02_03_AUDIT.md` *(chưa kiểm chứng session isolation, full process cancel hay multi-provider; `tool_call_id` để `None` do CLI `1.5.15` chưa phát)*. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
-- [ ] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt, không trộn lịch sử và file. **DoD:** có test cross-session isolation.
+- [x] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt (`AntigravitySessionManager`), ràng buộc thư mục không lồng nhau ngoài `%TEMP%`, truyền `--conversation <id>` tường minh (không dùng `--continue`) và `--settings` với `permissions.deny` chặn đọc/ghi sang workspace anh em cùng `command(*)`, gắn `AntigravitySessionEvent` theo phiên, chạy song song A/B và kiểm chứng SHA-256 độc lập cho `proof_A.txt`, `proof_B.txt` cùng chặn truy cập `a_sentinel.txt` tại `docs/reviews/PHASE_02_P02_04_AUDIT.md` *(quản lý phiên trong bộ nhớ, chưa lưu SQLite của PHASE 04; chưa kiểm chứng process cancel đầy đủ của P02.05)*. **DoD:** có test cross-session isolation.
 - [ ] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn.
 - [ ] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities (`provider_id`, `connection_id`, `model_id` metadata và telemetry khả dụng cho Usage Monitor), chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform *(chưa triển khai)*. **DoD:** engine/provider khác có thể thay mà core không đổi.
 
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** thực hiện **P02.04 — Session isolation** (sau khi `P02.01`–`P02.03` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** thực hiện **P02.05 — Process lifecycle** (sau khi `P02.01`–`P02.04` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
 
 ---
 
@@ -692,6 +692,20 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`34 passed, 5 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_streaming_live.py -v` (`3 passed in 51.97s`); báo cáo tại `docs/reviews/PHASE_02_P02_03_AUDIT.md`.
 Blocking issue: Không có.
 Next: `P02.04 — Session isolation`.
+
+### P02.04 — Real Session Isolation & Cross-Session Leakage Verification
+ID: P02.04
+Status: DONE
+Scope: engines/antigravity/models.py, engines/antigravity/diagnostics.py, engines/antigravity/verification.py, engines/antigravity/sessions.py, engines/antigravity/adapter.py, engines/antigravity/__init__.py, tests/engines/test_antigravity_session_isolation_unit.py, tests/integration/test_antigravity_session_isolation_live.py, tests/README.md, tests/standards/test_standards_consistency.py, docs/reviews/PHASE_02_P02_04_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(engine): verify Antigravity session isolation` trên git log sau khi push)
+Acceptance:
+- Xác minh thực tế trên `agy.exe` (`v1.5.15`): lời gọi mới tạo `conversation_id` tách biệt, `--conversation <id>` nối đúng hội thoại trước đó; đồng thời phát hiện `%TEMP%` bị xếp vào vùng được phép dùng chung nên đặt quy tắc Fail-Closed từ chối thư mục thuộc `tempfile.gettempdir()` theo mặc định tại `validate_session_workspace()`.
+- Triển khai `AntigravitySessionManager` tại `engines/antigravity/sessions.py`, ràng buộc `session_id` độc lập với `provider_conversation_id`, chống trùng lặp/lồng workspace (`paths_overlap`), kiểm tra symlink/junction (`has_symlink_or_junction_component`), gắn `AntigravitySessionEvent` theo ngữ cảnh phiên, ẩn `--settings` khỏi `format_command_summary()` và truyền `permissions.deny` chặn workspace anh em cùng `command(*)`.
+- Xác minh live trên fixture `ev_e67b7967`: hai phiên chạy song song nhận hai `conversation_id` riêng (`f12ce0e5-69f7-40e7-9ecb-0ec13f498664` và `d3dd008d-f264-4524-b01e-70488c83dd9e`), không rò rỉ ngữ cảnh sang B (`ctx_a_leaked_in_b1: false`), khôi phục đúng A qua `--conversation`, B bị từ chối đọc/ghi chéo `a_sentinel.txt` (`denied_actions: [{"action": "read_file", "display_name": "ReadFile"}]`, giữ nguyên SHA-256 `70b02ba87e1b14c52b43e4af97bb388e2b1cca5520319cc286f8db9a0cfdc193`), và `proof_A.txt` / `proof_B.txt` khớp SHA-256 độc lập.
+- Không triển khai SQLite Session Registry (`PHASE 04`), process lifecycle đầy đủ (`P02.05`), đa nhà cung cấp (`P02.06`) hay UI.
+Tests / Evidence: `python -m pytest tests -v` (`39 passed, 8 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_session_isolation_live.py -v` (`3 passed in 256.22s`); báo cáo tại `docs/reviews/PHASE_02_P02_04_AUDIT.md`.
+Blocking issue: Không có.
+Next: `P02.05 — Process lifecycle`.
 
 
 

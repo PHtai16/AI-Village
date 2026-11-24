@@ -1,9 +1,14 @@
 """Pydantic v2 data models for the minimal Antigravity CLI adapter."""
 
 from datetime import datetime
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from engines.antigravity.diagnostics import redact_secrets
+
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
 
 
 class AntigravityDiscoveryResult(BaseModel):
@@ -28,6 +33,8 @@ class AntigravityCapabilities(BaseModel):
     supports_sandbox_flag: bool = False
     supports_mode_flag: bool = False
     supports_models_subcommand: bool = False
+    supports_conversation_flag: bool = False
+    supports_settings_flag: bool = False
     probe_exit_code: int | None = None
     error: str | None = None
 
@@ -69,6 +76,13 @@ class AntigravityError(BaseModel):
         "STREAM_PARSE_ERROR",
         "STREAM_INTERRUPTED",
         "MISSING_COMPLETION_EVENT",
+        "DUPLICATE_SESSION_ID",
+        "INVALID_SESSION_ID",
+        "INVALID_WORKSPACE_BOUNDARY",
+        "WORKSPACE_OVERLAP",
+        "CROSS_SESSION_CONVERSATION_VIOLATION",
+        "CROSS_SESSION_ACCESS_DETECTED",
+        "SYMLINK_ESCAPE_REJECTED",
     ]
     message: str
     retryable: bool = False
@@ -178,6 +192,9 @@ class AntigravityStreamRequest(BaseModel):
     require_sandbox: bool = True
     execution_mode: Literal["accept-edits", "plan"] = "accept-edits"
     model: str | None = None
+    conversation_id: str | None = None
+    denied_read_write_paths: list[str] = Field(default_factory=list)
+    deny_shell_commands: bool = False
     max_payload_chars: int = Field(default=512, ge=64, le=4096)
     max_line_bytes: int = Field(default=262144, ge=1024, le=4194304)
 
@@ -188,6 +205,14 @@ class AntigravityStreamRequest(BaseModel):
         if not value.strip():
             raise ValueError("Prompt must not be empty or whitespace-only.")
         return value
+
+    @field_validator("conversation_id")
+    @classmethod
+    def _conversation_id_not_blank(cls, value: str | None) -> str | None:
+        """Reject whitespace-only conversation IDs when explicitly supplied."""
+        if value is not None and not value.strip():
+            raise ValueError("conversation_id must not be blank when provided.")
+        return value.strip() if value is not None else None
 
 
 class AntigravityStreamEvent(BaseModel):
@@ -248,3 +273,77 @@ class AntigravityStreamResult(BaseModel):
     denied_actions: list[dict[str, Any]] = Field(default_factory=list)
     error: AntigravityError | None = None
     redacted_stderr: str = ""
+
+
+class AntigravitySessionConfig(BaseModel):
+    """Configuration binding a logical AI Village session to an isolated workspace."""
+
+    session_id: str = Field(min_length=3, max_length=64)
+    workspace_path: str = Field(min_length=1)
+    allowed_root_path: str = Field(min_length=1)
+    allow_temp_workspace: bool = False
+    deny_shell_commands: bool = True
+    require_sandbox: bool = True
+    execution_mode: Literal["accept-edits", "plan"] = "accept-edits"
+    timeout_seconds: int = Field(default=90, ge=5, le=600)
+    model: str | None = None
+    max_payload_chars: int = Field(default=512, ge=64, le=4096)
+    max_line_bytes: int = Field(default=262144, ge=1024, le=4194304)
+
+    @field_validator("session_id")
+    @classmethod
+    def _validate_session_id(cls, value: str) -> str:
+        """Validate logical session ID format and block secret-like or traversal values."""
+        if not _SESSION_ID_RE.fullmatch(value) or ".." in value:
+            raise ValueError(
+                "session_id must match ^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$ without '..'."
+            )
+        if redact_secrets(value) != value:
+            raise ValueError("session_id must not resemble an API key or secret.")
+        return value
+
+    @field_validator("workspace_path", "allowed_root_path")
+    @classmethod
+    def _path_not_blank(cls, value: str) -> str:
+        """Reject whitespace-only workspace or root path strings."""
+        if not value.strip():
+            raise ValueError("Path must not be empty or whitespace-only.")
+        return value
+
+
+class SessionExecutionContext(BaseModel):
+    """Runtime session context separating AI Village identity from provider conversation IDs."""
+
+    session_id: str
+    workspace_id: str
+    canonical_workspace_path: str
+    allowed_root_path: str
+    provider_conversation_id: str | None = None
+    conversation_binding_source: Literal["none", "provider_cli"] = "none"
+    created_at: datetime
+    turn_count: int = Field(default=0, ge=0)
+    closed: bool = False
+
+
+class AntigravitySessionEvent(BaseModel):
+    """Streaming event wrapped with explicit AI Village adapter session attribution."""
+
+    session_id: str
+    session_id_source: Literal["adapter_session_context"] = "adapter_session_context"
+    provider_conversation_id: str | None = None
+    turn_index: int = Field(ge=1)
+    event: AntigravityStreamEvent
+
+
+class AntigravitySessionTurnResult(BaseModel):
+    """Outcome of one isolated session turn pairing stream evidence with session metadata."""
+
+    session_id: str
+    turn_index: int = Field(ge=1)
+    provider_conversation_id: str | None = None
+    resumed_conversation: bool = False
+    enforced_deny_rules_count: int = Field(default=0, ge=0)
+    enforced_settings_applied: bool = False
+    stream_result: AntigravityStreamResult
+    session_events: list[AntigravitySessionEvent] = Field(default_factory=list)
+    isolation_error: AntigravityError | None = None
