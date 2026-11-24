@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: ĐANG TRIỂN KHAI** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` TODO). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`; chưa nghiệm thu Gate C hay mở PHASE 04). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -201,7 +201,7 @@ AI-Village/
 
 - [x] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Engine Adapter (Antigravity hoặc API Provider hỗ trợ Tool Runtime), không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật (`docs/reviews/PHASE_03_P03_01_AUDIT.md`).
 - [x] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy, quota, liên kết Task/Agent/Run, truy vết công cụ, báo cáo lỗi và khả năng cung cấp dữ liệu quan sát cho UI (không chọn chỉ vì dễ tạo nhiều Agent). **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng (`custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`).
-- [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke.
+- [x] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke. *(DONE: `AgentRuntime` Protocol, `AgentWorkflowRunner` và `CustomAgentRuntime` kiểm chứng qua 5 unit tests và 1 live Antigravity CLI smoke test tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`.)*
 
 **Gate B (`PASS`):** đã kiểm chứng trọn vẹn chuỗi End-to-End thật `Ứng dụng -> EngineRegistry -> Universal Engine Contract -> AntigravityEngineAdapter -> agy.exe (v1.5.15) -> thao tác read_file/write_file thật -> tạo proof.txt -> verify_engine_artifact() kiểm tra độc lập nội dung và SHA-256` (`req-ea47a176818c`, khớp `866664c9a1e95842c185b0b8d849dd61ee5fb41b03096f698973a520e1aecaf0`, tách biệt `business_verification_status='UNVERIFIED'` khỏi `VERIFIED_PASS`, phát hiện tệp sai SHA-256 trả `VERIFIED_FAIL`, và chặn Fail-Closed `TOOL_UNSUPPORTED_BY_PROVIDER` khi gọi Gemini Model API). Đối soát toàn bộ `P02.01`–`P02.06` tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`. **Đủ điều kiện chuyển tiếp sang `PHASE 03` khi có lệnh.**
 
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **P03.03 — Khóa abstraction `AgentRuntime`** của `PHASE 03 — Quyết định CrewAI` theo quyết định `custom_orchestrator` đã chốt tại `docs/decisions/ADR-0002-orchestration-architecture.md`. Chưa triển khai `agents/*.yaml`, `PHASE 04`, Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** `PHASE 03` (`P03.01`–`P03.03`) đã hoàn tất; chờ lệnh nghiệm thu **Gate C** hoặc triển khai **`P04.01`** của `PHASE 04`. Chưa tự đánh dấu Gate C, chưa triển khai `agents/*.yaml`, SQLite Event Journal, Task State Machine, Mission Control UI hay dựng 3D.
 
 ---
 
@@ -774,6 +774,19 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`80 passed, 23 skipped in 5.24s`); `.runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/benchmarks/p03_02/test_crewai_evaluation_unit.py -v` (`4 passed, 91 warnings in 12.15s`); `$env:AI_VILLAGE_RUN_LIVE="1"; .runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/integration/test_p03_02_crewai_benchmark_live.py -v -rs` (`2 passed, 39 warnings in 237.80s`).
 Blocking issue: Không có.
 Next: `P03.03 — Khóa abstraction AgentRuntime` (chỉ bắt đầu khi có lệnh triển khai tiếp).
+
+---
+
+### [2026-11-24] PHASE 03 / P03.03: Agent Runtime Abstraction & Custom Orchestrator Integration
+Commit target: `feat(runtime): establish provider-independent AgentRuntime abstraction` (tại nhánh `main`, nối tiếp `516d34cc0b9cbf4accaed37c3eb85f527f60dd53`; giữ nguyên `ADR-0001`, `ADR-0002`, `core/orchestration/spike_models.py`, `core/orchestration/spike_coordinator.py` và `agents/`)
+Changes:
+- Xây dựng gói `core/runtime/` (`__init__.py`, `contract.py`, `application.py`, `custom_runtime.py`) định nghĩa `@runtime_checkable class AgentRuntime(Protocol)` cùng các Pydantic v2 models `AgentRuntimeInfo`, `WorkspaceScope`, `ExecutionRouting`, `ArtifactAcceptanceSpec`, `AgentRuntimeRequest`, `AgentRuntimeEvent`, `AgentRuntimeArtifactRef`, `AgentRuntimeTelemetry`, `AgentRuntimeError`, `AgentRuntimeResult`.
+- Triển khai tầng gọi ứng dụng `execute_agent_workflow` và `AgentWorkflowRunner` chỉ phụ thuộc `core.runtime.contract`, bảo vệ ranh giới ngoại lệ qua `redact_secrets` và chặn `DELIVERED` khi thiếu `VERIFIED_PASS`.
+- Triển khai `CustomAgentRuntime` (`custom.master_worker_v1`, `supports_workflow_cancellation=False`) kết nối `EngineRegistry` với `run_master_worker_spike` của P03.01, chuyển tiếp `AgentRuntimeEvent` và giữ nguyên `None` cho telemetry thiếu từ provider.
+- Cập nhật `tests/stage_a/test_stage_a_baseline.py`, `tests/standards/test_standards_consistency.py`, `tests/README.md`, bổ sung `tests/core/test_agent_runtime_contract_unit.py` và `tests/integration/test_agent_runtime_live.py`, tạo báo cáo `docs/reviews/PHASE_03_P03_03_AUDIT.md` và đánh dấu `PHASE 03: DONE` (không tự đánh dấu `Gate C` hay `PHASE 04`).
+Tests / Evidence: `python -m pytest tests -v` (`85 passed, 24 skipped`, 0 failed); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_agent_runtime_live.py -v -rs --log-cli-level=INFO` (`1 passed in 127.53s`, `inv-03e9d5039fc8`, `corr-006ceff3bee0`, `DELIVERED`, `VERIFIED_PASS`, SHA-256 `26d6cbc3dcb476f5e68a435edc2406ea841b05c378d4cc67a490fc8593f48149`, `233` events, `62626` total tokens).
+Blocking issue: Không có.
+Next: Chờ lệnh nghiệm thu **Gate C** hoặc triển khai **PHASE 04 / P04.01** (dừng sau `P03.03`).
 
 
 
