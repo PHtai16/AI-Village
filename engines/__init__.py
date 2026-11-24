@@ -1,1 +1,62 @@
 """Neutral engine adapter package for AI Village."""
+
+from engines.connections import (
+    ConnectionRegistry,
+    CredentialResolver,
+    EngineConnectionRef,
+    EnvCredentialResolver,
+    ProviderConnectionGroup,
+)
+from engines.contract import (
+    CapabilityName,
+    CapabilityStatus,
+    EngineAdapter,
+    EngineCapabilities,
+    EngineError,
+    EngineErrorCode,
+    EngineErrorSource,
+    EngineEvent,
+    EngineEventSource,
+    EngineEventType,
+    EngineExecutionStatus,
+    EnginePlatformKind,
+    EngineRequest,
+    EngineResult,
+    EngineSessionReference,
+    EngineTelemetry,
+    EngineTelemetrySource,
+    EngineTelemetryStatus,
+    EngineToolCallProposal,
+)
+from engines.providers import AntigravityEngineAdapter, GoogleGeminiAdapter
+from engines.registry import EngineRegistry
+
+__all__ = [
+    "AntigravityEngineAdapter",
+    "CapabilityName",
+    "CapabilityStatus",
+    "ConnectionRegistry",
+    "CredentialResolver",
+    "EngineAdapter",
+    "EngineCapabilities",
+    "EngineConnectionRef",
+    "EngineError",
+    "EngineErrorCode",
+    "EngineErrorSource",
+    "EngineEvent",
+    "EngineEventSource",
+    "EngineEventType",
+    "EngineExecutionStatus",
+    "EnginePlatformKind",
+    "EngineRegistry",
+    "EngineRequest",
+    "EngineResult",
+    "EngineSessionReference",
+    "EngineTelemetry",
+    "EngineTelemetrySource",
+    "EngineTelemetryStatus",
+    "EngineToolCallProposal",
+    "EnvCredentialResolver",
+    "GoogleGeminiAdapter",
+    "ProviderConnectionGroup",
+]

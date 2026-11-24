@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01`–`P02.05` DONE; chi tiết tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`; `P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01`–`P02.05` DONE; `P02.06` BLOCKED do chưa có khóa API/Provider thứ hai được cấp phép cho kiểm thử live; chi tiết tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -195,7 +195,7 @@ AI-Village/
 - [x] **P02.03 — Streaming events:** chuyển CLI `stream-json` thành luồng NDJSON chuẩn hóa `AntigravityStreamEvent` trong `engines/antigravity/streaming.py` và `stream_task()`; quan sát thực thời `execution_started`, `tool_call_started`, `tool_call_completed` cho `read_file`/`write_file`, `text_delta`, `execution_completed` với `source='provider_cli'`, tách biệt sự kiện tiến trình `source='adapter'`, xử lý đường lỗi và kiểm chứng file/SHA-256 trên đĩa tại `docs/reviews/PHASE_02_P02_03_AUDIT.md` *(chưa kiểm chứng session isolation, full process cancel hay multi-provider; `tool_call_id` để `None` do CLI `1.5.15` chưa phát)*. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
 - [x] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt (`AntigravitySessionManager`), ràng buộc thư mục không lồng nhau ngoài `%TEMP%`, truyền `--conversation <id>` tường minh (không dùng `--continue`) và `--settings` với `permissions.deny` chặn đọc/ghi sang workspace anh em cùng `command(*)`, gắn `AntigravitySessionEvent` theo phiên, chạy song song A/B và kiểm chứng SHA-256 độc lập cho `proof_A.txt`, `proof_B.txt` cùng chặn truy cập `a_sentinel.txt` tại `docs/reviews/PHASE_02_P02_04_AUDIT.md` *(quản lý phiên trong bộ nhớ, chưa lưu SQLite của PHASE 04; chưa kiểm chứng process cancel đầy đủ của P02.05)*. **DoD:** có test cross-session isolation.
 - [x] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn. Chi tiết tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`: chuẩn hóa `ProcessLifecycleState`, triển khai `AntigravityProcessManager` tại `engines/antigravity/lifecycle.py` và `Win32JobGuard` dùng `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` cho từng `execution_id`/`pid`, chứng minh real cancellation `CANCELLED`, cross-session isolation hủy A giữ nguyên B, controlled timeout `TIMED_OUT`, phân loại `UNSUPPORTED_ARGUMENT` live và `AUTH_ERROR`/`QUOTA_EXCEEDED`/`RATE_LIMITED`/`retry_after_seconds` unit; đạt 5/5 live tests và unit suite không hồi quy; giới hạn là chưa cố ý kích hoạt `AUTH_ERROR`/`QUOTA_EXCEEDED`/`RATE_LIMITED` hay treo inference trên tài khoản live.
-- [ ] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities (`provider_id`, `connection_id`, `model_id` metadata và telemetry khả dụng cho Usage Monitor), chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform *(chưa triển khai)*. **DoD:** engine/provider khác có thể thay mà core không đổi.
+- [!] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities (`provider_id`, `connection_id`, `model_id` metadata và telemetry khả dụng cho Usage Monitor), chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform. **DoD:** engine/provider khác có thể thay mà core không đổi. Chi tiết tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`: đã triển khai `engines/contract.py`, `engines/connections.py`, `engines/registry.py`, `AntigravityEngineAdapter` và `GoogleGeminiAdapter`, đạt `49 passed, 18 skipped` ở suite mặc định cùng `3 passed, 2 skipped` ở live suite với Antigravity `LIVE_VERIFIED`, capability `TOOL_UNSUPPORTED_BY_PROVIDER` và multi-connection BYOK metadata; đang `BLOCKED` ở kiểm chứng HTTP live tới Provider thứ hai do chưa có `GEMINI_API_KEY` hay Provider thay thế được cấu hình.
 
 **PHASE 03 — Quyết định CrewAI**
 
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** thực hiện **P02.06 — Provider contract** (sau khi `P02.01`–`P02.05` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** người vận hành cung cấp tối thiểu một khóa API hợp lệ của Provider thay thế như `GEMINI_API_KEY` để hoàn tất kiểm chứng live cho **P02.06 — Provider contract** và chuyển sang kiểm toán tổng hợp `PHASE 02` / `Gate B`. Chưa triển khai `PHASE 03`, Mission Control UI hay dựng 3D.
 
 ---
 
@@ -720,6 +720,20 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`44 passed, 13 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_lifecycle_live.py -v` (`5 passed in 72.63s`); báo cáo tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`.
 Blocking issue: Không có.
 Next: `P02.06 — Provider contract`.
+
+### P02.06 — Provider-Agnostic Engine Contract & Multi-Provider Integration
+ID: P02.06
+Status: BLOCKED
+Scope: engines/__init__.py, engines/contract.py, engines/connections.py, engines/registry.py, engines/providers/__init__.py, engines/providers/antigravity.py, engines/providers/gemini.py, pyproject.toml, tests/README.md, tests/stage_a/test_stage_a_baseline.py, tests/engines/test_engine_provider_contract_unit.py, tests/integration/test_engine_provider_contract_live.py, docs/reviews/PHASE_02_P02_06_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(engine): implement engine contract and gemini adapter (live blocked)` trên git log sau khi push)
+Acceptance:
+- Triển khai Universal Engine Contract tại `engines/contract.py` gồm `EngineRequest`, `EngineResult`, `EngineEvent`, `EngineTelemetry`, `EngineCapabilities`, `EngineSessionReference`, `EngineToolCallProposal`, `EngineError` và `EngineAdapter`; phân tách `agent_execution_platform` với `model_api`, cấm Model API tự khai báo `native_tool_execution` hoặc `workspace_access` ở trạng thái `SUPPORTED`.
+- Triển khai `EngineConnectionRef`, `ProviderConnectionGroup`, `CredentialResolver`, `EnvCredentialResolver` và `ConnectionRegistry` tại `engines/connections.py` cùng `EngineRegistry` tại `engines/registry.py` để chọn kết nối/nhà cung cấp trung lập không sửa `core/` và không tự chuyển dự phòng ngoài chính sách.
+- Triển khai `AntigravityEngineAdapter` tái sử dụng `AntigravityAdapter` và `GoogleGeminiAdapter` tại `engines/providers/gemini.py`; xác minh `LIVE_VERIFIED` cho `agy.exe` `1.5.15` qua hợp đồng chung (`req-ef60c6fc90e0`, `SUCCEEDED`, `VERIFIED_MEASURED` `6040` tokens trong `16036 ms`), chặn Fail-Closed `TOOL_UNSUPPORTED_BY_PROVIDER` và cách ly multi-connection BYOK `gemini_primary`/`gemini_secondary`.
+- Chưa xác minh HTTP live tới Provider API thứ hai do chưa được cấu hình khóa API hợp lệ trên máy; giữ `streaming` và `model_discovery` của Gemini ở trạng thái `NOT_VERIFIED`, chưa đánh dấu `P02.06` DONE hay `Gate B` PASS.
+Tests / Evidence: `python -m pytest tests -v` (`49 passed, 18 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_engine_provider_contract_live.py -v -rs` (`3 passed, 2 skipped in 17.15s`); báo cáo tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`.
+Blocking issue: Máy trạm chưa có `.env`, biến môi trường hoặc Windows Registry chứa khóa API hợp lệ của Provider thay thế như `GEMINI_API_KEY` hay `GOOGLE_API_KEY`, và không có server mô hình cục bộ nào đang chạy nên Test B và Test C chưa thể gọi API thật.
+Next: Người vận hành cấu hình khóa API hợp lệ của một Provider độc lập để chạy lại Test B và Test C trước khi kiểm toán tổng hợp `PHASE 02` và `Gate B`.
 
 
 

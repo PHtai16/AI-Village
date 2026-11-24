@@ -115,17 +115,13 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         dir_path = REPO_ROOT / folder
         assert dir_path.is_dir(), f"Missing top-level directory: {folder}"
 
-    # Phase 02.01 authorizes minimal adapter code in engines/antigravity/ only.
+    # Phase 02 authorizes adapter and contract code inside engines/ (antigravity/ and providers/).
     no_code_dirs = ["agents", "core", "tools", "skills", "storage", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
         js_files = list((REPO_ROOT / folder).rglob("*.js"))
         assert not py_files, f"Unexpected Python files in Stage A folder {folder}: {py_files}"
         assert not js_files, f"Unexpected JS files in Stage A folder {folder}: {js_files}"
-
-    providers_dir = REPO_ROOT / "engines" / "providers"
-    if providers_dir.is_dir():
-        assert not list(providers_dir.rglob("*.py")), "Unexpected code in engines/providers/ during P02.01"
 
     runtime_db_files = [
         p for p in (REPO_ROOT / ".runtime").rglob("*")

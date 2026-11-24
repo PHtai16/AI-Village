@@ -1,4 +1,4 @@
 [tool.pytest.ini_options]
 markers = [
-    "live: marks tests invoking the real external Antigravity CLI (set AI_VILLAGE_RUN_LIVE=1)",
+    "live: marks tests invoking the real Antigravity CLI or configured external API providers (set AI_VILLAGE_RUN_LIVE=1)",
 ]

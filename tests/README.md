@@ -10,7 +10,7 @@ Từ thư mục gốc của repository (`C:\DoCho\AI-Village`), chạy toàn b�
 python -m pytest tests -v
 ```
 
-Chạy kiểm thử live handshake `P02.01`, tool execution `P02.02`, event streaming `P02.03`, session isolation `P02.04` và process lifecycle `P02.05` với Antigravity CLI thật (không chạy mặc định trong unit test):
+Chạy kiểm thử live handshake `P02.01`, tool execution `P02.02`, event streaming `P02.03`, session isolation `P02.04`, process lifecycle `P02.05` và provider contract `P02.06` với CLI/Provider thật (không chạy mặc định trong unit test):
 
 ```powershell
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_handshake_live.py -v
@@ -18,6 +18,7 @@ $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravit
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_streaming_live.py -v
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_session_isolation_live.py -v
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_lifecycle_live.py -v
+$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_engine_provider_contract_live.py -v
 ```
 
 Hoặc chạy riêng từng nhóm kiểm thử hiện có:
@@ -30,6 +31,7 @@ python -m pytest tests/engines/test_antigravity_tool_execution_unit.py -v
 python -m pytest tests/engines/test_antigravity_streaming_unit.py -v
 python -m pytest tests/engines/test_antigravity_session_isolation_unit.py -v
 python -m pytest tests/engines/test_antigravity_lifecycle_unit.py -v
+python -m pytest tests/engines/test_engine_provider_contract_unit.py -v
 ```
 
 Để kiểm tra build giao diện `ui/` tối thiểu:
