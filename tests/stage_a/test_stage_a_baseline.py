@@ -116,7 +116,8 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         assert dir_path.is_dir(), f"Missing top-level directory: {folder}"
 
     # Phase 02 authorizes adapter and contract code inside engines/ (antigravity/ and providers/).
-    # Phase 03 authorizes only core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
+    # Phase 03 authorizes core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
+    # Phase 04 (P04.01) adds core/contracts/*.py without loosening other Stage A boundaries.
     no_code_dirs = ["agents", "tools", "skills", "storage", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
@@ -126,7 +127,11 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     core_root = REPO_ROOT / "core"
     assert not list(core_root.rglob("*.js")), "Unexpected JS files inside core/."
-    allowed_core_subdirs = {core_root / "orchestration", core_root / "runtime"}
+    allowed_core_subdirs = {
+        core_root / "orchestration",
+        core_root / "runtime",
+        core_root / "contracts",
+    }
     unexpected_core_py = [
         p.relative_to(core_root).as_posix()
         for p in core_root.rglob("*.py")

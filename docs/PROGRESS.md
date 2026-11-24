@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`; chưa nghiệm thu Gate C hay mở PHASE 04). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`). **PHASE 04: ĐANG TRIỂN KHAI** (`P04.01` DONE offline tại `docs/reviews/PHASE_04_P04_01_AUDIT.md`; `P04.02`–`P04.07` TODO; chưa nghiệm thu Gate C). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -209,7 +209,7 @@ AI-Village/
 
 **PHASE 04 — Contracts & Task Runtime** *(nền tảng dữ liệu lõi cho Mission Control)*
 
-- [ ] **P04.01** — Định nghĩa `Task`, `Run`, `Agent`, `Session`, `Artifact`, `Event`, `ConnectionRef` cùng các tham chiếu nền tảng cho Project grouping (`project_id` mang tính tổ chức, không phải Runtime thứ hai), `ChecklistItem` và `NotificationRef` trong `core/contracts/` *(không dồn logic chi tiết mọi miền vào P04.01; không lưu raw API key; chưa triển khai)*.
+- [x] **P04.01** — Định nghĩa `Task`, `Run`, `Agent`, `Session`, `Artifact`, `Event`, `ConnectionRef` cùng các tham chiếu nền tảng cho Project grouping (`project_id` mang tính tổ chức, không phải Runtime thứ hai), `ChecklistItem` và `NotificationRef` trong `core/contracts/` *(DONE: bộ Core Contracts tại `core/contracts/` kiểm chứng offline qua 17 ca unit test tại `tests/core/test_p04_01_core_contracts_unit.py` và kiểm toán tại `docs/reviews/PHASE_04_P04_01_AUDIT.md`; không dồn logic chi tiết mọi miền vào P04.01; không lưu raw API key; chưa triển khai State Machine, DB hay Event Journal)*.
 - [ ] **P04.02** — Task state machine: QUEUED → RUNNING → WAITING/FAILED/COMPLETED/CANCELLED/BLOCKED; chuyển trạng thái có guard bảo đảm Kanban, Checklist và Timing hiển thị trung thực từ timestamp gốc (không ETA giả).
 - [ ] **P04.03** — Event journal: event_id, task_id, run_id, session_id, actor_id, timestamp, loại sự kiện, `provider_id`/`connection_id`/`model_id`, `artifact_id`/`evidence_id`, payload được lọc secrets; replay được làm nguồn chính cho Activity Timeline.
 - [ ] **P04.04** — SQLite migrations trong `storage/db/`, kiểm foreign keys, transaction, bảng lưu checklist/history/notification metadata và connection metadata tách khỏi secret thô *(chưa triển khai)*.
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** `PHASE 03` (`P03.01`–`P03.03`) đã hoàn tất; chờ lệnh nghiệm thu **Gate C** hoặc triển khai **`P04.01`** của `PHASE 04`. Chưa tự đánh dấu Gate C, chưa triển khai `agents/*.yaml`, SQLite Event Journal, Task State Machine, Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **`P04.02 — Task state machine`** của `PHASE 04 — Contracts & Task Runtime` (tiếp nối `P04.01` DONE tại `docs/reviews/PHASE_04_P04_01_AUDIT.md`). Chưa tự đánh dấu Gate C hay PHASE 04 DONE, chưa triển khai SQLite Event Journal, Repository, Permission Manager, `agents/*.yaml`, Mission Control UI hay dựng 3D.
 
 ---
 
@@ -787,6 +787,18 @@ Changes:
 Tests / Evidence: `python -m pytest tests -v` (`85 passed, 24 skipped`, 0 failed); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_agent_runtime_live.py -v -rs --log-cli-level=INFO` (`1 passed in 127.53s`, `inv-03e9d5039fc8`, `corr-006ceff3bee0`, `DELIVERED`, `VERIFIED_PASS`, SHA-256 `26d6cbc3dcb476f5e68a435edc2406ea841b05c378d4cc67a490fc8593f48149`, `233` events, `62626` total tokens).
 Blocking issue: Không có.
 Next: Chờ lệnh nghiệm thu **Gate C** hoặc triển khai **PHASE 04 / P04.01** (dừng sau `P03.03`).
+
+---
+
+### [2026-11-24] PHASE 04 / P04.01: Core Contracts & Foundation Data Models
+Commit target: `feat(core): establish task runtime foundation contracts` (tại nhánh `main`, nối tiếp `d7c1600e31832c4fea22883bd7d16b9a257c9c30`; giữ nguyên `ADR-0001`, `ADR-0002`, `core/runtime/*`, `core/orchestration/*`, `engines/*` và `agents/`)
+Changes:
+- Xây dựng gói `core/contracts/` gồm `10` tệp (`__init__.py`, `identifiers.py`, `references.py`, `agent.py`, `session.py`, `artifact.py`, `run.py`, `task.py`, `event.py`, `compat.py`) dùng Pydantic v2 `ConfigDict(extra="forbid")`.
+- Chuẩn hóa bộ định danh tách miền (`task_*`, `run_*`, `art_*`, `evt_*`, `chk_*`, `ntf_*`, `prj_*`, `evd_*`, UUID v4 `session_id` hỗ trợ `legacy_session_ref`), `AgentIdentity` kèm ngoại lệ `core.master`/`orchestration`, tách biệt `Task`/`Run`, `Agent`/`Session`, `Artifact`/`QA VERIFIED_PASS` và `ConnectionRef` không chứa raw API key.
+- Bổ sung cầu nối thuần chỉ đọc trong `core/contracts/compat.py` bảo toàn `AgentRuntime` của P03.03 và `EngineConnectionRef`; cập nhật `tests/stage_a/test_stage_a_baseline.py`, `tests/standards/test_standards_consistency.py`, `tests/README.md`, tạo `tests/core/test_p04_01_core_contracts_unit.py` và `docs/reviews/PHASE_04_P04_01_AUDIT.md`.
+Tests / Evidence: `python -m pytest tests/core/test_p04_01_core_contracts_unit.py -v` (`17 passed`); `python -m pytest tests -v -rs` (offline contract/regression suite xác minh PASS với 0 failed, giữ 24 ca live/CrewAI skipped; không chạy live `agy.exe` do thuần dữ liệu).
+Blocking issue: Không có.
+Next: Chờ lệnh triển khai **`P04.02 — Task state machine`** (dừng sau `P04.01`, chưa tự đánh dấu `Gate C` hay `PHASE 04 DONE`).
 
 
 
