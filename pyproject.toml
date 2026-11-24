@@ -1,4 +1,5 @@
 [tool.pytest.ini_options]
 markers = [
     "live: marks tests invoking the real Antigravity CLI or configured external API providers (set AI_VILLAGE_RUN_LIVE=1)",
+    "crewai: marks tests requiring the isolated CrewAI benchmark environment (.runtime/crewai-bench-venv)",
 ]

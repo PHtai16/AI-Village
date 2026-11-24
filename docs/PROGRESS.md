@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: ĐANG TRIỂN KHAI** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02`–`P03.03` TODO). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: ĐANG TRIỂN KHAI** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` TODO). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -200,7 +200,7 @@ AI-Village/
 **PHASE 03 — Quyết định CrewAI**
 
 - [x] **P03.01 — Spike tích hợp:** một Master + một Worker gọi Engine Adapter (Antigravity hoặc API Provider hỗ trợ Tool Runtime), không chỉ gọi model trả văn bản. **DoD:** Worker tạo artifact thật (`docs/reviews/PHASE_03_P03_01_AUDIT.md`).
-- [ ] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy, quota, liên kết Task/Agent/Run, truy vết công cụ, báo cáo lỗi và khả năng cung cấp dữ liệu quan sát cho UI (không chọn chỉ vì dễ tạo nhiều Agent). **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng.
+- [x] **P03.02 — So sánh:** đánh giá CrewAI Crew/Flow so với orchestrator mỏng về session, handoff, cancel, khôi phục, event streaming, routing policy, quota, liên kết Task/Agent/Run, truy vết công cụ, báo cáo lỗi và khả năng cung cấp dữ liệu quan sát cho UI (không chọn chỉ vì dễ tạo nhiều Agent). **DoD:** ADR `use_crewai` hoặc `custom_orchestrator` có bằng chứng (`custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`).
 - [ ] **P03.03 — Khóa abstraction:** core gọi `AgentRuntime` interface, không phụ thuộc trực tiếp API nội bộ của CrewAI hoặc một framework routing cụ thể. **DoD:** unit test fake adapter và một live smoke.
 
 **Gate B (`PASS`):** đã kiểm chứng trọn vẹn chuỗi End-to-End thật `Ứng dụng -> EngineRegistry -> Universal Engine Contract -> AntigravityEngineAdapter -> agy.exe (v1.5.15) -> thao tác read_file/write_file thật -> tạo proof.txt -> verify_engine_artifact() kiểm tra độc lập nội dung và SHA-256` (`req-ea47a176818c`, khớp `866664c9a1e95842c185b0b8d849dd61ee5fb41b03096f698973a520e1aecaf0`, tách biệt `business_verification_status='UNVERIFIED'` khỏi `VERIFIED_PASS`, phát hiện tệp sai SHA-256 trả `VERIFIED_FAIL`, và chặn Fail-Closed `TOOL_UNSUPPORTED_BY_PROVIDER` khi gọi Gemini Model API). Đối soát toàn bộ `P02.01`–`P02.06` tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`. **Đủ điều kiện chuyển tiếp sang `PHASE 03` khi có lệnh.**
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **P03.02 — Đánh giá đối chứng `CrewAI` với `Custom Orchestrator`** của `PHASE 03 — Quyết định CrewAI` sau khi `P03.01` đã hoàn thành kiểm chứng live. Chưa khóa framework, chưa triển khai `agents/*.yaml`, `PHASE 04`, Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **P03.03 — Khóa abstraction `AgentRuntime`** của `PHASE 03 — Quyết định CrewAI` theo quyết định `custom_orchestrator` đã chốt tại `docs/decisions/ADR-0002-orchestration-architecture.md`. Chưa triển khai `agents/*.yaml`, `PHASE 04`, Mission Control UI hay dựng 3D.
 
 ---
 
@@ -760,6 +760,20 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`76 passed, 21 skipped in 4.06s`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_master_worker_spike_live.py -v -rs --log-cli-level=INFO` (`1 passed in 106.24s`); báo cáo kiểm toán tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`.
 Blocking issue: Không có.
 Next: `P03.02 — Đánh giá đối chứng CrewAI với Custom Orchestrator` (chỉ bắt đầu khi có lệnh triển khai tiếp).
+
+### P03.02 — CrewAI Crew/Flow vs Custom Orchestrator Evaluation & ADR-0002
+ID: P03.02
+Status: DONE (P03.01-P03.02: DONE; P03.03: TODO)
+Scope: pyproject.toml, tests/benchmarks/p03_02/__init__.py, tests/benchmarks/p03_02/models.py, tests/benchmarks/p03_02/custom_harness.py, tests/benchmarks/p03_02/crewai_flow_prototype.py, tests/benchmarks/p03_02/crewai_crew_prototype.py, tests/core/test_p03_02_custom_error_recovery_unit.py, tests/benchmarks/p03_02/test_crewai_evaluation_unit.py, tests/integration/test_p03_02_crewai_benchmark_live.py, tests/README.md, tests/standards/test_standards_consistency.py, docs/decisions/ADR-0002-orchestration-architecture.md, docs/reviews/PHASE_03_P03_02_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(orchestration): benchmark CrewAI versus custom orchestrator and decide ADR-0002` trên git log sau khi push)
+Acceptance:
+- Cài đặt cô lập `crewai==1.15.45` cùng `pytest==9.1.1` tại `.runtime/crewai-bench-venv` trên Python `3.13.13` giữ Python toàn cục sạch (`crewai_installed: False`) và `pyproject.toml` không thêm dependency production; đo được `124` gói chiếm `556.62 MB` và thời gian import nguội `.pyc` ấm `12963.0 ms` (`crewai`) / `15266.7 ms` (`crewai.flow.flow`) so với `1018.5 ms` của `core.orchestration`.
+- Xây dựng nguyên mẫu công bằng gọi qua `EngineRegistry` trên `agy.exe` `1.5.15` cho Phương án A (`custom_harness.py` bọc `run_master_worker_spike` giữ nguyên bản), Phương án B (`crewai_flow_prototype.py` 6 bước kèm `SQLiteFlowPersistence` cô lập) và Phương án C (`crewai_crew_prototype.py` qua cầu `AntigravityEngineBaseLLM`).
+- Chứng minh live thật qua Antigravity CLI trên cùng bài toán `package.json -> proof.txt` với QA độc lập `VERIFIED_PASS`: Phương án A `P03.01` `105618 ms`, `5989` ký tự prompt, `211` sự kiện; Phương án B Flow `112066 ms`, `6032` ký tự prompt, `3757 ms` overhead, `213` + `24` sự kiện, thiếu API hủy; Phương án C Crew `115466 ms`, `7369` ký tự prompt (+`23.0%`), `3891 ms` overhead, `0` sự kiện `ToolUsage*`, thiếu API hủy, xung đột retry nội bộ trên `BaseLLM` và `Task.guardrail` từ chối PEP 563.
+- Phê duyệt quyết định kiến trúc **`custom_orchestrator`** tại `docs/decisions/ADR-0002-orchestration-architecture.md` và đối chiếu đủ `19` tiêu chí tại `docs/reviews/PHASE_03_P03_02_AUDIT.md`; bảo toàn `ADR-0001`, `agents/` (`['.gitkeep', 'README.md']`) và `workspace/` (`['.gitkeep']`).
+Tests / Evidence: `python -m pytest tests -v` (`80 passed, 23 skipped in 5.24s`); `.runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/benchmarks/p03_02/test_crewai_evaluation_unit.py -v` (`4 passed, 91 warnings in 12.15s`); `$env:AI_VILLAGE_RUN_LIVE="1"; .runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/integration/test_p03_02_crewai_benchmark_live.py -v -rs` (`2 passed, 39 warnings in 237.80s`).
+Blocking issue: Không có.
+Next: `P03.03 — Khóa abstraction AgentRuntime` (chỉ bắt đầu khi có lệnh triển khai tiếp).
 
 
 
