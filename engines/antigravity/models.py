@@ -52,6 +52,19 @@ class AntigravityTelemetry(BaseModel):
     telemetry_status: Literal["VERIFIED_MEASURED", "UNAVAILABLE_FROM_PROVIDER"]
 
 
+ProcessLifecycleState = Literal[
+    "CREATED",
+    "STARTING",
+    "RUNNING",
+    "CANCEL_REQUESTED",
+    "CANCELLING",
+    "CANCELLED",
+    "TIMED_OUT",
+    "SUCCEEDED",
+    "FAILED",
+]
+
+
 class AntigravityError(BaseModel):
     """Normalized, secret-redacted error returned by the Antigravity adapter."""
 
@@ -83,9 +96,14 @@ class AntigravityError(BaseModel):
         "CROSS_SESSION_CONVERSATION_VIOLATION",
         "CROSS_SESSION_ACCESS_DETECTED",
         "SYMLINK_ESCAPE_REJECTED",
+        "CANCELLED",
+        "EXECUTION_NOT_FOUND",
+        "EXECUTION_CONFLICT",
     ]
     message: str
     retryable: bool = False
+    error_source: Literal["cli", "provider", "adapter", "capability", "cancellation"] | None = None
+    retry_after_seconds: float | None = Field(default=None, ge=0)
     exit_code: int | None = None
     redacted_stderr: str = ""
 
@@ -236,6 +254,9 @@ class AntigravityStreamEvent(BaseModel):
         "execution_completed",
         "provider_error",
         "unknown_provider_event",
+        "execution_cancel_requested",
+        "process_cancelled",
+        "event_buffer_overflow",
     ]
     source: Literal["provider_cli", "adapter"]
     provider_event_type: str | None = None
@@ -251,7 +272,8 @@ class AntigravityStreamEvent(BaseModel):
 class AntigravityStreamResult(BaseModel):
     """Normalized final outcome and ordered event trace of a streaming CLI run."""
 
-    status: Literal["SUCCEEDED", "FAILED", "TIMED_OUT", "BLOCKED"]
+    status: Literal["SUCCEEDED", "FAILED", "TIMED_OUT", "BLOCKED", "CANCELLED"]
+    execution_id: str | None = None
     executable_path: str | None = None
     version: str | None = None
     command_summary: str
@@ -260,6 +282,7 @@ class AntigravityStreamResult(BaseModel):
     finished_at: datetime
     duration_ms: int = Field(ge=0)
     exit_code: int | None = None
+    pid: int | None = None
     provider_status: str | None = None
     conversation_id: str | None = None
     model_id: str | None = None
@@ -267,9 +290,17 @@ class AntigravityStreamResult(BaseModel):
     response_text: str | None = None
     telemetry: AntigravityTelemetry
     events: list[AntigravityStreamEvent] = Field(default_factory=list)
+    events_dropped_count: int = Field(default=0, ge=0)
     observed_tool_names: list[str] = Field(default_factory=list)
     completion_event_received: bool = False
     parse_error_count: int = Field(default=0, ge=0)
+    process_tree_terminated: bool = False
+    termination_mechanism: Literal[
+        "none",
+        "win32_job_object",
+        "terminate_only",
+        "kill_fallback",
+    ] = "none"
     denied_actions: list[dict[str, Any]] = Field(default_factory=list)
     error: AntigravityError | None = None
     redacted_stderr: str = ""
@@ -330,6 +361,7 @@ class AntigravitySessionEvent(BaseModel):
 
     session_id: str
     session_id_source: Literal["adapter_session_context"] = "adapter_session_context"
+    execution_id: str | None = None
     provider_conversation_id: str | None = None
     turn_index: int = Field(ge=1)
     event: AntigravityStreamEvent
@@ -339,6 +371,7 @@ class AntigravitySessionTurnResult(BaseModel):
     """Outcome of one isolated session turn pairing stream evidence with session metadata."""
 
     session_id: str
+    execution_id: str | None = None
     turn_index: int = Field(ge=1)
     provider_conversation_id: str | None = None
     resumed_conversation: bool = False
@@ -347,3 +380,39 @@ class AntigravitySessionTurnResult(BaseModel):
     stream_result: AntigravityStreamResult
     session_events: list[AntigravitySessionEvent] = Field(default_factory=list)
     isolation_error: AntigravityError | None = None
+
+
+class AntigravityExecutionStatus(BaseModel):
+    """Live snapshot of an owned CLI execution lifecycle without fake progress percentages."""
+
+    execution_id: str
+    session_id: str | None = None
+    state: ProcessLifecycleState
+    is_terminal: bool
+    process_running: bool
+    active_tool_name: str | None = None
+    pid: int | None = None
+    conversation_id: str | None = None
+    command_summary: str
+    created_at: datetime
+    started_at: datetime | None = None
+    cancel_requested_at: datetime | None = None
+    finished_at: datetime | None = None
+    elapsed_ms: int = Field(default=0, ge=0)
+    exit_code: int | None = None
+    events_received: int = Field(default=0, ge=0)
+    events_dropped: int = Field(default=0, ge=0)
+    termination_race_note: str | None = None
+
+
+class AntigravityCancelOutcome(BaseModel):
+    """Structured outcome returned by an idempotent cancellation request."""
+
+    execution_id: str
+    accepted: bool
+    already_terminal: bool
+    idempotent_repeat: bool
+    state_at_request: ProcessLifecycleState
+    final_state: ProcessLifecycleState | None = None
+    cancel_requested_at: datetime
+    message: str

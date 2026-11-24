@@ -1,14 +1,17 @@
 """Real-time NDJSON streaming parser and pipe reader for Antigravity CLI output."""
 
+import ctypes
+from ctypes import wintypes as wt
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 import queue
 import subprocess
 import threading
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 import uuid
 
 from pydantic import BaseModel, Field
@@ -20,7 +23,287 @@ logger = logging.getLogger(__name__)
 
 _STDERR_CAPTURE_LIMIT = 65536
 _TRUNCATED_SUFFIX = "...[truncated]"
+_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+_JOB_OBJECT_EXTENDED_LIMIT_INFO = 9
+_PROCESS_QUERY_LIMITED_INFO = 0x1000
+_STILL_ACTIVE = 259
 PopenFactory = Callable[..., Any]
+
+
+class _JobObjectBasicLimitInfo(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),
+        ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", wt.DWORD),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", wt.DWORD),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", wt.DWORD),
+        ("SchedulingClass", wt.DWORD),
+    ]
+
+
+class _IoCounters(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_uint64),
+        ("WriteOperationCount", ctypes.c_uint64),
+        ("OtherOperationCount", ctypes.c_uint64),
+        ("ReadTransferCount", ctypes.c_uint64),
+        ("WriteTransferCount", ctypes.c_uint64),
+        ("OtherTransferCount", ctypes.c_uint64),
+    ]
+
+
+class _JobObjectExtendedLimitInfo(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _JobObjectBasicLimitInfo),
+        ("IoInfo", _IoCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+_KERNEL32_CACHE: Any | None = None
+
+
+def _get_kernel32() -> Any | None:
+    """Return configured Win32 ``kernel32`` DLL bindings on Windows, else None."""
+    global _KERNEL32_CACHE
+    if os.name != "nt":
+        return None
+    if _KERNEL32_CACHE is not None:
+        return _KERNEL32_CACHE
+    dll = ctypes.WinDLL("kernel32", use_last_error=True)
+    dll.CreateJobObjectW.argtypes = [wt.LPVOID, wt.LPCWSTR]
+    dll.CreateJobObjectW.restype = wt.HANDLE
+    dll.SetInformationJobObject.argtypes = [wt.HANDLE, ctypes.c_int, wt.LPVOID, wt.DWORD]
+    dll.SetInformationJobObject.restype = wt.BOOL
+    dll.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
+    dll.AssignProcessToJobObject.restype = wt.BOOL
+    dll.TerminateJobObject.argtypes = [wt.HANDLE, wt.UINT]
+    dll.TerminateJobObject.restype = wt.BOOL
+    dll.OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
+    dll.OpenProcess.restype = wt.HANDLE
+    dll.GetExitCodeProcess.argtypes = [wt.HANDLE, ctypes.POINTER(wt.DWORD)]
+    dll.GetExitCodeProcess.restype = wt.BOOL
+    dll.CloseHandle.argtypes = [wt.HANDLE]
+    dll.CloseHandle.restype = wt.BOOL
+    _KERNEL32_CACHE = dll
+    return dll
+
+
+def is_pid_alive(pid: int | None) -> bool:
+    """Return True if the specified OS PID is still running, without affecting other PIDs."""
+    if pid is None or pid <= 0:
+        return False
+    kernel32 = _get_kernel32()
+    if kernel32 is not None:
+        handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFO, False, int(pid))
+        if not handle:
+            return False
+        try:
+            exit_code = wt.DWORD(0)
+            ok = bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)))
+            return ok and int(exit_code.value) == _STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+class Win32JobGuard:
+    """Per-invocation Win32 Job Object isolating child process-tree termination."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._job_handle: Any | None = None
+        self.attached = False
+
+    def attach(self, proc: Any) -> bool:
+        """Bind a freshly spawned process handle into an exclusive Job Object."""
+        kernel32 = _get_kernel32()
+        raw_handle = getattr(proc, "_handle", None)
+        if kernel32 is None or not _is_real_int(raw_handle) or int(raw_handle) <= 0:
+            return False
+
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            return False
+
+        info = _JobObjectExtendedLimitInfo()
+        info.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        ok_limit = bool(
+            kernel32.SetInformationJobObject(
+                job,
+                _JOB_OBJECT_EXTENDED_LIMIT_INFO,
+                ctypes.byref(info),
+                ctypes.sizeof(info),
+            )
+        )
+        if not ok_limit:
+            kernel32.CloseHandle(job)
+            return False
+
+        ok_assign = bool(kernel32.AssignProcessToJobObject(job, wt.HANDLE(int(raw_handle))))
+        if not ok_assign:
+            kernel32.CloseHandle(job)
+            return False
+
+        with self._lock:
+            self._job_handle = job
+            self.attached = True
+        return True
+
+    def terminate_tree(self, exit_code: int = 1) -> bool:
+        """Terminate only the subprocess tree attached to this Job Object."""
+        kernel32 = _get_kernel32()
+        with self._lock:
+            job = self._job_handle
+            self._job_handle = None
+        if kernel32 is None or not job:
+            return False
+        try:
+            return bool(kernel32.TerminateJobObject(job, int(exit_code)))
+        finally:
+            kernel32.CloseHandle(job)
+
+    def close(self) -> None:
+        """Close the Job Object handle cleanly during post-exit cleanup."""
+        kernel32 = _get_kernel32()
+        with self._lock:
+            job = self._job_handle
+            self._job_handle = None
+        if kernel32 is not None and job:
+            kernel32.CloseHandle(job)
+
+
+class ProcessHandleController:
+    """Thread-safe controller owning a single spawned process and its termination."""
+
+    def __init__(self, cancel_event: threading.Event | None = None) -> None:
+        self._lock = threading.RLock()
+        self._term_lock = threading.Lock()
+        self.cancel_event = cancel_event or threading.Event()
+        self.cancel_requested_at: datetime | None = None
+        self.proc: Any | None = None
+        self.pid: int | None = None
+        self.job_guard = Win32JobGuard()
+        self.completed_cleanly = False
+        self.termination_done = False
+        self.exit_code: int | None = None
+        self.process_tree_terminated = False
+        self.termination_mechanism: Literal[
+            "none",
+            "win32_job_object",
+            "terminate_only",
+            "kill_fallback",
+        ] = "none"
+
+    def bind_process(self, proc: Any, job_guard: Win32JobGuard) -> None:
+        """Attach an owned ``Popen`` process and its ``Win32JobGuard``."""
+        with self._lock:
+            self.proc = proc
+            self.job_guard = job_guard
+            raw_pid = getattr(proc, "pid", None)
+            self.pid = int(raw_pid) if _is_real_int(raw_pid) and int(raw_pid) > 0 else None
+
+    def mark_completed(self) -> None:
+        """Record natural CLI completion before any subsequent cancellation request."""
+        with self._lock:
+            self.completed_cleanly = True
+
+    def signal_cancel(self, *, requested_at: datetime | None = None) -> bool:
+        """Set cancel flag idempotently and initiate non-blocking process termination."""
+        ts = requested_at or datetime.now(timezone.utc)
+        with self._lock:
+            first_request = not self.cancel_event.is_set()
+            if first_request:
+                self.cancel_requested_at = ts
+            self.cancel_event.set()
+            proc = self.proc
+            already_completed = self.completed_cleanly
+
+        if proc is not None and not already_completed:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+        return first_request
+
+    def terminate_owned_process(
+        self,
+        grace_seconds: float = 3.0,
+    ) -> tuple[int | None, bool, Literal["none", "win32_job_object", "terminate_only", "kill_fallback"]]:
+        """Gracefully terminate the owned process, escalating to Win32 Job Object or kill."""
+        with self._term_lock:
+            if self.termination_done:
+                return (
+                    self.exit_code,
+                    self.process_tree_terminated,
+                    self.termination_mechanism,
+                )
+
+            proc = self.proc
+            guard = self.job_guard
+            if proc is None:
+                self.termination_done = True
+                return (None, True, "none")
+
+            mechanism: Literal[
+                "none",
+                "win32_job_object",
+                "terminate_only",
+                "kill_fallback",
+            ] = "terminate_only"
+            tree_terminated = False
+            rc: int | None = None
+
+            try:
+                proc.terminate()
+                rc = int(proc.wait(timeout=max(0.05, grace_seconds)))
+                if guard.attached:
+                    guard.terminate_tree(rc if rc != 0 else 1)
+                    mechanism = "win32_job_object"
+                    tree_terminated = True
+            except subprocess.TimeoutExpired:
+                if guard.attached:
+                    guard.terminate_tree(1)
+                    mechanism = "win32_job_object"
+                    tree_terminated = True
+                    try:
+                        rc = int(proc.wait(timeout=3.0))
+                    except (subprocess.TimeoutExpired, OSError):
+                        rc = None
+                else:
+                    try:
+                        proc.kill()
+                        rc = int(proc.wait(timeout=3.0))
+                        mechanism = "kill_fallback"
+                    except (subprocess.TimeoutExpired, OSError):
+                        mechanism = "kill_fallback"
+                        rc = None
+            except OSError:
+                if guard.attached:
+                    guard.terminate_tree(1)
+                    mechanism = "win32_job_object"
+                    tree_terminated = True
+
+            self.termination_done = True
+            self.exit_code = rc
+            self.process_tree_terminated = tree_terminated
+            self.termination_mechanism = mechanism
+            return (rc, tree_terminated, mechanism)
 
 
 def sanitize_stream_text(text: str | None, max_chars: int = 512) -> str:
@@ -126,7 +409,19 @@ class StreamingProcessOutcome(BaseModel):
     finished_at: datetime
     duration_ms: int = Field(ge=0)
     exit_code: int | None = None
+    pid: int | None = None
     timed_out: bool = False
+    cancelled: bool = False
+    cancel_requested_at: datetime | None = None
+    process_tree_terminated: bool = False
+    termination_mechanism: Literal[
+        "none",
+        "win32_job_object",
+        "terminate_only",
+        "kill_fallback",
+    ] = "none"
+    events_dropped_count: int = Field(default=0, ge=0)
+    termination_race_note: str | None = None
     launch_error: str | None = None
     events: list[AntigravityStreamEvent] = Field(default_factory=list)
     redacted_stderr: str = ""
@@ -716,40 +1011,47 @@ def _drain_stderr(stream: Any, chunks: list[str], limit: int) -> None:
                 remaining = limit - captured
                 chunks.append(chunk[:remaining])
                 captured += min(len(chunk), remaining)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         logger.debug("Stderr stream closed during read: %s", redact_secrets(str(exc)))
 
 
 def _pump_stdout_lines(
     stream: Any,
     line_queue: queue.Queue[tuple[int, str, datetime] | None],
+    stop_event: threading.Event | None = None,
 ) -> None:
-    """Read ``stdout`` line by line into ``line_queue`` until EOF."""
+    """Read ``stdout`` line by line into ``line_queue`` until EOF or stop signal."""
     line_number = 0
     try:
         for line in iter(stream.readline, ""):
+            if stop_event is not None and stop_event.is_set():
+                break
             line_number += 1
-            line_queue.put((line_number, line, datetime.now(timezone.utc)))
-    except OSError as exc:
+            item = (line_number, line, datetime.now(timezone.utc))
+            while stop_event is None or not stop_event.is_set():
+                try:
+                    line_queue.put(item, timeout=0.05)
+                    break
+                except queue.Full:
+                    continue
+    except (OSError, ValueError) as exc:
         logger.debug("Stdout stream closed during read: %s", redact_secrets(str(exc)))
     finally:
-        line_queue.put(None)
+        for _ in range(20):
+            try:
+                line_queue.put(None, timeout=0.05)
+                break
+            except queue.Full:
+                if stop_event is not None and stop_event.is_set():
+                    break
 
 
 def _terminate_process(proc: Any) -> int | None:
-    """Terminate a timed-out subprocess cleanly without hanging."""
-    try:
-        proc.terminate()
-    except OSError:
-        return None
-    try:
-        return int(proc.wait(timeout=3))
-    except (subprocess.TimeoutExpired, OSError):
-        try:
-            proc.kill()
-            return int(proc.wait(timeout=3))
-        except (subprocess.TimeoutExpired, OSError):
-            return None
+    """Terminate an unguarded subprocess cleanly without hanging."""
+    controller = ProcessHandleController()
+    controller.bind_process(proc, Win32JobGuard())
+    rc, _, _ = controller.terminate_owned_process(grace_seconds=3.0)
+    return rc
 
 
 def run_streaming_process(
@@ -760,8 +1062,15 @@ def run_streaming_process(
     parser: AntigravityStreamParser,
     on_event: Callable[[AntigravityStreamEvent], None] | None = None,
     popen_factory: PopenFactory = subprocess.Popen,
+    cancel_event: threading.Event | None = None,
+    controller: ProcessHandleController | None = None,
+    hard_timeout_seconds: float | None = None,
+    grace_seconds: float = 3.0,
+    max_events: int = 10000,
+    max_queue_size: int = 2048,
+    on_process_started: Callable[[int | None, datetime], None] | None = None,
 ) -> StreamingProcessOutcome:
-    """Spawn CLI subprocess and incrementally stream, parse, and emit events.
+    """Spawn CLI subprocess and incrementally stream, parse, cancel, or time out safely.
 
     Args:
         command: Full CLI argument vector.
@@ -770,26 +1079,86 @@ def run_streaming_process(
         parser: Stateful parser converting stdout lines into normalized events.
         on_event: Optional callback invoked synchronously as each event arrives.
         popen_factory: Process spawner matching ``subprocess.Popen`` for test injection.
+        cancel_event: Optional thread event requesting cooperative termination.
+        controller: Optional handle controller shared with ``AntigravityProcessManager``.
+        hard_timeout_seconds: Optional hard deadline overriding ``timeout_seconds + 15``.
+        grace_seconds: Graceful shutdown wait window before Job Object or kill fallback.
+        max_events: Bounded capacity for retained events before overflow reporting.
+        max_queue_size: Bounded line queue capacity protecting memory on high-volume output.
+        on_process_started: Optional hook receiving the OS PID right after launch.
 
     Returns:
-        ``StreamingProcessOutcome`` containing ordered events, timestamps, and stderr.
+        ``StreamingProcessOutcome`` containing ordered events, PID, termination details,
+        and redacted diagnostics.
     """
     started_at = datetime.now(timezone.utc)
     t0 = time.monotonic()
-    deadline = t0 + timeout_seconds + 15
+    effective_hard = (
+        float(hard_timeout_seconds)
+        if hard_timeout_seconds is not None
+        else float(timeout_seconds + 15)
+    )
+    deadline = t0 + max(0.05, effective_hard)
     command_summary = format_command_summary(command)
     logger.info("Starting streaming Antigravity CLI in %s (%s)", workspace, command_summary)
 
+    active_controller = controller or ProcessHandleController(cancel_event=cancel_event)
+
+    def _is_cancel_requested() -> bool:
+        return active_controller.cancel_event.is_set() or (
+            cancel_event is not None and cancel_event.is_set()
+        )
+
     events: list[AntigravityStreamEvent] = []
     first_event_at: datetime | None = None
+    events_dropped_count = 0
+    overflow_emitted = False
 
-    def _emit(event: AntigravityStreamEvent) -> None:
-        nonlocal first_event_at
+    def _emit(event: AntigravityStreamEvent, *, force: bool = False) -> None:
+        nonlocal first_event_at, events_dropped_count, overflow_emitted
         if first_event_at is None and event.source == "provider_cli":
             first_event_at = event.timestamp
-        events.append(event)
-        if on_event is not None:
-            on_event(event)
+        if force or len(events) < max_events:
+            events.append(event)
+            if on_event is not None:
+                on_event(event)
+            return
+
+        events_dropped_count += 1
+        if not overflow_emitted:
+            overflow_emitted = True
+            ov_evt = parser.make_adapter_event(
+                event_type="event_buffer_overflow",
+                status="FAILED",
+                timestamp=event.timestamp,
+                redacted_payload={"max_events": max_events},
+            )
+            events.append(ov_evt)
+            if on_event is not None:
+                on_event(ov_evt)
+
+    if _is_cancel_requested():
+        cancel_ts = active_controller.cancel_requested_at or started_at
+        _emit(
+            parser.make_adapter_event(
+                event_type="process_cancelled",
+                status="FAILED",
+                timestamp=cancel_ts,
+                redacted_payload={"reason": "cancelled_before_start"},
+            ),
+            force=True,
+        )
+        return StreamingProcessOutcome(
+            started_at=started_at,
+            finished_at=cancel_ts,
+            duration_ms=0,
+            cancelled=True,
+            cancel_requested_at=cancel_ts,
+            process_tree_terminated=True,
+            termination_mechanism="none",
+            termination_race_note="cancelled_before_start",
+            events=events,
+        )
 
     try:
         proc = popen_factory(
@@ -813,19 +1182,35 @@ def run_streaming_process(
             events=events,
         )
 
+    job_guard = Win32JobGuard()
+    job_guard.attach(proc)
+    active_controller.bind_process(proc, job_guard)
+    pid = active_controller.pid
+
+    if on_process_started is not None:
+        on_process_started(pid, started_at)
+
     _emit(
         parser.make_adapter_event(
             event_type="process_started",
             status="STARTED",
             timestamp=started_at,
-            redacted_payload={"command_summary": command_summary},
-        )
+            redacted_payload={"command_summary": command_summary, "pid": pid},
+        ),
+        force=True,
     )
 
     stderr_chunks: list[str] = []
-    line_queue: queue.Queue[tuple[int, str, datetime] | None] = queue.Queue()
+    line_queue: queue.Queue[tuple[int, str, datetime] | None] = queue.Queue(
+        maxsize=max(1, max_queue_size)
+    )
+    stop_reading = threading.Event()
     diag_lines: list[str] = []
     timed_out = False
+    cancelled = False
+    tree_terminated = False
+    mechanism: Literal["none", "win32_job_object", "terminate_only", "kill_fallback"] = "none"
+    race_note: str | None = None
     exit_code: int | None = None
 
     stdout_thread: threading.Thread | None = None
@@ -843,7 +1228,7 @@ def run_streaming_process(
         if proc.stdout is not None:
             stdout_thread = threading.Thread(
                 target=_pump_stdout_lines,
-                args=(proc.stdout, line_queue),
+                args=(proc.stdout, line_queue, stop_reading),
                 daemon=True,
             )
             stdout_thread.start()
@@ -851,12 +1236,15 @@ def run_streaming_process(
             line_queue.put(None)
 
         while True:
+            if _is_cancel_requested():
+                cancelled = True
+                break
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True
                 break
             try:
-                item = line_queue.get(timeout=min(0.25, remaining))
+                item = line_queue.get(timeout=min(0.05, remaining))
             except queue.Empty:
                 continue
 
@@ -869,46 +1257,127 @@ def run_streaming_process(
                 if parsed_event.event_type == "stream_parse_failed" and len(diag_lines) < 20:
                     diag_lines.append(sanitize_stream_text(line.strip(), 300))
                 elif parsed_event.event_type == "provider_error" and len(diag_lines) < 20:
-                    msg = parsed_event.redacted_payload.get("message") or parsed_event.redacted_payload.get("response_preview")
+                    msg = (
+                        parsed_event.redacted_payload.get("message")
+                        or parsed_event.redacted_payload.get("response_preview")
+                    )
                     if isinstance(msg, str) and msg:
                         diag_lines.append(sanitize_stream_text(msg, 300))
-                _emit(parsed_event)
+                is_terminal_provider = parsed_event.event_type in (
+                    "execution_completed",
+                    "provider_error",
+                )
+                _emit(parsed_event, force=is_terminal_provider)
 
-        if timed_out:
-            exit_code = _terminate_process(proc)
+            if _is_cancel_requested() and not parser.completion_event_received:
+                cancelled = True
+                break
+
+        if cancelled:
+            if parser.completion_event_received:
+                race_note = "cancel_requested_after_completion"
+                cancelled = False
+                active_controller.mark_completed()
+                try:
+                    exit_code = int(proc.wait(timeout=max(0.1, deadline - time.monotonic())))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    stop_reading.set()
+                    exit_code, tree_terminated, mechanism = (
+                        active_controller.terminate_owned_process(grace_seconds=grace_seconds)
+                    )
+            else:
+                stop_reading.set()
+                exit_code, tree_terminated, mechanism = (
+                    active_controller.terminate_owned_process(grace_seconds=grace_seconds)
+                )
+        elif timed_out:
+            stop_reading.set()
+            exit_code, tree_terminated, mechanism = active_controller.terminate_owned_process(
+                grace_seconds=grace_seconds
+            )
+            if _is_cancel_requested():
+                race_note = "cancel_requested_after_timeout"
         else:
-            wait_remaining = max(1.0, deadline - time.monotonic())
+            wait_remaining = max(0.05, deadline - time.monotonic())
             try:
                 exit_code = int(proc.wait(timeout=wait_remaining))
+                if parser.completion_event_received:
+                    active_controller.mark_completed()
+                    if _is_cancel_requested():
+                        race_note = "cancel_requested_after_completion"
+                elif _is_cancel_requested():
+                    cancelled = True
+                    stop_reading.set()
+                    exit_code, tree_terminated, mechanism = (
+                        active_controller.terminate_owned_process(grace_seconds=grace_seconds)
+                    )
             except subprocess.TimeoutExpired:
-                timed_out = True
-                exit_code = _terminate_process(proc)
+                if _is_cancel_requested() and not parser.completion_event_received:
+                    cancelled = True
+                else:
+                    timed_out = True
+                stop_reading.set()
+                exit_code, tree_terminated, mechanism = (
+                    active_controller.terminate_owned_process(grace_seconds=grace_seconds)
+                )
     except Exception:
-        _terminate_process(proc)
+        stop_reading.set()
+        active_controller.terminate_owned_process(grace_seconds=grace_seconds)
         raise
     finally:
+        stop_reading.set()
+        if cancelled or timed_out:
+            for stream in (getattr(proc, "stdout", None), getattr(proc, "stderr", None)):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except OSError:
+                        pass
         if stdout_thread is not None:
-            stdout_thread.join(timeout=2.0)
+            stdout_thread.join(timeout=1.5)
         if stderr_thread is not None:
-            stderr_thread.join(timeout=2.0)
+            stderr_thread.join(timeout=1.5)
         for stream in (getattr(proc, "stdout", None), getattr(proc, "stderr", None)):
             if stream is not None:
                 try:
                     stream.close()
                 except OSError:
                     pass
+        job_guard.close()
 
     finished_at = datetime.now(timezone.utc)
     duration_ms = max(0, int((time.monotonic() - t0) * 1000))
 
-    if timed_out:
+    if cancelled:
+        _emit(
+            parser.make_adapter_event(
+                event_type="process_cancelled",
+                status="FAILED",
+                timestamp=finished_at,
+                redacted_payload={
+                    "exit_code": exit_code,
+                    "pid": pid,
+                    "process_tree_terminated": tree_terminated,
+                    "termination_mechanism": mechanism,
+                },
+            ),
+            force=True,
+        )
+    elif timed_out:
         _emit(
             parser.make_adapter_event(
                 event_type="process_timed_out",
                 status="FAILED",
                 timestamp=finished_at,
-                redacted_payload={"timeout_seconds": timeout_seconds},
-            )
+                redacted_payload={
+                    "timeout_seconds": timeout_seconds,
+                    "pid": pid,
+                    "process_tree_terminated": tree_terminated,
+                    "termination_mechanism": mechanism,
+                },
+            ),
+            force=True,
         )
     else:
         _emit(
@@ -916,8 +1385,9 @@ def run_streaming_process(
                 event_type="process_exited",
                 status="COMPLETED" if exit_code == 0 else "FAILED",
                 timestamp=finished_at,
-                redacted_payload={"exit_code": exit_code},
-            )
+                redacted_payload={"exit_code": exit_code, "pid": pid},
+            ),
+            force=True,
         )
 
     redacted_err = redact_secrets("".join(stderr_chunks))[:2000]
@@ -927,7 +1397,14 @@ def run_streaming_process(
         finished_at=finished_at,
         duration_ms=duration_ms,
         exit_code=exit_code,
+        pid=pid,
         timed_out=timed_out,
+        cancelled=cancelled,
+        cancel_requested_at=active_controller.cancel_requested_at,
+        process_tree_terminated=tree_terminated,
+        termination_mechanism=mechanism,  # type: ignore[arg-type]
+        events_dropped_count=events_dropped_count,
+        termination_race_note=race_note,
         events=events,
         redacted_stderr=redacted_err,
         redacted_stdout_diagnostics="\n".join(diag_lines)[:2000],

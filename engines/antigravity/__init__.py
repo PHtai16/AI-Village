@@ -10,10 +10,16 @@ from engines.antigravity.adapter import (
     stream_task,
 )
 from engines.antigravity.diagnostics import format_command_summary, redact_secrets
+from engines.antigravity.lifecycle import (
+    AntigravityProcessManager,
+    ProcessLifecycleError,
+)
 from engines.antigravity.models import (
+    AntigravityCancelOutcome,
     AntigravityCapabilities,
     AntigravityDiscoveryResult,
     AntigravityError,
+    AntigravityExecutionStatus,
     AntigravityHandshakeRequest,
     AntigravityHandshakeResult,
     AntigravitySessionConfig,
@@ -26,6 +32,7 @@ from engines.antigravity.models import (
     AntigravityToolExecutionRequest,
     AntigravityToolExecutionResult,
     ArtifactVerificationResult,
+    ProcessLifecycleState,
     SessionExecutionContext,
 )
 from engines.antigravity.sessions import (
@@ -38,8 +45,11 @@ from engines.antigravity.sessions import (
 )
 from engines.antigravity.streaming import (
     AntigravityStreamParser,
+    ProcessHandleController,
     StreamingProcessOutcome,
+    Win32JobGuard,
     build_telemetry_from_payload,
+    is_pid_alive,
     run_streaming_process,
     sanitize_stream_text,
 )
@@ -54,11 +64,14 @@ from engines.antigravity.verification import (
 
 __all__ = [
     "AntigravityAdapter",
+    "AntigravityCancelOutcome",
     "AntigravityCapabilities",
     "AntigravityDiscoveryResult",
     "AntigravityError",
+    "AntigravityExecutionStatus",
     "AntigravityHandshakeRequest",
     "AntigravityHandshakeResult",
+    "AntigravityProcessManager",
     "AntigravitySessionConfig",
     "AntigravitySessionEvent",
     "AntigravitySessionManager",
@@ -71,9 +84,13 @@ __all__ = [
     "AntigravityToolExecutionRequest",
     "AntigravityToolExecutionResult",
     "ArtifactVerificationResult",
+    "ProcessHandleController",
+    "ProcessLifecycleError",
+    "ProcessLifecycleState",
     "SessionExecutionContext",
     "SessionIsolationError",
     "StreamingProcessOutcome",
+    "Win32JobGuard",
     "build_ephemeral_deny_settings",
     "build_telemetry_from_payload",
     "compute_sha256_bytes",
@@ -83,6 +100,7 @@ __all__ = [
     "format_command_summary",
     "handshake",
     "has_symlink_or_junction_component",
+    "is_pid_alive",
     "normalize_path_for_agy_permission",
     "normalize_result",
     "paths_overlap",

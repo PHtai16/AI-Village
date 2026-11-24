@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import threading
 import time
 from typing import Any, Callable
 
@@ -29,6 +30,7 @@ from engines.antigravity.models import (
 from engines.antigravity.streaming import (
     AntigravityStreamParser,
     PopenFactory,
+    ProcessHandleController,
     build_telemetry_from_payload,
     run_streaming_process,
 )
@@ -42,6 +44,9 @@ from engines.antigravity.verification import (
 logger = logging.getLogger(__name__)
 
 _VERSION_RE = re.compile(r"\b(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.]+)?)\b")
+_RETRY_AFTER_RE = re.compile(
+    r"(?i)(?:retry[-_\s]?after[:=\s]+|try again in\s+)(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds)?\b"
+)
 RunnerCallable = Callable[..., subprocess.CompletedProcess[str]]
 
 
@@ -137,28 +142,67 @@ def _classify_cli_error(exit_code: int | None, stdout: str, stderr: str) -> Anti
     redacted_out = redact_secrets(stdout)
     combined = f"{redacted_err}\n{redacted_out}".strip()
     lowered = combined.lower()
+    retry_after_seconds: float | None = None
 
-    if any(tok in lowered for tok in ("unknown flag", "unknown shorthand", "ignored", "flag provided but not defined")):
+    if any(
+        tok in lowered
+        for tok in (
+            "unknown flag",
+            "unknown shorthand",
+            "ignored",
+            "flag provided but not defined",
+            "flags provided but not defined",
+        )
+    ):
         code = "UNSUPPORTED_ARGUMENT"
+        error_source = "cli"
         retryable = False
-    elif any(tok in lowered for tok in ("unauthenticated", "unauthorized", "not logged in", "auth", "invalid api key")):
+    elif any(
+        tok in lowered
+        for tok in (
+            "unauthenticated",
+            "unauthorized",
+            "not logged in",
+            "authentication failed",
+            "authentication error",
+            "invalid api key",
+            "invalid credentials",
+            "http 401",
+            "401 unauthorized",
+            "403 forbidden",
+        )
+    ):
         code = "AUTH_ERROR"
+        error_source = "provider"
         retryable = False
     elif any(tok in lowered for tok in ("quota", "billing", "insufficient")):
         code = "QUOTA_EXCEEDED"
+        error_source = "provider"
         retryable = False
     elif any(tok in lowered for tok in ("rate limit", "too many requests", "429")):
         code = "RATE_LIMITED"
+        error_source = "provider"
         retryable = True
+        retry_match = _RETRY_AFTER_RE.search(combined)
+        if retry_match:
+            try:
+                parsed_delay = float(retry_match.group(1))
+                if parsed_delay >= 0:
+                    retry_after_seconds = parsed_delay
+            except ValueError:
+                retry_after_seconds = None
     else:
         code = "PROVIDER_ERROR"
+        error_source = "provider"
         retryable = False
 
     summary_message = combined.splitlines()[0] if combined else f"Antigravity CLI exited with code {exit_code}."
     return AntigravityError(
-        error_code=code,
+        error_code=code,  # type: ignore[arg-type]
         message=summary_message[:500],
         retryable=retryable,
+        error_source=error_source,  # type: ignore[arg-type]
+        retry_after_seconds=retry_after_seconds,
         exit_code=exit_code,
         redacted_stderr=redacted_err[:2000],
     )
@@ -848,11 +892,13 @@ class AntigravityAdapter:
         command_summary: str,
         model_id: str | None,
         error: AntigravityError,
+        execution_id: str | None = None,
     ) -> AntigravityStreamResult:
         """Build a normalized preflight failure result for ``stream_task``."""
         now = datetime.now(timezone.utc)
         return AntigravityStreamResult(
             status=status,  # type: ignore[arg-type]
+            execution_id=execution_id,
             executable_path=executable_path,
             version=version,
             command_summary=command_summary,
@@ -882,6 +928,22 @@ class AntigravityAdapter:
         Returns:
             ``AntigravityStreamResult`` containing ordered events, telemetry, and outcome.
         """
+        return self._execute_stream_request(request, on_event=on_event)
+
+    def _execute_stream_request(
+        self,
+        request: AntigravityStreamRequest,
+        *,
+        on_event: Callable[[AntigravityStreamEvent], None] | None = None,
+        execution_id: str | None = None,
+        cancel_event: threading.Event | None = None,
+        controller: ProcessHandleController | None = None,
+        hard_timeout_seconds: float | None = None,
+        grace_seconds: float = 3.0,
+        max_events: int = 10000,
+        on_process_started: Callable[[int | None, datetime], None] | None = None,
+    ) -> AntigravityStreamResult:
+        """Execute ``agy --output-format stream-json`` with lifecycle and cancellation hooks."""
         discovery = self.discover()
         if not discovery.found or not discovery.executable_path:
             return self._stream_preflight_failure(
@@ -890,10 +952,12 @@ class AntigravityAdapter:
                 version=None,
                 command_summary="agy (not found)",
                 model_id=request.model,
+                execution_id=execution_id,
                 error=AntigravityError(
                     error_code="EXECUTABLE_NOT_FOUND",
                     message=discovery.error or "Antigravity CLI executable not found.",
                     retryable=False,
+                    error_source="capability",
                 ),
             )
 
@@ -906,10 +970,12 @@ class AntigravityAdapter:
                 version=None,
                 command_summary="agy (invalid workspace)",
                 model_id=request.model,
+                execution_id=execution_id,
                 error=AntigravityError(
                     error_code="PROCESS_LAUNCH_ERROR",
                     message=f"Workspace directory does not exist: {workspace}",
                     retryable=False,
+                    error_source="adapter",
                 ),
             )
 
@@ -921,10 +987,12 @@ class AntigravityAdapter:
                 version=caps.version,
                 command_summary="agy (sandbox flag unsupported)",
                 model_id=request.model,
+                execution_id=execution_id,
                 error=AntigravityError(
                     error_code="SANDBOX_UNVERIFIED",
                     message="Antigravity CLI does not advertise --sandbox support.",
                     retryable=False,
+                    error_source="capability",
                 ),
             )
 
@@ -935,10 +1003,12 @@ class AntigravityAdapter:
                 version=caps.version,
                 command_summary="agy (unsupported print/stream-json/mode flags)",
                 model_id=request.model,
+                execution_id=execution_id,
                 error=AntigravityError(
                     error_code="UNSUPPORTED_MODE",
                     message="Antigravity CLI lacks required --print, stream-json, or --mode support.",
                     retryable=False,
+                    error_source="capability",
                 ),
             )
 
@@ -949,10 +1019,12 @@ class AntigravityAdapter:
                 version=caps.version,
                 command_summary="agy (unsupported --conversation flag)",
                 model_id=request.model,
+                execution_id=execution_id,
                 error=AntigravityError(
                     error_code="UNSUPPORTED_MODE",
                     message="Antigravity CLI lacks required --conversation support.",
                     retryable=False,
+                    error_source="capability",
                 ),
             )
 
@@ -964,10 +1036,12 @@ class AntigravityAdapter:
                 version=caps.version,
                 command_summary="agy (unsupported --settings flag)",
                 model_id=request.model,
+                execution_id=execution_id,
                 error=AntigravityError(
                     error_code="UNSUPPORTED_MODE",
                     message="Antigravity CLI lacks required --settings support for session isolation.",
                     retryable=False,
+                    error_source="capability",
                 ),
             )
 
@@ -1006,6 +1080,12 @@ class AntigravityAdapter:
             parser=parser,
             on_event=on_event,
             popen_factory=self._popen_factory,
+            cancel_event=cancel_event,
+            controller=controller,
+            hard_timeout_seconds=hard_timeout_seconds,
+            grace_seconds=grace_seconds,
+            max_events=max_events,
+            on_process_started=on_process_started,
         )
         events = list(outcome.events)
         telemetry = (
@@ -1024,6 +1104,17 @@ class AntigravityAdapter:
                 error_code="PROCESS_LAUNCH_ERROR",
                 message=outcome.launch_error[:500],
                 retryable=False,
+                error_source="adapter",
+                redacted_stderr=outcome.redacted_stderr,
+            )
+        elif outcome.cancelled:
+            status = "CANCELLED"
+            error = AntigravityError(
+                error_code="CANCELLED",
+                message="Antigravity CLI execution was cancelled before completion.",
+                retryable=False,
+                error_source="cancellation",
+                exit_code=outcome.exit_code,
                 redacted_stderr=outcome.redacted_stderr,
             )
         elif outcome.timed_out:
@@ -1032,6 +1123,7 @@ class AntigravityAdapter:
                 error_code="TIMED_OUT",
                 message=f"Antigravity CLI streaming timed out after {request.timeout_seconds}s.",
                 retryable=False,
+                error_source="adapter",
                 exit_code=outcome.exit_code,
                 redacted_stderr=outcome.redacted_stderr,
             )
@@ -1049,6 +1141,7 @@ class AntigravityAdapter:
                     error_code="PROVIDER_ERROR",
                     message=f"Antigravity CLI stream reported non-success status: {parser.final_provider_status}",
                     retryable=False,
+                    error_source="provider",
                     exit_code=outcome.exit_code,
                     redacted_stderr=outcome.redacted_stderr,
                 )
@@ -1069,6 +1162,7 @@ class AntigravityAdapter:
                     error_code="MISSING_COMPLETION_EVENT",
                     message="Antigravity CLI exited cleanly without emitting a terminal completion event.",
                     retryable=False,
+                    error_source="adapter",
                     exit_code=outcome.exit_code,
                     redacted_stderr=outcome.redacted_stderr,
                 )
@@ -1077,6 +1171,7 @@ class AntigravityAdapter:
 
         return AntigravityStreamResult(
             status=status,  # type: ignore[arg-type]
+            execution_id=execution_id,
             executable_path=exe,
             version=caps.version,
             command_summary=format_command_summary(command),
@@ -1085,6 +1180,7 @@ class AntigravityAdapter:
             finished_at=outcome.finished_at,
             duration_ms=outcome.duration_ms,
             exit_code=outcome.exit_code,
+            pid=outcome.pid,
             provider_status=parser.final_provider_status,
             conversation_id=parser.conversation_id,
             model_id=request.model,
@@ -1092,9 +1188,12 @@ class AntigravityAdapter:
             response_text=parser.final_response_text,
             telemetry=telemetry,
             events=events,
+            events_dropped_count=outcome.events_dropped_count,
             observed_tool_names=list(parser.observed_tool_names),
             completion_event_received=parser.completion_event_received,
             parse_error_count=parser.parse_error_count,
+            process_tree_terminated=outcome.process_tree_terminated,
+            termination_mechanism=outcome.termination_mechanism,
             denied_actions=list(parser.final_denied_actions),
             error=error,
             redacted_stderr=outcome.redacted_stderr,

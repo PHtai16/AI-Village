@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01`–`P02.04` DONE; chi tiết tại `docs/reviews/PHASE_02_P02_04_AUDIT.md`; `P02.05`–`P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: IN PROGRESS** (`P02.01`–`P02.05` DONE; chi tiết tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`; `P02.06` chưa triển khai). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -194,7 +194,7 @@ AI-Village/
 - [x] **P02.02 — Tool execution:** từ một workspace fixture, Agent đọc `package.json` (không đưa `verification_marker` vào prompt), tạo `proof.txt` mới, đọc lại và Python kiểm chứng độc lập trên đĩa khớp nội dung, tính toàn vẹn `package.json` và mã SHA-256 (`VERIFIED_PASS`, `actual_sha256 == expected_sha256`, chi tiết tại `docs/reviews/PHASE_02_P02_02_AUDIT.md`; `Tool events: NOT OBSERVABLE FROM CURRENT CLI OUTPUT`, chưa kiểm chứng `stream-json`, session isolation hay process cancellation). **DoD:** file và SHA đúng, không dựa vào lời AI.
 - [x] **P02.03 — Streaming events:** chuyển CLI `stream-json` thành luồng NDJSON chuẩn hóa `AntigravityStreamEvent` trong `engines/antigravity/streaming.py` và `stream_task()`; quan sát thực thời `execution_started`, `tool_call_started`, `tool_call_completed` cho `read_file`/`write_file`, `text_delta`, `execution_completed` với `source='provider_cli'`, tách biệt sự kiện tiến trình `source='adapter'`, xử lý đường lỗi và kiểm chứng file/SHA-256 trên đĩa tại `docs/reviews/PHASE_02_P02_03_AUDIT.md` *(chưa kiểm chứng session isolation, full process cancel hay multi-provider; `tool_call_id` để `None` do CLI `1.5.15` chưa phát)*. **DoD:** quan sát được started/tool-used/completed/failed thực tế.
 - [x] **P02.04 — Session isolation:** tạo hai phiên logic A/B kèm `session_id` tách biệt (`AntigravitySessionManager`), ràng buộc thư mục không lồng nhau ngoài `%TEMP%`, truyền `--conversation <id>` tường minh (không dùng `--continue`) và `--settings` với `permissions.deny` chặn đọc/ghi sang workspace anh em cùng `command(*)`, gắn `AntigravitySessionEvent` theo phiên, chạy song song A/B và kiểm chứng SHA-256 độc lập cho `proof_A.txt`, `proof_B.txt` cùng chặn truy cập `a_sentinel.txt` tại `docs/reviews/PHASE_02_P02_04_AUDIT.md` *(quản lý phiên trong bộ nhớ, chưa lưu SQLite của PHASE 04; chưa kiểm chứng process cancel đầy đủ của P02.05)*. **DoD:** có test cross-session isolation.
-- [ ] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn.
+- [x] **P02.05 — Process lifecycle:** timeout, cancel, exit code, redacted stderr, quota/auth/rate-limit và trạng thái process thực tế. **DoD:** lỗi thật trả trạng thái chuẩn; không retry vô hạn. Chi tiết tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`: chuẩn hóa `ProcessLifecycleState`, triển khai `AntigravityProcessManager` tại `engines/antigravity/lifecycle.py` và `Win32JobGuard` dùng `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` cho từng `execution_id`/`pid`, chứng minh real cancellation `CANCELLED`, cross-session isolation hủy A giữ nguyên B, controlled timeout `TIMED_OUT`, phân loại `UNSUPPORTED_ARGUMENT` live và `AUTH_ERROR`/`QUOTA_EXCEEDED`/`RATE_LIMITED`/`retry_after_seconds` unit; đạt 5/5 live tests và unit suite không hồi quy; giới hạn là chưa cố ý kích hoạt `AUTH_ERROR`/`QUOTA_EXCEEDED`/`RATE_LIMITED` hay treo inference trên tài khoản live.
 - [ ] **P02.06 — Provider contract:** khai báo chung request/result/event/telemetry/capabilities (`provider_id`, `connection_id`, `model_id` metadata và telemetry khả dụng cho Usage Monitor), chứng minh thay thế tối thiểu một API Provider song song với Antigravity qua cùng adapter mà core không đổi; phân biệt LLM API với Agent Execution Platform *(chưa triển khai)*. **DoD:** engine/provider khác có thể thay mà core không đổi.
 
 **PHASE 03 — Quyết định CrewAI**
@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** thực hiện **P02.05 — Process lifecycle** (sau khi `P02.01`–`P02.04` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** thực hiện **P02.06 — Provider contract** (sau khi `P02.01`–`P02.05` đã hoàn tất). Chưa triển khai Mission Control UI hay dựng 3D.
 
 ---
 
@@ -706,6 +706,20 @@ Acceptance:
 Tests / Evidence: `python -m pytest tests -v` (`39 passed, 8 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_session_isolation_live.py -v` (`3 passed in 256.22s`); báo cáo tại `docs/reviews/PHASE_02_P02_04_AUDIT.md`.
 Blocking issue: Không có.
 Next: `P02.05 — Process lifecycle`.
+
+### P02.05 — Real Process Lifecycle, Cancellation, Timeout & Error Recovery
+ID: P02.05
+Status: DONE
+Scope: engines/antigravity/models.py, engines/antigravity/streaming.py, engines/antigravity/lifecycle.py, engines/antigravity/adapter.py, engines/antigravity/sessions.py, engines/antigravity/__init__.py, tests/engines/test_antigravity_lifecycle_unit.py, tests/integration/test_antigravity_lifecycle_live.py, tests/README.md, tests/standards/test_standards_consistency.py, docs/reviews/PHASE_02_P02_05_AUDIT.md, docs/PROGRESS.md
+Git SHA: PENDING_COMMIT (xem commit bàn giao `feat(engine): implement verified Antigravity process lifecycle` trên git log sau khi push)
+Acceptance:
+- Thăm dò thực tế trên `agy.exe` phiên bản `1.5.15` cho thấy lời gọi CLI sinh tiến trình con `cmd.exe` và `uvx.exe`; `proc.terminate()` đơn thuần làm rò tiến trình con và khóa thư mục chạy, còn `Win32JobGuard` dùng thư viện chuẩn `ctypes.WinDLL("kernel32")` với `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` dọn trọn vẹn cụm tiến trình sở hữu mà không chạm tới tiến trình khác.
+- Chuẩn hóa `ProcessLifecycleState`, `AntigravityExecutionStatus`, `AntigravityCancelOutcome` và mã lỗi `CANCELLED`, `EXECUTION_NOT_FOUND`, `EXECUTION_CONFLICT`, `error_source`, `retry_after_seconds` tại `engines/antigravity/models.py`; triển khai `AntigravityProcessManager` tại `engines/antigravity/lifecycle.py` phân tách `execution_id`, `session_id`, `conversation_id`, `pid`, tách `active_tool_name` từ `tool_call_*` với trạng thái tiến trình và không suy diễn phần trăm tiến độ giả.
+- Chứng minh live trên `ev_0a52964d` và `test_antigravity_lifecycle_live.py`: hủy thật `exec-1e3e5111973d` PID `13704` đang chạy cho kết quả `CANCELLED` qua `win32_job_object` trong `9159 ms` với `alive_after: false`; phiên B `exec-912bed3f3e83` PID `2716` chạy song song vẫn hoàn tất `SUCCEEDED` với `42` sự kiện, `VERIFIED_MEASURED` tokens `31397` và khớp SHA-256 `6e07b89282f887cb65ab23a178e7856dce66c0f54c648d3676eb379d4860c167`; controlled timeout PID `1748` ngắt trong `1509 ms`; cờ CLI sai trên `agy.exe` trả `UNSUPPORTED_ARGUMENT` với `error_source: cli` và `exit_code: 2`.
+- Giới hạn ghi nhận trung thực: chưa cố ý kích hoạt `AUTH_ERROR`, `QUOTA_EXCEEDED`, `RATE_LIMITED` hoặc treo suy luận trên tài khoản live; các nhánh này được kiểm chứng bằng unit fixture, không giả lập kết quả live.
+Tests / Evidence: `python -m pytest tests -v` (`44 passed, 13 skipped`); `$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/integration/test_antigravity_lifecycle_live.py -v` (`5 passed in 72.63s`); báo cáo tại `docs/reviews/PHASE_02_P02_05_AUDIT.md`.
+Blocking issue: Không có.
+Next: `P02.06 — Provider contract`.
 
 
 

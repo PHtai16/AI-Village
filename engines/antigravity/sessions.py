@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
 from pathlib import Path
@@ -11,9 +11,12 @@ import tempfile
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Sequence
+import uuid
 
 from engines.antigravity.models import (
+    AntigravityCancelOutcome,
     AntigravityError,
+    AntigravityExecutionStatus,
     AntigravityHandshakeResult,
     AntigravitySessionConfig,
     AntigravitySessionEvent,
@@ -31,6 +34,7 @@ from engines.antigravity.verification import (
 
 if TYPE_CHECKING:
     from engines.antigravity.adapter import AntigravityAdapter
+    from engines.antigravity.lifecycle import AntigravityProcessManager
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +56,22 @@ class _ManagedSession:
     context: SessionExecutionContext
     canonical_workspace: Path
     canonical_root: Path
+
+
+@dataclass
+class _ActiveSessionTurn:
+    """Lifecycle and event state associated with one started session turn."""
+
+    execution_id: str
+    session_id: str
+    turn_index: int
+    target_conv_id: str | None
+    resume_conversation: bool
+    deny_rules_count: int
+    settings_applied: bool
+    session_events: list[AntigravitySessionEvent] = field(default_factory=list)
+    finalized: bool = False
+    turn_result: AntigravitySessionTurnResult | None = None
 
 
 def normalize_path_for_agy_permission(path: Path) -> str:
@@ -188,18 +208,36 @@ def _safe_workspace_id(canonical_ws: Path, canonical_root: Path) -> str:
 class AntigravitySessionManager:
     """Thread-safe manager isolating workspaces, conversation bindings, and event streams."""
 
-    def __init__(self, adapter: AntigravityAdapter | None = None) -> None:
-        """Initialize the session manager around an ``AntigravityAdapter`` instance."""
+    def __init__(
+        self,
+        adapter: AntigravityAdapter | None = None,
+        process_manager: AntigravityProcessManager | None = None,
+    ) -> None:
+        """Initialize the session manager around an adapter and lifecycle manager."""
         if adapter is None:
             from engines.antigravity.adapter import AntigravityAdapter as _AdapterCls
 
             self._adapter: AntigravityAdapter = _AdapterCls()
         else:
             self._adapter = adapter
+
+        if process_manager is None:
+            from engines.antigravity.lifecycle import AntigravityProcessManager as _ProcMgrCls
+
+            self._process_manager: AntigravityProcessManager = _ProcMgrCls(adapter=self._adapter)
+        else:
+            self._process_manager = process_manager
+
         self._lock = threading.RLock()
         self._sessions: dict[str, _ManagedSession] = {}
         self._all_session_ids: set[str] = set()
         self._conversation_owners: dict[str, str] = {}
+        self._turns: dict[str, _ActiveSessionTurn] = {}
+
+    @property
+    def process_manager(self) -> AntigravityProcessManager:
+        """Return the underlying process lifecycle manager."""
+        return self._process_manager
 
     def create_session(self, config: AntigravitySessionConfig) -> SessionExecutionContext:
         """Register a new logical session bound to an exclusive workspace directory."""
@@ -260,8 +298,14 @@ class AntigravitySessionManager:
         with self._lock:
             return [entry.context.model_copy(deep=True) for entry in self._sessions.values()]
 
-    def close_session(self, session_id: str, *, cleanup_workspace: bool = False) -> None:
-        """Close a session and optionally remove only its validated workspace fixture."""
+    def close_session(
+        self,
+        session_id: str,
+        *,
+        cleanup_workspace: bool = False,
+        cancel_active: bool = False,
+    ) -> None:
+        """Close a session, optionally cancelling active runs before workspace removal."""
         with self._lock:
             managed = self._sessions.get(session_id)
             if managed is None:
@@ -269,10 +313,34 @@ class AntigravitySessionManager:
                     "INVALID_SESSION_ID",
                     f"Unknown session ID: {session_id}",
                 )
+            active_ids = self._process_manager.active_execution_ids(session_id)
+            if active_ids and not cancel_active:
+                raise SessionIsolationError(
+                    "EXECUTION_CONFLICT",
+                    f"Cannot close session '{session_id}' while active executions {active_ids} are running.",
+                )
             managed.context.closed = True
             ws_to_remove = managed.canonical_workspace
             allowed_root = managed.canonical_root
             allow_temp = managed.config.allow_temp_workspace
+
+        if active_ids and cancel_active:
+            for exec_id in active_ids:
+                self._process_manager.request_cancel(
+                    exec_id,
+                    owner_token=session_id,
+                    wait=True,
+                    wait_timeout=10.0,
+                )
+                try:
+                    self.await_turn(exec_id, timeout=5.0)
+                except TimeoutError:
+                    pass
+            if self._process_manager.has_active_execution(session_id):
+                raise SessionIsolationError(
+                    "EXECUTION_CONFLICT",
+                    f"Session '{session_id}' still has running executions after cancellation.",
+                )
 
         if cleanup_workspace and ws_to_remove.exists():
             validate_session_workspace(
@@ -287,7 +355,7 @@ class AntigravitySessionManager:
                 if ws_to_remove.exists() and attempt < 2:
                     time.sleep(0.35)
 
-    def run_turn(
+    def start_turn(
         self,
         session_id: str,
         prompt: str,
@@ -296,8 +364,12 @@ class AntigravitySessionManager:
         extra_denied_paths: Sequence[Path] = (),
         on_event: Callable[[AntigravitySessionEvent], None] | None = None,
         timeout_seconds: int | None = None,
-    ) -> AntigravitySessionTurnResult:
-        """Execute one isolated CLI turn under ``session_id`` with sibling path denial."""
+        hard_timeout_seconds: float | None = None,
+        grace_seconds: float = 3.0,
+        max_events: int = 10000,
+    ) -> str:
+        """Start an isolated CLI turn asynchronously under ``session_id`` and return execution ID."""
+        exec_id = f"exec-{uuid.uuid4().hex[:12]}"
         with self._lock:
             managed = self._sessions.get(session_id)
             if managed is None:
@@ -349,17 +421,28 @@ class AntigravitySessionManager:
             )
             settings_applied = settings_preview is not None
 
-        session_events: list[AntigravitySessionEvent] = []
+            turn_record = _ActiveSessionTurn(
+                execution_id=exec_id,
+                session_id=session_id,
+                turn_index=turn_index,
+                target_conv_id=target_conv_id,
+                resume_conversation=bool(resume_conversation and target_conv_id),
+                deny_rules_count=deny_rules_count,
+                settings_applied=settings_applied,
+            )
+            self._turns[exec_id] = turn_record
 
         def _forward_event(stream_event: AntigravityStreamEvent) -> None:
             wrapped = AntigravitySessionEvent(
                 session_id=session_id,
                 session_id_source="adapter_session_context",
+                execution_id=exec_id,
                 provider_conversation_id=stream_event.conversation_id or target_conv_id,
                 turn_index=turn_index,
                 event=stream_event,
             )
-            session_events.append(wrapped)
+            with self._lock:
+                turn_record.session_events.append(wrapped)
             if on_event is not None:
                 on_event(wrapped)
 
@@ -376,47 +459,142 @@ class AntigravitySessionManager:
             max_payload_chars=cfg.max_payload_chars,
             max_line_bytes=cfg.max_line_bytes,
         )
-        stream_result = self._adapter.stream_task(request, on_event=_forward_event)
+        return self._process_manager.start_execution(
+            request,
+            execution_id=exec_id,
+            session_id=session_id,
+            owner_token=session_id,
+            on_event=_forward_event,
+            hard_timeout_seconds=hard_timeout_seconds,
+            grace_seconds=grace_seconds,
+            max_events=max_events,
+        )
 
-        isolation_error: AntigravityError | None = None
-        observed_conv = stream_result.conversation_id
+    def get_turn_status(self, execution_id: str) -> AntigravityExecutionStatus:
+        """Return live lifecycle status for a started session turn."""
+        return self._process_manager.get_execution_status(execution_id)
+
+    def cancel_turn(
+        self,
+        execution_id: str,
+        *,
+        wait: bool = False,
+        wait_timeout: float = 10.0,
+    ) -> AntigravityCancelOutcome:
+        """Request cancellation scoped exclusively to ``execution_id``'s owning session."""
+        from engines.antigravity.lifecycle import ProcessLifecycleError
+
         with self._lock:
+            turn_record = self._turns.get(execution_id)
+            if turn_record is None:
+                raise ProcessLifecycleError(
+                    "EXECUTION_NOT_FOUND",
+                    f"Unknown session turn execution_id: {execution_id}",
+                )
+            owner_session = turn_record.session_id
+
+        return self._process_manager.request_cancel(
+            execution_id,
+            owner_token=owner_session,
+            wait=wait,
+            wait_timeout=wait_timeout,
+        )
+
+    def await_turn(
+        self,
+        execution_id: str,
+        *,
+        timeout: float | None = None,
+    ) -> AntigravitySessionTurnResult:
+        """Await a started turn, finalize conversation ownership, and return normalized result."""
+        from engines.antigravity.lifecycle import ProcessLifecycleError
+
+        with self._lock:
+            turn_record = self._turns.get(execution_id)
+            if turn_record is None:
+                raise ProcessLifecycleError(
+                    "EXECUTION_NOT_FOUND",
+                    f"Unknown session turn execution_id: {execution_id}",
+                )
+            if turn_record.finalized and turn_record.turn_result is not None:
+                return turn_record.turn_result
+
+        stream_result = self._process_manager.await_result(execution_id, timeout=timeout)
+
+        with self._lock:
+            if turn_record.finalized and turn_record.turn_result is not None:
+                return turn_record.turn_result
+
+            managed = self._sessions[turn_record.session_id]
+            isolation_error: AntigravityError | None = None
+            observed_conv = stream_result.conversation_id
             if observed_conv:
                 owner = self._conversation_owners.get(observed_conv)
-                if owner is not None and owner != session_id:
+                if owner is not None and owner != turn_record.session_id:
                     isolation_error = AntigravityError(
                         error_code="CROSS_SESSION_CONVERSATION_VIOLATION",
                         message=(
                             f"Provider conversation_id '{observed_conv}' belongs to session "
-                            f"'{owner}', not '{session_id}'."
+                            f"'{owner}', not '{turn_record.session_id}'."
                         ),
                         retryable=False,
+                        error_source="adapter",
                     )
-                elif resume_conversation and target_conv_id and observed_conv != target_conv_id:
+                elif (
+                    turn_record.resume_conversation
+                    and turn_record.target_conv_id
+                    and observed_conv != turn_record.target_conv_id
+                ):
                     isolation_error = AntigravityError(
                         error_code="CROSS_SESSION_CONVERSATION_VIOLATION",
                         message=(
-                            f"Session '{session_id}' expected resumed conversation "
-                            f"'{target_conv_id}', but provider returned '{observed_conv}'."
+                            f"Session '{turn_record.session_id}' expected resumed conversation "
+                            f"'{turn_record.target_conv_id}', but provider returned '{observed_conv}'."
                         ),
                         retryable=False,
+                        error_source="adapter",
                     )
                 else:
-                    self._conversation_owners[observed_conv] = session_id
+                    self._conversation_owners[observed_conv] = turn_record.session_id
                     managed.context.provider_conversation_id = observed_conv
                     managed.context.conversation_binding_source = "provider_cli"
 
-        return AntigravitySessionTurnResult(
-            session_id=session_id,
-            turn_index=turn_index,
-            provider_conversation_id=observed_conv,
-            resumed_conversation=bool(resume_conversation and target_conv_id),
-            enforced_deny_rules_count=deny_rules_count,
-            enforced_settings_applied=settings_applied and stream_result.status != "BLOCKED",
-            stream_result=stream_result,
-            session_events=session_events,
-            isolation_error=isolation_error,
+            turn_result = AntigravitySessionTurnResult(
+                session_id=turn_record.session_id,
+                execution_id=execution_id,
+                turn_index=turn_record.turn_index,
+                provider_conversation_id=observed_conv,
+                resumed_conversation=turn_record.resume_conversation,
+                enforced_deny_rules_count=turn_record.deny_rules_count,
+                enforced_settings_applied=turn_record.settings_applied and stream_result.status != "BLOCKED",
+                stream_result=stream_result,
+                session_events=list(turn_record.session_events),
+                isolation_error=isolation_error,
+            )
+            turn_record.finalized = True
+            turn_record.turn_result = turn_result
+            return turn_result
+
+    def run_turn(
+        self,
+        session_id: str,
+        prompt: str,
+        *,
+        resume_conversation: bool = False,
+        extra_denied_paths: Sequence[Path] = (),
+        on_event: Callable[[AntigravitySessionEvent], None] | None = None,
+        timeout_seconds: int | None = None,
+    ) -> AntigravitySessionTurnResult:
+        """Execute one isolated CLI turn synchronously under ``session_id``."""
+        exec_id = self.start_turn(
+            session_id,
+            prompt,
+            resume_conversation=resume_conversation,
+            extra_denied_paths=extra_denied_paths,
+            on_event=on_event,
+            timeout_seconds=timeout_seconds,
         )
+        return self.await_turn(exec_id)
 
     def verify_session_artifact(
         self,
