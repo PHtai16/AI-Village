@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`). **PHASE 04: ĐANG TRIỂN KHAI** (`P04.01`–`P04.05` DONE, `P04.04` SHA `759558e`, `P04.05` SHA `57b9a44`; `P04.06` DONE SHA `984f1c9` tại `docs/reviews/PHASE_04_P04_06_AUDIT.md`; `P04.07` DONE tại `docs/reviews/PHASE_04_P04_07_AUDIT.md`; chưa nghiệm thu Gate C). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`). **PHASE 04: DONE (`Gate C: PASS`)** (`P04.01`–`P04.07` DONE, `P04.04` SHA `759558e`, `P04.05` SHA `57b9a44`, `P04.06` SHA `984f1c9`, `P04.07` SHA `37a3339`; nghiệm thu Gate C tại `docs/reviews/PHASE_04_GATE_C_AUDIT.md`). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -217,7 +217,7 @@ AI-Village/
 - [x] **P04.06** — Cancellation/timeout, fallback hợp lệ theo chính sách và idempotency trên core; bảo đảm UI không bao giờ hiển thị `RUNNING` nếu tác vụ đã dừng *(DONE: triển khai `core/tasks/lifecycle.py`, `core/tasks/fallback.py`, `0002_workflow_lifecycle.sql`, `SQLiteLifecycleRepository`, `OwnedSubprocessHandle` và `AntigravityOwnedExecutionHandle` tại `engines/antigravity/lifecycle.py`; kiểm chứng tại `tests/core/test_p04_06_workflow_lifecycle_unit.py`, `tests/integration/test_p04_06_workflow_lifecycle.py` và `docs/reviews/PHASE_04_P04_06_AUDIT.md`.)*
 - [x] **P04.07** — Governance: workspace scopes, tool allowlist, provider/connection routing policy, approval gate và permission cho mọi thao tác từ Mission Control (kể cả chuyển trạng thái Kanban, xóa hàng loạt, sửa kết nối, chuyển provider đổi vùng dữ liệu/vượt ngân sách), audit và Fail-Closed *(đã hoàn thành; bằng chứng chi tiết tại `docs/reviews/PHASE_04_P04_07_AUDIT.md`)*.
 
-**Gate C:** một task đơn chạy, tạm dừng/khôi phục/hủy đúng; event, checklist và artifact traceable; sau restart tái dựng đúng trạng thái từ dữ liệu thật, không giả trạng thái.
+**Gate C: PASS (Offline End-to-End Verified)** — một task đơn chạy, tạm dừng/khôi phục/hủy đúng; event, checklist và artifact traceable; sau restart tái dựng đúng trạng thái từ dữ liệu thật, không giả trạng thái *(bằng chứng kiểm toán tại `docs/reviews/PHASE_04_GATE_C_AUDIT.md`)*.
 
 ### CHẶNG D — Agent động và phối hợp thông minh
 
@@ -871,8 +871,20 @@ Summary:
 - Triển khai tầng Governance thuần túy tại `core/governance/`: `TrustedAuthContext`, `PolicyRule`, `RoutingContext`, `PolicyEvaluator` (ưu tiên `DENY > REQUIRE_APPROVAL > ALLOW`, chặn `AUDIT_ONLY` cấp quyền, fail-closed), `validate_workspace_path` (chặn traversal, cross-task, symlink/junction, tệp bí mật, đường dẫn hệ thống), `ApprovalService` (chống tự duyệt, quá hạn, giả mạo fingerprint, tái sử dụng một lần, rollback nguyên tử khi handler lỗi) và `PermissionManager` gắn kiểm toán bắt buộc với `WorkflowLifecycleController`.
 - Bổ sung `tests/core/test_p04_07_governance_unit.py`, `tests/integration/test_p04_07_governance_persistence.py`, cập nhật `tests/stage_a/test_stage_a_baseline.py`, `tests/standards/test_standards_consistency.py`, `tests/README.md` và xuất báo cáo `docs/reviews/PHASE_04_P04_07_AUDIT.md`.
 Tests / Evidence: `python -m pytest tests/core/test_p04_07_governance_unit.py tests/integration/test_p04_07_governance_persistence.py tests/storage -v` (`32 passed in 4.56s`); `python -m pytest tests -v -rs` (`161 passed, 24 skipped in 14.95s`); `git diff --check` (0 lỗi).
+Commit actual: `37a333941624ee576c763d7b74ba3c1a1ff2aca1` (`feat(governance): implement permission and approval gates`)
 Blocking issue: Không có.
-Next: Chuyển tiếp sang **Stage 3 — Conditional Gate C Audit** (chưa đánh dấu `PHASE 04 DONE` hay `Gate C PASS`).
+Next: Chuyển tiếp sang **Stage 3 — Conditional Gate C Audit**.
+
+### [2026-11-26] PHASE 04 / GATE C: Phase 04 End-to-End Verification & Acceptance Audit
+Phase: PHASE 04 / Gate C
+Actor: AI Village Agent
+Commit target: `docs(audit): verify phase 04 gate c`
+Summary:
+- Bổ sung bộ kiểm thử nghiệm thu `tests/integration/test_phase_04_gate_c_acceptance.py` (4 kịch bản end-to-end offline: Task -> SQLite -> Governance allow/deny -> Approval checkpoint `WAITING_APPROVAL` pause/restart/resume & tiêu thụ một lần -> tiến trình con sở hữu `OwnedSubprocessHandle` -> QA SHA-256 độc lập `verify_engine_artifact` -> `COMPLETED` -> tái dựng `recover_task`/`replay_task_history`/`project_activity_timeline`; cô lập tiến trình anh em khi cancel; timeout xác thực deadline trước `TIMED_OUT`; idempotent retry & đối soát `RUNNING` thành `NEEDS_RECONCILIATION`).
+- Cập nhật `tests/README.md` và xuất báo cáo nghiệm thu `docs/reviews/PHASE_04_GATE_C_AUDIT.md` xác nhận 14/14 tiêu chí đạt chuẩn (tách bạch rõ `OFFLINE_VERIFIED_PASS` và không gắn `LIVE_VERIFIED` vì chưa chạy `AI_VILLAGE_RUN_LIVE=1`).
+Tests / Evidence: `tests/integration/test_phase_04_gate_c_acceptance.py` (`4 passed in 1.99s`); `tests/core` (`79 passed in 4.71s`); `tests/storage` (`20 passed in 3.53s`); `tests/integration` (`13 passed, 23 skipped in 7.81s`); `tests/stage_a tests/standards` (`13 passed in 0.63s`); toàn kho `python -m pytest tests -v -rs` (`165 passed, 24 skipped in 16.62s`); `git diff --check` (0 lỗi).
+Blocking issue: Không có.
+Next: Hoàn tất `PHASE 04: DONE (Gate C: PASS)`; chờ chỉ thị chuyển sang Phase tiếp theo.
 
 
 
