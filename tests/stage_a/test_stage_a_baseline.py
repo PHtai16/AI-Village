@@ -117,13 +117,27 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     # Phase 02 authorizes adapter and contract code inside engines/ (antigravity/ and providers/).
     # Phase 03 authorizes core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
-    # Phase 04 authorizes core/contracts/*.py (P04.01), core/tasks/*.py (P04.02), and core/events/*.py (P04.03).
-    no_code_dirs = ["agents", "tools", "skills", "storage", "api", "sandbox"]
+    # Phase 04 authorizes core/contracts/*.py (P04.01), core/tasks/*.py (P04.02),
+    # core/events/*.py (P04.03), and storage/db/*.py (P04.04).
+    no_code_dirs = ["agents", "tools", "skills", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
         js_files = list((REPO_ROOT / folder).rglob("*.js"))
         assert not py_files, f"Unexpected Python files in Stage A folder {folder}: {py_files}"
         assert not js_files, f"Unexpected JS files in Stage A folder {folder}: {js_files}"
+
+    storage_root = REPO_ROOT / "storage"
+    assert not list(storage_root.rglob("*.js")), "Unexpected JS files inside storage/."
+    allowed_storage_subdirs = {storage_root / "db"}
+    unexpected_storage_py = [
+        p.relative_to(storage_root).as_posix()
+        for p in storage_root.rglob("*.py")
+        if p.relative_to(storage_root).as_posix() != "__init__.py"
+        and p.parent not in allowed_storage_subdirs
+    ]
+    assert not unexpected_storage_py, (
+        f"Unexpected Python modules inside storage/: {unexpected_storage_py}"
+    )
 
     core_root = REPO_ROOT / "core"
     assert not list(core_root.rglob("*.js")), "Unexpected JS files inside core/."
@@ -142,11 +156,19 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
     ]
     assert not unexpected_core_py, f"Unexpected Python modules inside core/: {unexpected_core_py}"
 
-    runtime_db_files = [
-        p for p in (REPO_ROOT / ".runtime").rglob("*")
-        if p.is_file() and p.suffix in {".db", ".sqlite", ".sqlite3"}
-    ]
-    assert not runtime_db_files, f"Fake runtime database found in .runtime/: {runtime_db_files}"
+    forbidden_db_dirs = [REPO_ROOT, storage_root, core_root]
+    for check_dir in forbidden_db_dirs:
+        if check_dir == REPO_ROOT:
+            db_files = [
+                p for p in REPO_ROOT.iterdir()
+                if p.is_file() and p.suffix in {".db", ".sqlite", ".sqlite3"}
+            ]
+        else:
+            db_files = [
+                p for p in check_dir.rglob("*")
+                if p.is_file() and p.suffix in {".db", ".sqlite", ".sqlite3"}
+            ]
+        assert not db_files, f"Database file found outside .runtime/: {db_files}"
 
 
 def test_required_stage_a_files_and_markdown_integrity(stage_a_markdown_files: list[Path]) -> None:

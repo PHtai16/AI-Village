@@ -1,0 +1,53 @@
+"""SQLite database connection and versioned migration exports."""
+
+from storage.db.connection import (
+    DEFAULT_RUNTIME_DB_PATH,
+    JournalMode,
+    SQLiteConfig,
+    SQLiteIntegrityReport,
+    open_sqlite_connection,
+    resolve_database_path,
+    run_integrity_checks,
+    sqlite_connection,
+    sqlite_transaction,
+)
+from storage.db.migrations import (
+    DEFAULT_MIGRATIONS_DIR,
+    MigrationError,
+    MigrationErrorCode,
+    MigrationRecord,
+    MigrationRunResult,
+    MigrationSpec,
+    apply_migrations,
+    discover_migrations,
+    ensure_migrations_table,
+    get_schema_version,
+    list_applied_migrations,
+    split_sql_statements,
+    verify_schema_compatibility,
+)
+
+__all__ = [
+    "DEFAULT_MIGRATIONS_DIR",
+    "DEFAULT_RUNTIME_DB_PATH",
+    "JournalMode",
+    "MigrationError",
+    "MigrationErrorCode",
+    "MigrationRecord",
+    "MigrationRunResult",
+    "MigrationSpec",
+    "SQLiteConfig",
+    "SQLiteIntegrityReport",
+    "apply_migrations",
+    "discover_migrations",
+    "ensure_migrations_table",
+    "get_schema_version",
+    "list_applied_migrations",
+    "open_sqlite_connection",
+    "resolve_database_path",
+    "run_integrity_checks",
+    "split_sql_statements",
+    "sqlite_connection",
+    "sqlite_transaction",
+    "verify_schema_compatibility",
+]
