@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import subprocess
 import threading
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 import uuid
 
 from engines.antigravity.models import (
@@ -17,9 +18,10 @@ from engines.antigravity.models import (
     AntigravityStreamResult,
     ProcessLifecycleState,
 )
-from engines.antigravity.streaming import ProcessHandleController
+from engines.antigravity.streaming import ProcessHandleController, Win32JobGuard, is_pid_alive
 
 if TYPE_CHECKING:
+    from core.tasks.lifecycle import HandleTerminationOutcome
     from engines.antigravity.adapter import AntigravityAdapter
 
 _TERMINAL_STATES: frozenset[str] = frozenset({"CANCELLED", "TIMED_OUT", "SUCCEEDED", "FAILED"})
@@ -377,3 +379,243 @@ class AntigravityProcessManager:
                     f"Execution '{execution_id}' completed without producing a result.",
                 )
             return record.result
+
+
+class AntigravityOwnedExecutionHandle:
+    """``OwnedExecutionHandle`` adapter wrapping an active ``AntigravityProcessManager`` run."""
+
+    def __init__(
+        self,
+        manager: AntigravityProcessManager,
+        execution_id: str,
+        owner_token: str,
+    ) -> None:
+        """Bind an execution ID and ownership token to ``manager``."""
+        self._manager = manager
+        self._execution_id = execution_id
+        self._owner_token = owner_token
+
+    @property
+    def execution_id(self) -> str:
+        """Return unique execution identifier."""
+        return self._execution_id
+
+    @property
+    def owner_token(self) -> str:
+        """Return caller ownership token."""
+        return self._owner_token
+
+    @property
+    def pid(self) -> int | None:
+        """Return tracked OS PID if known."""
+        try:
+            return self._manager.get_execution_status(self._execution_id).pid
+        except ProcessLifecycleError:
+            return None
+
+    def is_running(self) -> bool:
+        """Return True when the managed Antigravity execution is non-terminal and running."""
+        try:
+            st = self._manager.get_execution_status(self._execution_id)
+        except ProcessLifecycleError:
+            return False
+        if st.is_terminal:
+            return False
+        if st.pid is not None:
+            return is_pid_alive(st.pid)
+        return st.state in ("CREATED", "STARTING", "RUNNING", "CANCEL_REQUESTED", "CANCELLING")
+
+    def request_cancel(
+        self,
+        *,
+        owner_token: str,
+        wait: bool = True,
+        timeout_seconds: float = 5.0,
+    ) -> HandleTerminationOutcome:
+        """Request owned cancellation through ``AntigravityProcessManager``."""
+        from core.tasks.lifecycle import HandleTerminationOutcome
+
+        if owner_token != self._owner_token:
+            raise ProcessLifecycleError(
+                "EXECUTION_CONFLICT",
+                f"Caller owner_token does not match execution '{self._execution_id}'.",
+            )
+        outcome = self._manager.request_cancel(
+            self._execution_id,
+            owner_token=owner_token,
+            wait=wait,
+            wait_timeout=timeout_seconds,
+        )
+        if outcome.already_terminal:
+            final_st = outcome.final_state or outcome.state_at_request
+            mapped = (
+                "SUCCEEDED"
+                if final_st == "SUCCEEDED"
+                else ("CANCELLED" if final_st == "CANCELLED" else ("TIMED_OUT" if final_st == "TIMED_OUT" else "FAILED"))
+            )
+            return HandleTerminationOutcome(
+                execution_id=self._execution_id,
+                confirmed_stopped=True,
+                already_terminal=True,
+                terminal_status=mapped,
+                message=outcome.message,
+            )
+
+        status = self._manager.get_execution_status(self._execution_id)
+        stopped = status.is_terminal and (status.pid is None or not is_pid_alive(status.pid))
+        terminal = (
+            status.state
+            if status.state in {"SUCCEEDED", "FAILED", "CANCELLED", "TIMED_OUT"}
+            else "STILL_RUNNING"
+        )
+        return HandleTerminationOutcome(
+            execution_id=self._execution_id,
+            confirmed_stopped=stopped,
+            already_terminal=False,
+            terminal_status=terminal,  # type: ignore[arg-type]
+            exit_code=status.exit_code,
+            mechanism="antigravity_process_manager",
+            message=outcome.message,
+        )
+
+    def wait_for_exit(self, *, timeout_seconds: float = 5.0) -> HandleTerminationOutcome:
+        """Wait for the owned Antigravity execution to complete."""
+        from core.tasks.lifecycle import HandleTerminationOutcome
+
+        try:
+            res = self._manager.await_result(self._execution_id, timeout=timeout_seconds)
+        except TimeoutError as exc:
+            return HandleTerminationOutcome(
+                execution_id=self._execution_id,
+                confirmed_stopped=False,
+                terminal_status="STILL_RUNNING",
+                message=str(exc),
+            )
+        return HandleTerminationOutcome(
+            execution_id=self._execution_id,
+            confirmed_stopped=res.pid is None or not is_pid_alive(res.pid),
+            already_terminal=True,
+            terminal_status=res.status if res.status in {"SUCCEEDED", "FAILED", "CANCELLED", "TIMED_OUT"} else "FAILED",  # type: ignore[arg-type]
+            exit_code=res.exit_code,
+            mechanism="antigravity_process_manager",
+        )
+
+
+class OwnedSubprocessHandle:
+    """``OwnedExecutionHandle`` wrapping a single owned ``subprocess.Popen`` + ``Win32JobGuard``."""
+
+    def __init__(
+        self,
+        proc: subprocess.Popen[Any],
+        *,
+        execution_id: str | None = None,
+        owner_token: str | None = None,
+        attach_job_guard: bool = True,
+    ) -> None:
+        """Bind ``proc`` into a dedicated ``Win32JobGuard`` without affecting sibling processes."""
+        self._proc = proc
+        self._execution_id = execution_id or f"exec-{uuid.uuid4().hex[:12]}"
+        self._owner_token = owner_token or f"own-{uuid.uuid4().hex[:12]}"
+        self._controller = ProcessHandleController()
+        self._job_guard = Win32JobGuard()
+        if attach_job_guard:
+            self._job_guard.attach(proc)
+        self._controller.bind_process(proc, self._job_guard)
+        self._cancelled = False
+        self._lock = threading.Lock()
+
+    @property
+    def execution_id(self) -> str:
+        """Return unique execution identifier."""
+        return self._execution_id
+
+    @property
+    def owner_token(self) -> str:
+        """Return ownership token bound to this subprocess."""
+        return self._owner_token
+
+    @property
+    def pid(self) -> int | None:
+        """Return child OS process ID."""
+        return self._controller.pid
+
+    def is_running(self) -> bool:
+        """Return True only while ``proc.poll() is None`` and OS PID is alive."""
+        if self._proc.poll() is not None:
+            return False
+        return is_pid_alive(self.pid)
+
+    def request_cancel(
+        self,
+        *,
+        owner_token: str,
+        wait: bool = True,
+        timeout_seconds: float = 5.0,
+    ) -> HandleTerminationOutcome:
+        """Terminate strictly this owned subprocess tree via ``ProcessHandleController``."""
+        from core.tasks.lifecycle import HandleTerminationOutcome
+
+        if owner_token != self._owner_token:
+            raise ProcessLifecycleError(
+                "EXECUTION_CONFLICT",
+                f"Caller owner_token does not match subprocess '{self._execution_id}'.",
+            )
+        with self._lock:
+            rc_existing = self._proc.poll()
+            if rc_existing is not None and not self._cancelled:
+                self._job_guard.close()
+                return HandleTerminationOutcome(
+                    execution_id=self._execution_id,
+                    confirmed_stopped=True,
+                    already_terminal=True,
+                    terminal_status="SUCCEEDED" if rc_existing == 0 else "FAILED",
+                    exit_code=int(rc_existing),
+                    mechanism="already_exited",
+                    message="Subprocess exited before cancellation request.",
+                )
+            self._cancelled = True
+            self._controller.signal_cancel()
+            if not wait:
+                return HandleTerminationOutcome(
+                    execution_id=self._execution_id,
+                    confirmed_stopped=False,
+                    terminal_status="STILL_RUNNING",
+                    mechanism="signal_cancel",
+                    message="Cancellation signaled without waiting.",
+                )
+            rc, _tree, mech = self._controller.terminate_owned_process(grace_seconds=min(0.5, max(0.05, timeout_seconds)))
+            self._job_guard.close()
+            alive = is_pid_alive(self.pid)
+            return HandleTerminationOutcome(
+                execution_id=self._execution_id,
+                confirmed_stopped=not alive,
+                already_terminal=False,
+                terminal_status="CANCELLED" if not alive else "STILL_RUNNING",
+                exit_code=rc,
+                mechanism=mech,
+                message="Owned subprocess stopped cleanly." if not alive else "Subprocess still alive.",
+            )
+
+    def wait_for_exit(self, *, timeout_seconds: float = 5.0) -> HandleTerminationOutcome:
+        """Wait for the owned subprocess to exit naturally."""
+        from core.tasks.lifecycle import HandleTerminationOutcome
+
+        try:
+            rc = int(self._proc.wait(timeout=timeout_seconds))
+        except subprocess.TimeoutExpired:
+            return HandleTerminationOutcome(
+                execution_id=self._execution_id,
+                confirmed_stopped=False,
+                terminal_status="STILL_RUNNING",
+                mechanism="wait_timeout",
+                message="Owned subprocess still running.",
+            )
+        self._job_guard.close()
+        return HandleTerminationOutcome(
+            execution_id=self._execution_id,
+            confirmed_stopped=not is_pid_alive(self.pid),
+            already_terminal=True,
+            terminal_status="CANCELLED" if self._cancelled else ("SUCCEEDED" if rc == 0 else "FAILED"),
+            exit_code=rc,
+            mechanism="natural_exit",
+        )

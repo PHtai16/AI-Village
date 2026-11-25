@@ -19,6 +19,13 @@ from storage.repositories.interfaces import (
     SessionRepository,
     TaskRepository,
 )
+from storage.repositories.lifecycle_repo import (
+    ExecutionRecord,
+    IdempotencyConflictError,
+    IdempotencyRecord,
+    SQLiteLifecyclePersistenceAdapter,
+    SQLiteLifecycleRepository,
+)
 from storage.repositories.recovery import (
     InterruptedWorkAssessment,
     RecoveryStatus,
@@ -43,6 +50,9 @@ from storage.repositories.sqlite_store import (
 __all__ = [
     "DuplicateEntityError",
     "EntityNotFoundError",
+    "ExecutionRecord",
+    "IdempotencyConflictError",
+    "IdempotencyRecord",
     "InterruptedWorkAssessment",
     "MetadataRepository",
     "OwnershipMismatchError",
@@ -55,6 +65,8 @@ __all__ = [
     "RunRecoveryReport",
     "RunRepository",
     "SQLiteEventJournal",
+    "SQLiteLifecyclePersistenceAdapter",
+    "SQLiteLifecycleRepository",
     "SQLiteMetadataRepository",
     "SQLiteRepositoryStore",
     "SQLiteRunRepository",

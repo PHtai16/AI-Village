@@ -230,6 +230,12 @@ def get_schema_version(conn: sqlite3.Connection) -> int:
     return applied[-1].version if applied else 0
 
 
+def get_latest_migration_version(migrations_dir: Path | None = None) -> int:
+    """Return the highest known migration version bundled on disk."""
+    specs = discover_migrations(migrations_dir)
+    return specs[-1].version if specs else 0
+
+
 def verify_schema_compatibility(
     conn: sqlite3.Connection,
     *,

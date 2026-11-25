@@ -56,6 +56,9 @@ EventType = Literal[
     "approval.requested",
     "approval.resolved",
     "notification.created",
+    "workflow.cancel_requested",
+    "workflow.fallback_evaluated",
+    "workflow.reconciliation_recorded",
     "engine.event_forwarded",
     "runtime.error",
 ]

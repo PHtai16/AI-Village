@@ -26,7 +26,11 @@ from storage.db.connection import (
     sqlite_connection,
     sqlite_transaction,
 )
-from storage.db.migrations import MigrationError, verify_schema_compatibility
+from storage.db.migrations import (
+    MigrationError,
+    get_latest_migration_version,
+    verify_schema_compatibility,
+)
 from storage.repositories.errors import (
     DuplicateEntityError,
     EntityNotFoundError,
@@ -1266,9 +1270,14 @@ class SQLiteRepositoryStore:
         self,
         config: SQLiteConfig | Path | str,
         *,
-        expected_schema_version: int = 1,
+        expected_schema_version: int | None = None,
     ) -> None:
         """Open a migrated SQLite database store and bind all domain repositories."""
+        resolved_version = (
+            expected_schema_version
+            if expected_schema_version is not None
+            else get_latest_migration_version()
+        )
         self._config = (
             config
             if isinstance(config, SQLiteConfig)
@@ -1282,7 +1291,7 @@ class SQLiteRepositoryStore:
         self._closed = False
         try:
             with sqlite_connection(self._config) as conn:
-                verify_schema_compatibility(conn, expected_version=expected_schema_version)
+                verify_schema_compatibility(conn, expected_version=resolved_version)
         except MigrationError as exc:
             raise SchemaCompatibilityError(exc.message) from exc
 
@@ -1292,8 +1301,11 @@ class SQLiteRepositoryStore:
         self.metadata = SQLiteMetadataRepository(self)
         self.events = SQLiteEventJournal(
             self._config,
-            expected_schema_version=expected_schema_version,
+            expected_schema_version=resolved_version,
         )
+        from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
+
+        self.lifecycle = SQLiteLifecycleRepository(self)
 
     @property
     def config(self) -> SQLiteConfig:

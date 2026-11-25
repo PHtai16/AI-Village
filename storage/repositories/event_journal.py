@@ -26,7 +26,11 @@ from storage.db.connection import (
     sqlite_connection,
     sqlite_transaction,
 )
-from storage.db.migrations import MigrationError, verify_schema_compatibility
+from storage.db.migrations import (
+    MigrationError,
+    get_latest_migration_version,
+    verify_schema_compatibility,
+)
 from storage.repositories.errors import SchemaCompatibilityError
 
 
@@ -96,9 +100,14 @@ class SQLiteEventJournal:
         self,
         config: SQLiteConfig | Path | str,
         *,
-        expected_schema_version: int = 1,
+        expected_schema_version: int | None = None,
     ) -> None:
         """Bind journal to an already-migrated SQLite database and verify schema compatibility."""
+        resolved_version = (
+            expected_schema_version
+            if expected_schema_version is not None
+            else get_latest_migration_version()
+        )
         self._config = (
             config
             if isinstance(config, SQLiteConfig)
@@ -111,7 +120,7 @@ class SQLiteEventJournal:
         if self._config.is_in_memory:
             conn = open_sqlite_connection(self._config)
             try:
-                verify_schema_compatibility(conn, expected_version=expected_schema_version)
+                verify_schema_compatibility(conn, expected_version=resolved_version)
             except MigrationError as exc:
                 conn.close()
                 raise SchemaCompatibilityError(exc.message) from exc
@@ -119,7 +128,7 @@ class SQLiteEventJournal:
         else:
             try:
                 with sqlite_connection(self._config) as conn:
-                    verify_schema_compatibility(conn, expected_version=expected_schema_version)
+                    verify_schema_compatibility(conn, expected_version=resolved_version)
             except MigrationError as exc:
                 raise SchemaCompatibilityError(exc.message) from exc
 

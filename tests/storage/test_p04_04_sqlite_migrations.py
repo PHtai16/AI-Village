@@ -29,6 +29,7 @@ from storage.db import (
     MigrationError,
     SQLiteConfig,
     apply_migrations,
+    get_latest_migration_version,
     get_schema_version,
     list_applied_migrations,
     open_sqlite_connection,
@@ -161,19 +162,21 @@ def test_import_has_no_disk_side_effects_and_connection_closes(tmp_path: Path) -
 def test_fresh_migration_schema_version_and_idempotency(tmp_path: Path) -> None:
     """Fresh migration creates all expected tables, indexes, triggers, and is idempotent."""
     db_file = tmp_path / "fresh.db"
+    latest_version = get_latest_migration_version()
+    expected_versions = list(range(1, latest_version + 1))
     with sqlite_connection(db_file) as conn:
         assert get_schema_version(conn) == 0
         first = apply_migrations(conn)
         assert first.previous_version == 0
-        assert first.current_version == 1
-        assert first.applied_versions == [1]
+        assert first.current_version == latest_version
+        assert first.applied_versions == expected_versions
         assert first.skipped_versions == []
 
         report = run_integrity_checks(conn)
         assert report.integrity_ok is True
         assert report.foreign_key_ok is True
         assert report.foreign_keys_enabled is True
-        assert report.schema_version == 1
+        assert report.schema_version == latest_version
 
         tables = {
             row["name"]
@@ -199,13 +202,13 @@ def test_fresh_migration_schema_version_and_idempotency(tmp_path: Path) -> None:
             tid = _seed_task(conn)
 
         second = apply_migrations(conn)
-        assert second.previous_version == 1
-        assert second.current_version == 1
+        assert second.previous_version == latest_version
+        assert second.current_version == latest_version
         assert second.applied_versions == []
-        assert second.skipped_versions == [1]
+        assert second.skipped_versions == expected_versions
         kept = conn.execute("SELECT task_id FROM tasks WHERE task_id = ?;", (tid,)).fetchone()
         assert kept is not None and kept["task_id"] == tid
-        assert len(list_applied_migrations(conn)) == 1
+        assert len(list_applied_migrations(conn)) == latest_version
 
 
 def test_migration_rollback_on_mid_script_failure_and_version_guards(tmp_path: Path) -> None:

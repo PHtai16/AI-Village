@@ -780,7 +780,7 @@ def test_incomplete_missing_event_corrupted_history_and_agent_runtime_compatibil
         with sqlite_transaction(conn):
             conn.execute(
                 "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?);",
-                (2, "future_unrecognized", "b" * 64, t0.isoformat()),
+                (99, "future_unrecognized", "b" * 64, t0.isoformat()),
             )
     with pytest.raises(SchemaCompatibilityError):
         SQLiteRepositoryStore(db_path)
