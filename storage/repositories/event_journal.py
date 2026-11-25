@@ -101,6 +101,7 @@ class SQLiteEventJournal:
         config: SQLiteConfig | Path | str,
         *,
         expected_schema_version: int | None = None,
+        shared_conn_provider: object | None = None,
     ) -> None:
         """Bind journal to an already-migrated SQLite database and verify schema compatibility."""
         resolved_version = (
@@ -116,6 +117,7 @@ class SQLiteEventJournal:
         self._lock = threading.RLock()
         self._closed = False
         self._memory_conn: sqlite3.Connection | None = None
+        self._shared_conn_provider = shared_conn_provider
 
         if self._config.is_in_memory:
             conn = open_sqlite_connection(self._config)
@@ -362,10 +364,19 @@ class SQLiteEventJournal:
                 error=None,
             )
 
+    def _active_shared_conn(self) -> sqlite3.Connection | None:
+        """Return active thread-bound transaction connection from owning store, if any."""
+        if callable(self._shared_conn_provider):
+            return self._shared_conn_provider()
+        return None
+
     def append(self, event: Event) -> AppendResult:
         """Validate and append one canonical ``Event`` safely to SQLite."""
         with self._lock:
             self._ensure_open()
+            shared = self._active_shared_conn()
+            if shared is not None:
+                return self.append_on_connection(shared, event)
             if self._memory_conn is not None:
                 return self.append_on_connection(self._memory_conn, event)
             with sqlite_connection(self._config) as conn:
@@ -375,6 +386,9 @@ class SQLiteEventJournal:
         """Atomically validate and append an ordered batch of Events to SQLite."""
         with self._lock:
             self._ensure_open()
+            shared = self._active_shared_conn()
+            if shared is not None:
+                return self.append_batch_on_connection(shared, events)
             if self._memory_conn is not None:
                 return self.append_batch_on_connection(self._memory_conn, events)
             with sqlite_connection(self._config) as conn:
@@ -449,6 +463,18 @@ class SQLiteEventJournal:
 
         with self._lock:
             self._ensure_open()
+            shared = self._active_shared_conn()
+            if shared is not None:
+                return self._read_entries_on_conn(
+                    shared,
+                    task_id=task_id,
+                    run_id=run_id,
+                    session_id=session_id,
+                    correlation_id=correlation_id,
+                    event_type=event_type,
+                    after_sequence=after_sequence,
+                    limit=limit,
+                )
             if self._memory_conn is not None:
                 return self._read_entries_on_conn(
                     self._memory_conn,
@@ -476,6 +502,9 @@ class SQLiteEventJournal:
         """Return a copy of the recorded entry matching ``event_id`` from SQLite."""
         with self._lock:
             self._ensure_open()
+            shared = self._active_shared_conn()
+            if shared is not None:
+                return self._select_by_event_id_on_conn(shared, event_id)
             if self._memory_conn is not None:
                 return self._select_by_event_id_on_conn(self._memory_conn, event_id)
             with sqlite_connection(self._config) as conn:
@@ -485,6 +514,10 @@ class SQLiteEventJournal:
         """Return total number of recorded entries in the SQLite ``events`` table."""
         with self._lock:
             self._ensure_open()
+            shared = self._active_shared_conn()
+            if shared is not None:
+                row = shared.execute("SELECT COUNT(*) FROM events;").fetchone()
+                return int(row[0]) if row is not None else 0
             if self._memory_conn is not None:
                 row = self._memory_conn.execute("SELECT COUNT(*) FROM events;").fetchone()
                 return int(row[0]) if row is not None else 0

@@ -342,8 +342,8 @@ def test_mission_control_ux_and_roadmap_consistency() -> None:
         REPO_ROOT / "docs" / "architecture" / "SYSTEM_BLUEPRINT.md"
     ).read_text(encoding="utf-8")
 
-    # Ensure no Phase 04-17 implementation item beyond P04.06 is prematurely marked DONE
+    # Ensure no Phase 04-17 implementation item beyond P04.07 is prematurely marked DONE
     for line in progress_text.splitlines():
         match = re.match(r"^- \[x\] \*\*P(\d{2}\.\d{2})\b", line)
-        if match and match.group(1) not in {"00.01", "00.02", "00.03", "00.04", "02.01", "02.02", "02.03", "02.04", "02.05", "02.06", "03.01", "03.02", "03.03", "04.01", "04.02", "04.03", "04.04", "04.05", "04.06"} and not match.group(1).startswith("01."):
+        if match and match.group(1) not in {"00.01", "00.02", "00.03", "00.04", "02.01", "02.02", "02.03", "02.04", "02.05", "02.06", "03.01", "03.02", "03.03", "04.01", "04.02", "04.03", "04.04", "04.05", "04.06", "04.07"} and not match.group(1).startswith("01."):
             raise AssertionError(f"Premature DONE marker in roadmap: {line}")

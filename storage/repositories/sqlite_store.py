@@ -9,6 +9,7 @@ import json
 import logging
 from pathlib import Path
 import sqlite3
+import threading
 from typing import Any
 
 from pydantic import ValidationError
@@ -1289,6 +1290,7 @@ class SQLiteRepositoryStore:
             )
 
         self._closed = False
+        self._local = threading.local()
         try:
             with sqlite_connection(self._config) as conn:
                 verify_schema_compatibility(conn, expected_version=resolved_version)
@@ -1302,10 +1304,13 @@ class SQLiteRepositoryStore:
         self.events = SQLiteEventJournal(
             self._config,
             expected_schema_version=resolved_version,
+            shared_conn_provider=lambda: getattr(self._local, "tx_conn", None),
         )
+        from storage.repositories.approval_repo import SQLiteApprovalRepository
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
 
         self.lifecycle = SQLiteLifecycleRepository(self)
+        self.approvals = SQLiteApprovalRepository(self)
 
     @property
     def config(self) -> SQLiteConfig:
@@ -1314,11 +1319,33 @@ class SQLiteRepositoryStore:
 
     @contextmanager
     def open_connection(self) -> Iterator[sqlite3.Connection]:
-        """Open a managed SQLite connection, failing closed if the store was closed."""
+        """Open a managed SQLite connection, reusing thread-bound transaction if active."""
         if self._closed:
             raise RepositoryError("STORE_CLOSED", "SQLiteRepositoryStore has been closed.")
+        active: sqlite3.Connection | None = getattr(self._local, "tx_conn", None)
+        if active is not None:
+            yield active
+            return
         with sqlite_connection(self._config) as conn:
             yield conn
+
+    @contextmanager
+    def transaction_scope(self) -> Iterator[sqlite3.Connection]:
+        """Execute multi-repository work inside one atomic SQLite transaction without deadlocks."""
+        if self._closed:
+            raise RepositoryError("STORE_CLOSED", "SQLiteRepositoryStore has been closed.")
+        existing: sqlite3.Connection | None = getattr(self._local, "tx_conn", None)
+        if existing is not None:
+            with sqlite_transaction(existing, immediate=True):
+                yield existing
+            return
+        with self.open_connection() as conn:
+            with sqlite_transaction(conn, immediate=True):
+                self._local.tx_conn = conn
+                try:
+                    yield conn
+                finally:
+                    self._local.tx_conn = None
 
     def close(self) -> None:
         """Mark the repository store and its EventJournal closed."""

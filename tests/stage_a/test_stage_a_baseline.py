@@ -147,6 +147,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         core_root / "contracts",
         core_root / "tasks",
         core_root / "events",
+        core_root / "governance",
     }
     unexpected_core_py = [
         p.relative_to(core_root).as_posix()
