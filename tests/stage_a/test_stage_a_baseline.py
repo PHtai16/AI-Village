@@ -118,7 +118,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
     # Phase 02 authorizes adapter and contract code inside engines/ (antigravity/ and providers/).
     # Phase 03 authorizes core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
     # Phase 04 authorizes core/contracts/*.py (P04.01), core/tasks/*.py (P04.02),
-    # core/events/*.py (P04.03), and storage/db/*.py (P04.04).
+    # core/events/*.py (P04.03), storage/db/*.py (P04.04), and storage/repositories/*.py (P04.05).
     no_code_dirs = ["agents", "tools", "skills", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
@@ -128,7 +128,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     storage_root = REPO_ROOT / "storage"
     assert not list(storage_root.rglob("*.js")), "Unexpected JS files inside storage/."
-    allowed_storage_subdirs = {storage_root / "db"}
+    allowed_storage_subdirs = {storage_root / "db", storage_root / "repositories"}
     unexpected_storage_py = [
         p.relative_to(storage_root).as_posix()
         for p in storage_root.rglob("*.py")

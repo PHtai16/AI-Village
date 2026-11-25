@@ -44,6 +44,8 @@ python -m pytest tests/core/test_p04_01_core_contracts_unit.py -v
 python -m pytest tests/core/test_p04_02_task_state_machine_unit.py -v
 python -m pytest tests/core/test_p04_03_event_journal_unit.py -v
 python -m pytest tests/storage/test_p04_04_sqlite_migrations.py -v
+python -m pytest tests/storage/test_p04_05_persistent_repositories.py -v
+python -m pytest tests/storage/test_p04_05_persistence_acceptance.py -v
 $env:CREWAI_DISABLE_TELEMETRY="true"; $env:OTEL_SDK_DISABLED="true"; .runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/benchmarks/p03_02/test_crewai_evaluation_unit.py -v
 ```
 
