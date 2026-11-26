@@ -67,6 +67,12 @@ EventType = Literal[
     "plan.created",
     "plan.revised",
     "plan.applied",
+    "team.proposal_created",
+    "team.proposal_revised",
+    "team.assignment_evaluated",
+    "team.assigned",
+    "team.stale_detected",
+    "team.missing_capability",
     "engine.event_forwarded",
     "runtime.error",
 ]

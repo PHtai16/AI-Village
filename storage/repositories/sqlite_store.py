@@ -1310,11 +1310,13 @@ class SQLiteRepositoryStore:
         from storage.repositories.approval_repo import SQLiteApprovalRepository
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
         from storage.repositories.planning_repo import SQLitePlanRepository
+        from storage.repositories.team_repo import SQLiteTeamProposalRepository
 
         self.lifecycle = SQLiteLifecycleRepository(self)
         self.approvals = SQLiteApprovalRepository(self)
         self.agents = SQLiteAgentRegistryRepository(self)
         self.plans = SQLitePlanRepository(self)
+        self.teams = SQLiteTeamProposalRepository(self)
 
     @property
     def config(self) -> SQLiteConfig:
