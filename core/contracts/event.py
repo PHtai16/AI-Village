@@ -64,6 +64,9 @@ EventType = Literal[
     "agent.disabled",
     "agent.enabled",
     "agent.drift_detected",
+    "plan.created",
+    "plan.revised",
+    "plan.applied",
     "engine.event_forwarded",
     "runtime.error",
 ]

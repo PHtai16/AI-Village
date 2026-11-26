@@ -16,6 +16,7 @@ from core.contracts.identifiers import (
     ensure_not_secret,
     reject_secret_text,
     validate_capability_id,
+    validate_tool_id_syntax,
     validate_unique_id_list,
 )
 
@@ -24,17 +25,6 @@ DepartmentStatus = Literal["ACTIVE", "INACTIVE", "DEPRECATED"]
 _HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 _ICON_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 _ZONE_RE = re.compile(r"^[a-z0-9_]{2,64}$")
-_TOOL_ID_RE = re.compile(r"^tools\.[a-z0-9_]+\.[a-z0-9_]+$")
-
-
-def validate_tool_id_syntax(value: str) -> str:
-    """Validate canonical ``tools.<category>.<name>`` syntax without secrets."""
-    cleaned = ensure_not_secret(value, "tool_id")
-    if not _TOOL_ID_RE.fullmatch(cleaned):
-        raise ValueError(
-            f"tool_id must match '^tools\\.[a-z0-9_]+\\.[a-z0-9_]+$', got {value!r}."
-        )
-    return cleaned
 
 
 class DepartmentVisualMetadata(BaseModel):

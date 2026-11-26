@@ -27,6 +27,7 @@ _LEGACY_SPIKE_SESSION_RE = re.compile(r"^sess-[a-z0-9][a-z0-9_-]{2,63}$")
 _AGENT_ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 _DEPARTMENT_ID_RE = re.compile(r"^[a-z0-9_]+$")
 _SNAKE_ID_RE = re.compile(r"^[a-z0-9_]{2,64}$")
+_TOOL_ID_RE = re.compile(r"^tools\.[a-z0-9_]+\.[a-z0-9_]+$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 _CREDENTIAL_REF_RE = re.compile(
@@ -237,6 +238,16 @@ def validate_snake_id(value: str, field_name: str = "identifier") -> str:
 def validate_capability_id(value: str) -> str:
     """Validate snake_case capability tag."""
     return _validate_pattern(value, _DEPARTMENT_ID_RE, "capability_id", "^[a-z0-9_]+$")
+
+
+def validate_tool_id_syntax(value: str) -> str:
+    """Validate canonical ``tools.<category>.<name>`` syntax without secrets."""
+    return _validate_pattern(
+        value,
+        _TOOL_ID_RE,
+        "tool_id",
+        "^tools\\.[a-z0-9_]+\\.[a-z0-9_]+$",
+    )
 
 
 def validate_sha256_hex(value: str) -> str:

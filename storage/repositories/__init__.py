@@ -28,6 +28,7 @@ from storage.repositories.lifecycle_repo import (
     SQLiteLifecyclePersistenceAdapter,
     SQLiteLifecycleRepository,
 )
+from storage.repositories.planning_repo import SQLitePlanRepository
 from storage.repositories.recovery import (
     InterruptedWorkAssessment,
     RecoveryStatus,
@@ -72,6 +73,7 @@ __all__ = [
     "SQLiteLifecyclePersistenceAdapter",
     "SQLiteLifecycleRepository",
     "SQLiteMetadataRepository",
+    "SQLitePlanRepository",
     "SQLiteRepositoryStore",
     "SQLiteRunRepository",
     "SQLiteSessionRepository",
