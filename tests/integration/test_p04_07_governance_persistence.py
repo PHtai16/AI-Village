@@ -74,7 +74,9 @@ def _init_db(db_file: Path) -> int:
 def test_migration_0003_creates_approval_requests_table_and_indexes(tmp_path: Path) -> None:
     """Verify schema migration v3 creates approval_requests and its indexes cleanly."""
     db_file = tmp_path / "gov_v3.db"
-    assert _init_db(db_file) == get_latest_migration_version() == 3
+    version = _init_db(db_file)
+    assert version == get_latest_migration_version()
+    assert version >= 3
 
     with sqlite_connection(db_file) as conn:
         table_row = conn.execute(

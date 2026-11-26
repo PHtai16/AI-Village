@@ -1306,11 +1306,13 @@ class SQLiteRepositoryStore:
             expected_schema_version=resolved_version,
             shared_conn_provider=lambda: getattr(self._local, "tx_conn", None),
         )
+        from storage.repositories.agent_registry_repo import SQLiteAgentRegistryRepository
         from storage.repositories.approval_repo import SQLiteApprovalRepository
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
 
         self.lifecycle = SQLiteLifecycleRepository(self)
         self.approvals = SQLiteApprovalRepository(self)
+        self.agents = SQLiteAgentRegistryRepository(self)
 
     @property
     def config(self) -> SQLiteConfig:

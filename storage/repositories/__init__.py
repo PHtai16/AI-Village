@@ -1,5 +1,6 @@
 """Persistent repository interfaces, SQLite implementations, transactional workflow service, and restart recovery."""
 
+from storage.repositories.agent_registry_repo import SQLiteAgentRegistryRepository
 from storage.repositories.approval_repo import SQLiteApprovalRepository
 from storage.repositories.errors import (
     DuplicateEntityError,
@@ -65,6 +66,7 @@ __all__ = [
     "RepositoryErrorCode",
     "RunRecoveryReport",
     "RunRepository",
+    "SQLiteAgentRegistryRepository",
     "SQLiteApprovalRepository",
     "SQLiteEventJournal",
     "SQLiteLifecyclePersistenceAdapter",

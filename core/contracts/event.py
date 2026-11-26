@@ -59,6 +59,11 @@ EventType = Literal[
     "workflow.cancel_requested",
     "workflow.fallback_evaluated",
     "workflow.reconciliation_recorded",
+    "agent.registered",
+    "agent.updated",
+    "agent.disabled",
+    "agent.enabled",
+    "agent.drift_detected",
     "engine.event_forwarded",
     "runtime.error",
 ]

@@ -33,6 +33,14 @@ PERMISSION_MATRIX_ACTIONS: frozenset[str] = frozenset(
         "tool.configure",
         "agent.execute",
         "agent.assign",
+        "agent.read",
+        "agent.create",
+        "agent.update",
+        "agent.disable",
+        "agent.enable",
+        "agent.change_permissions",
+        "agent.change_department",
+        "agent.change_connection",
         "runtime.cancel",
         "connection.read",
         "connection.manage",
@@ -92,6 +100,11 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "files.write",
                 "agent.execute",
                 "agent.assign",
+                "agent.read",
+                "agent.create",
+                "agent.update",
+                "agent.disable",
+                "agent.enable",
                 "runtime.cancel",
                 "connection.read",
                 "approval.request",
@@ -114,6 +127,9 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "tool.configure",
                 "connection.manage",
                 "connection.change_provider",
+                "agent.change_permissions",
+                "agent.change_department",
+                "agent.change_connection",
                 "trash.purge",
                 "settings.update",
             ],
@@ -138,6 +154,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "files.read",
                 "agent.execute",
                 "agent.assign",
+                "agent.read",
                 "runtime.cancel",
                 "connection.read",
                 "approval.request",
@@ -154,7 +171,14 @@ def build_default_policy_rules() -> list[PolicyRule]:
             resources=["*"],
             priority=100,
             effect="ALLOW",
-            actions=["task.read", "files.read", "files.write", "tool.invoke", "approval.request"],
+            actions=[
+                "task.read",
+                "files.read",
+                "files.write",
+                "tool.invoke",
+                "agent.read",
+                "approval.request",
+            ],
         ),
         PolicyRule(
             rule_id="runtime.allow_service_execution",
@@ -171,6 +195,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "task.transition",
                 "task.cancel",
                 "agent.execute",
+                "agent.read",
                 "runtime.cancel",
                 "files.read",
             ],
@@ -293,6 +318,43 @@ class PolicyEvaluator:
                     matched_ids=["inv.no_agent_privilege_escalation"],
                     system_deny=True,
                 )
+            target_agent = str(request.parameters.get("target_agent_id", "")).strip()
+            if request.action in {
+                "agent.update",
+                "agent.disable",
+                "agent.enable",
+                "agent.change_permissions",
+                "agent.change_department",
+                "agent.change_connection",
+            } and (
+                target_agent == auth.actor_id
+                or request.resource == f"agent:{auth.actor_id}"
+            ):
+                return _make_decision(
+                    "DENY",
+                    reason_code="SELF_MODIFICATION_FORBIDDEN",
+                    message=f"Agent '{auth.actor_id}' cannot modify or disable its own Registry record.",
+                    matched_ids=["inv.no_agent_self_modification"],
+                    system_deny=True,
+                )
+            if request.action in {"agent.change_permissions", "agent.change_connection"}:
+                return _make_decision(
+                    "DENY",
+                    reason_code="PRIVILEGE_ESCALATION_DENIED",
+                    message=f"Actor kind '{auth.actor_kind}' cannot alter agent permissions or routing connections.",
+                    matched_ids=["inv.no_agent_privilege_escalation"],
+                    system_deny=True,
+                )
+            if request.action == "agent.disable" and (
+                target_agent == "core.master" or request.resource == "agent:core.master"
+            ):
+                return _make_decision(
+                    "DENY",
+                    reason_code="PRIVILEGE_ESCALATION_DENIED",
+                    message="Non-operator actors cannot disable core.master.",
+                    matched_ids=["inv.protect_master_identity"],
+                    system_deny=True,
+                )
             if request.action == "task.transition" and str(request.parameters.get("target_status", "")).upper() == "COMPLETED":
                 return _make_decision(
                     "DENY",
@@ -302,7 +364,15 @@ class PolicyEvaluator:
                     system_deny=True,
                 )
 
-        if auth.actor_kind == "worker_agent" and request.action in {"agent.assign", "trash.purge"}:
+        if auth.actor_kind == "worker_agent" and request.action in {
+            "agent.assign",
+            "agent.create",
+            "agent.update",
+            "agent.disable",
+            "agent.enable",
+            "agent.change_department",
+            "trash.purge",
+        }:
             return _make_decision(
                 "DENY",
                 reason_code="PRIVILEGE_ESCALATION_DENIED",

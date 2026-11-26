@@ -73,7 +73,8 @@ def _init_db(db_path: Path) -> None:
     """Initialize SQLite database to latest schema version."""
     with sqlite_connection(db_path) as conn:
         result = apply_migrations(conn)
-        assert result.current_version == get_latest_migration_version() == 3
+        assert result.current_version == get_latest_migration_version()
+        assert result.current_version >= 3
 
 
 def _spawn_sleeper_subprocess(seconds: int = 30) -> subprocess.Popen[str]:

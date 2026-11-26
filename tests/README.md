@@ -49,6 +49,7 @@ python -m pytest tests/integration/test_p04_06_workflow_lifecycle.py -v
 python -m pytest tests/integration/test_p04_07_governance_persistence.py -v
 python -m pytest tests/integration/test_phase_04_gate_c_acceptance.py -v
 python -m pytest tests/agents/test_p05_01_agent_manifest.py -v
+python -m pytest tests/agents/test_p05_02_agent_registry.py -v
 python -m pytest tests/storage/test_p04_04_sqlite_migrations.py -v
 python -m pytest tests/storage/test_p04_05_persistent_repositories.py -v
 python -m pytest tests/storage/test_p04_05_persistence_acceptance.py -v
