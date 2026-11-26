@@ -1,6 +1,6 @@
 # AI VILLAGE — PROGRESS & DEVELOPMENT ROADMAP
 
-> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`). **PHASE 04: DONE (`Gate C: PASS`)** (`P04.01`–`P04.07` DONE, `P04.04` SHA `759558e`, `P04.05` SHA `57b9a44`, `P04.06` SHA `984f1c9`, `P04.07` SHA `37a3339`; nghiệm thu Gate C tại `docs/reviews/PHASE_04_GATE_C_AUDIT.md`). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
+> **Trạng thái:** **CHẶNG A: DONE (`Gate A: PASS`)**. **PHASE 00: DONE**. **PHASE 01: DONE**. **PHASE 01B: DONE**. **PHASE 02: DONE (`Gate B: PASS`)** (`P02.01`–`P02.06` DONE theo định hướng Antigravity-first và biên bản điều chỉnh tại `docs/reviews/PHASE_02_P02_06_CRITERIA_ADDENDUM.md`; kiểm toán tổng hợp tại `docs/reviews/PHASE_02_GATE_B_AUDIT.md`, giữ nguyên lịch sử tại `docs/reviews/PHASE_02_P02_06_AUDIT.md`). **PHASE 03: DONE** (`P03.01` DONE tại `docs/reviews/PHASE_03_P03_01_AUDIT.md`; `P03.02` DONE với quyết định `custom_orchestrator` tại `docs/decisions/ADR-0002-orchestration-architecture.md` và `docs/reviews/PHASE_03_P03_02_AUDIT.md`; `P03.03` DONE tại `docs/reviews/PHASE_03_P03_03_AUDIT.md`). **PHASE 04: DONE (`Gate C: PASS`)** (`P04.01`–`P04.07` DONE, `P04.04` SHA `759558e`, `P04.05` SHA `57b9a44`, `P04.06` SHA `984f1c9`, `P04.07` SHA `37a3339`; nghiệm thu Gate C SHA `dd2de05` tại `docs/reviews/PHASE_04_GATE_C_AUDIT.md`). **PHASE 05: ĐANG TRIỂN KHAI** (`P05.01` DONE tại `docs/reviews/PHASE_05_P05_01_AUDIT.md`; `P05.02`–`P05.07` TODO). Chi tiết ghi nhận tại Mục 7 (Nhật ký thực thi).
 >
 > **Nguyên tắc:** Một tiểu phase = một thư mục có trách nhiệm rõ ràng **hoặc** một năng lực có thể kiểm thử độc lập. Không gom nhiều tính năng không liên quan vào một lượt làm việc.
 >
@@ -223,7 +223,7 @@ AI-Village/
 
 **PHASE 05 — Hồ sơ nhân viên và Master**
 
-- [ ] **P05.01** — Agent manifest schema: name, role, department, capabilities, engine (hỗ trợ trường tùy chọn `provider_id`, `adapter_id`, `connection_id`, `model_id`, `routing_profile`, `fallback_policy`; cấm raw API key), permissions, memory scope *(chưa triển khai runtime)*.
+- [x] **P05.01** — Agent manifest schema: name, role, department, capabilities, engine (hỗ trợ trường tùy chọn `provider_id`, `adapter_id`, `connection_id`, `model_id`, `routing_profile`, `fallback_policy`; cấm raw API key), permissions, memory scope *(DONE: chuẩn hóa `AgentManifest`, `DepartmentManifest`, bộ nạp YAML an toàn chống khóa trùng/tag độc hại/symlink escape tại `core/agents/`, tạo `agents/master/agent.yaml` và `agents/roles/it_artifact_worker/agent.yaml`, ánh xạ thuần sang `AgentIdentity` và `SpikeAgentSpec`; kiểm chứng tại `tests/agents/test_p05_01_agent_manifest.py` và `docs/reviews/PHASE_05_P05_01_AUDIT.md` — chưa triển khai Registry hoặc khởi chạy Runtime)*.
 - [ ] **P05.02** — Agent Registry: create/update/disable, version và validation; cung cấp dữ liệu Registry tách biệt rõ với Runtime State đang chạy cho Agent Explorer (chưa sửa production runtime).
 - [ ] **P05.03** — Master Agent: hiểu yêu cầu, tạo và quản lý kế hoạch nhiệm vụ dạng Checklist có cấu trúc (gồm các bước và Agent phụ trách), xác định output/acceptance, chọn người cần tham gia và đề xuất routing phù hợp trong phạm vi Governance cho phép.
 - [ ] **P05.04** — Team Builder: tạo team động từ capability thay vì danh sách phòng ban cứng.
@@ -883,8 +883,21 @@ Summary:
 - Bổ sung bộ kiểm thử nghiệm thu `tests/integration/test_phase_04_gate_c_acceptance.py` (4 kịch bản end-to-end offline: Task -> SQLite -> Governance allow/deny -> Approval checkpoint `WAITING_APPROVAL` pause/restart/resume & tiêu thụ một lần -> tiến trình con sở hữu `OwnedSubprocessHandle` -> QA SHA-256 độc lập `verify_engine_artifact` -> `COMPLETED` -> tái dựng `recover_task`/`replay_task_history`/`project_activity_timeline`; cô lập tiến trình anh em khi cancel; timeout xác thực deadline trước `TIMED_OUT`; idempotent retry & đối soát `RUNNING` thành `NEEDS_RECONCILIATION`).
 - Cập nhật `tests/README.md` và xuất báo cáo nghiệm thu `docs/reviews/PHASE_04_GATE_C_AUDIT.md` xác nhận 14/14 tiêu chí đạt chuẩn (tách bạch rõ `OFFLINE_VERIFIED_PASS` và không gắn `LIVE_VERIFIED` vì chưa chạy `AI_VILLAGE_RUN_LIVE=1`).
 Tests / Evidence: `tests/integration/test_phase_04_gate_c_acceptance.py` (`4 passed in 1.99s`); `tests/core` (`79 passed in 4.71s`); `tests/storage` (`20 passed in 3.53s`); `tests/integration` (`13 passed, 23 skipped in 7.81s`); `tests/stage_a tests/standards` (`13 passed in 0.63s`); toàn kho `python -m pytest tests -v -rs` (`165 passed, 24 skipped in 16.62s`); `git diff --check` (0 lỗi).
+Commit actual: `dd2de05da1158b59dcced3bf3ffe7edd2efc4faf` (`docs(audit): verify phase 04 gate c`)
 Blocking issue: Không có.
-Next: Hoàn tất `PHASE 04: DONE (Gate C: PASS)`; chờ chỉ thị chuyển sang Phase tiếp theo.
+Next: Hoàn tất `PHASE 04: DONE (Gate C: PASS)`; chuyển tiếp sang **PHASE 05 / Batch 01 (`P05.01` + `P05.02`)**.
+
+### [2026-11-26] PHASE 05 / P05.01: Agent Manifest Schema & Safe YAML Loader
+Phase: PHASE 05 / P05.01
+Actor: AI Village Agent
+Commit target: `feat(agents): establish validated agent manifests`
+Summary:
+- Triển khai tầng schema và bộ nạp YAML an toàn tại `core/agents/` (`department.py`, `manifest.py`, `loader.py`, `__init__.py`) dùng Pydantic v2 `extra="forbid"` và `_StrictNoDuplicateSafeLoader(yaml.SafeLoader)` phát hiện khóa trùng, thẻ YAML nguy hiểm, symlink/junction thoát ranh giới, file vượt ngưỡng và sai lệch thư mục với `id`.
+- Khởi tạo manifest tĩnh chính thức tại `agents/master/agent.yaml` (`core.master`, `system_role: "orchestrator"`, `department: "orchestration"`, `fs_write: []`, `tools.allowed: []`) và `agents/roles/it_artifact_worker/agent.yaml` (`it.artifact_worker`), bảo toàn ánh xạ sang `AgentIdentity` và `SpikeAgentSpec` mà không tự cấp quyền hay gọi Engine.
+- Bổ sung `tests/agents/test_p05_01_agent_manifest.py`, cập nhật allowlist Stage A và Standards tại `tests/stage_a/test_stage_a_baseline.py`, `tests/standards/test_standards_consistency.py`, `tests/README.md`, và xuất báo cáo `docs/reviews/PHASE_05_P05_01_AUDIT.md`.
+Tests / Evidence: `python -m pytest tests/agents/test_p05_01_agent_manifest.py tests/stage_a tests/standards -v` (`22 passed in 9.48s`); `python -m pytest tests -v -rs` (`174 passed, 24 skipped in 56.57s`); `git diff --check` (0 lỗi).
+Blocking issue: Không có.
+Next: Chuyển tiếp sang **P05.02 — Agent Registry** (chưa đánh dấu `P05.02` hay `PHASE 05 DONE`).
 
 
 

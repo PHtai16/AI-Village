@@ -141,6 +141,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     core_root = REPO_ROOT / "core"
     assert not list(core_root.rglob("*.js")), "Unexpected JS files inside core/."
+    # Phase 05 authorizes core/agents/*.py (P05.01-P05.02) while agents/ stays YAML-only.
     allowed_core_subdirs = {
         core_root / "orchestration",
         core_root / "runtime",
@@ -148,6 +149,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         core_root / "tasks",
         core_root / "events",
         core_root / "governance",
+        core_root / "agents",
     }
     unexpected_core_py = [
         p.relative_to(core_root).as_posix()
@@ -239,11 +241,23 @@ def test_env_example_and_gitignore_security_baseline(tracked_files: list[str]) -
 
 def test_templates_not_duplicated_and_no_secret_leaks(stage_a_markdown_files: list[Path]) -> None:
     """Verify templates reside only in docs/templates/ and no secrets appear in repository text."""
-    assert not list((REPO_ROOT / "agents").rglob("*.yaml"))
+    allowed_agent_yamls = {
+        "master/agent.yaml",
+        "roles/it_artifact_worker/agent.yaml",
+    }
+    found_agent_yamls = {
+        p.relative_to(REPO_ROOT / "agents").as_posix()
+        for p in (REPO_ROOT / "agents").rglob("*.yaml")
+    }
+    unexpected_agent_yamls = found_agent_yamls - allowed_agent_yamls
+    assert not unexpected_agent_yamls, (
+        f"Unexpected YAML manifests outside P05.01 allowlist in agents/: {unexpected_agent_yamls}"
+    )
     assert not list((REPO_ROOT / "skills").rglob("SKILL.md"))
 
     files_to_scan = [
         *stage_a_markdown_files,
+        *(REPO_ROOT / "agents").rglob("*.yaml"),
         REPO_ROOT / ".env.example",
         REPO_ROOT / ".gitignore",
     ]
