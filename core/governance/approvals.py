@@ -71,6 +71,10 @@ class ApprovalService:
         self._repo = repository
         self._journal = journal
 
+    def get_approval(self, approval_id: str) -> ApprovalRequest | None:
+        """Load an ``ApprovalRequest`` by identifier without mutating state."""
+        return self._repo.get_approval(approval_id)
+
     def create_approval_request(
         self,
         *,

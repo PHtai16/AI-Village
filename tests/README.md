@@ -53,6 +53,7 @@ python -m pytest tests/agents/test_p05_02_agent_registry.py -v
 python -m pytest tests/orchestration/test_p05_03_master_planning.py -v
 python -m pytest tests/orchestration/test_p05_04_dynamic_team_builder.py -v
 python -m pytest tests/orchestration/test_p05_03_04_integration_acceptance.py -v
+python -m pytest tests/orchestration/test_p05_05_worker_session_lifecycle.py -v
 python -m pytest tests/storage/test_p04_04_sqlite_migrations.py -v
 python -m pytest tests/storage/test_p04_05_persistent_repositories.py -v
 python -m pytest tests/storage/test_p04_05_persistence_acceptance.py -v

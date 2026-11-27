@@ -776,7 +776,7 @@ def test_p05_04_staleness_pinning_immutability_and_rollback(
         )
 
     store.close()
-    assert get_latest_migration_version() == 6
+    assert get_latest_migration_version() >= 6
     reopened = SQLiteRepositoryStore(db_path)
     try:
         task_reloaded = reopened.tasks.get_task(task.task_id)

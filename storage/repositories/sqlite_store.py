@@ -1311,12 +1311,14 @@ class SQLiteRepositoryStore:
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
         from storage.repositories.planning_repo import SQLitePlanRepository
         from storage.repositories.team_repo import SQLiteTeamProposalRepository
+        from storage.repositories.worker_session_repo import SQLiteWorkerSessionRepository
 
         self.lifecycle = SQLiteLifecycleRepository(self)
         self.approvals = SQLiteApprovalRepository(self)
         self.agents = SQLiteAgentRegistryRepository(self)
         self.plans = SQLitePlanRepository(self)
         self.teams = SQLiteTeamProposalRepository(self)
+        self.worker_sessions = SQLiteWorkerSessionRepository(self)
 
     @property
     def config(self) -> SQLiteConfig:

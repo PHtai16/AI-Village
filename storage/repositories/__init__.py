@@ -30,6 +30,7 @@ from storage.repositories.lifecycle_repo import (
 )
 from storage.repositories.planning_repo import SQLitePlanRepository
 from storage.repositories.team_repo import SQLiteTeamProposalRepository
+from storage.repositories.worker_session_repo import SQLiteWorkerSessionRepository
 from storage.repositories.recovery import (
     InterruptedWorkAssessment,
     RecoveryStatus,
@@ -80,6 +81,7 @@ __all__ = [
     "SQLiteSessionRepository",
     "SQLiteTaskRepository",
     "SQLiteTeamProposalRepository",
+    "SQLiteWorkerSessionRepository",
     "SchemaCompatibilityError",
     "SecretViolationError",
     "SessionRepository",
