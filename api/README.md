@@ -2,7 +2,7 @@
 
 Thư mục `api/` đóng vai trò lớp biên giao tiếp giữa các ứng dụng khách (`ui/`) với Core Runtime (`core/`) và tầng lưu trữ (`storage/`). Tầng này chịu trách nhiệm xác thực đầu vào DTO, định tuyến yêu cầu và truyền phát sự kiện thời gian thực, tuyệt đối không chứa logic điều phối nghiệp vụ hay tự quyết định trạng thái nhiệm vụ.
 
-> **Trạng thái hiện tại:** Đây là tài liệu hợp đồng thiết kế nền tảng cho Chặng A. **Chưa có bất kỳ endpoint backend nào được lập trình hay đang hoạt động.** Không có backend giả lập trong thư mục này (triển khai thực tế thuộc `PHASE 12`).
+> **Trạng thái hiện tại:** Đã mở khóa riêng cụm endpoint đọc-chỉ phục vụ `Gate E` tại [api/artifacts.py](file:///C:/DoCho/AI-Village/api/artifacts.py) để tra cứu metadata và tải Artifact qua FastAPI sau khi kiểm tra quyền và mã băm SHA-256. Toàn bộ các endpoint điều phối, tác vụ, hàng đợi và SSE khác tiếp tục giữ nguyên kế hoạch triển khai ở `PHASE 12`.
 
 ## 1. Hợp đồng API Dự kiến (Mức Thiết kế)
 

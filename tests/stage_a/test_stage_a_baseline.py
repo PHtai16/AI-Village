@@ -119,13 +119,22 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
     # Phase 03 authorizes core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
     # Phase 04 authorizes core/contracts/*.py (P04.01), core/tasks/*.py (P04.02),
     # core/events/*.py (P04.03), storage/db/*.py (P04.04), and storage/repositories/*.py (P04.05).
-    # Phase 07 authorizes tools/* subpackages and core/tools/*.py while agents/, skills/, api/, sandbox/ remain Python-free.
-    no_code_dirs = ["agents", "skills", "api", "sandbox"]
+    # Phase 07 authorizes tools/* subpackages and core/tools/*.py; Phase 08 authorizes storage/artifacts/, storage/knowledge/, and api/artifacts.py.
+    no_code_dirs = ["agents", "skills", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
         js_files = list((REPO_ROOT / folder).rglob("*.js"))
         assert not py_files, f"Unexpected Python files in Stage A folder {folder}: {py_files}"
         assert not js_files, f"Unexpected JS files in Stage A folder {folder}: {js_files}"
+
+    api_root = REPO_ROOT / "api"
+    assert not list(api_root.rglob("*.js")), "Unexpected JS files inside api/."
+    unexpected_api_py = [
+        p.relative_to(api_root).as_posix()
+        for p in api_root.rglob("*.py")
+        if p.relative_to(api_root).as_posix() not in {"__init__.py", "artifacts.py"}
+    ]
+    assert not unexpected_api_py, f"Unexpected premature Python modules in api/: {unexpected_api_py}"
 
     tools_root = REPO_ROOT / "tools"
     assert not list(tools_root.rglob("*.js")), "Unexpected JS files inside tools/."
@@ -147,7 +156,12 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     storage_root = REPO_ROOT / "storage"
     assert not list(storage_root.rglob("*.js")), "Unexpected JS files inside storage/."
-    allowed_storage_subdirs = {storage_root / "db", storage_root / "repositories"}
+    allowed_storage_subdirs = {
+        storage_root / "db",
+        storage_root / "repositories",
+        storage_root / "artifacts",
+        storage_root / "knowledge",
+    }
     unexpected_storage_py = [
         p.relative_to(storage_root).as_posix()
         for p in storage_root.rglob("*.py")

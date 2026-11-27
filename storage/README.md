@@ -2,7 +2,7 @@
 
 Thư mục `storage/` chứa mã nguồn truy xuất cơ sở dữ liệu, quản lý kho sản phẩm, kho tri thức và quy trình sao lưu của AI Village. Thư mục này **chỉ chứa mã persistence**, không chứa tệp cơ sở dữ liệu thật hay dữ liệu phiên chạy.
 
-> **Trạng thái hiện tại:** Chỉ định nghĩa cấu trúc phân tách trách nhiệm ở Chặng A. Không tạo cơ sở dữ liệu SQLite giả hay file dữ liệu runtime trong thư mục này.
+> **Trạng thái hiện tại:** Đã hoàn thiện `PHASE 04` (`db/`, `repositories/`) và `PHASE 08` (`artifacts/` cho Artifact Registry/Preview/Diff/Trash/Backup, `knowledge/` cho Evidence Vault và Knowledge Search theo phân quyền, cùng migration `0012`); dữ liệu chạy thật chỉ lưu tại `.runtime/`, không tạo tệp `.db` trong `storage/`.
 
 ## 1. Phân tách Mã Persistence và Dữ liệu Runtime
 
