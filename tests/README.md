@@ -63,6 +63,7 @@ python -m pytest tests/storage/test_p04_04_sqlite_migrations.py -v
 python -m pytest tests/storage/test_p04_05_persistent_repositories.py -v
 python -m pytest tests/storage/test_p04_05_persistence_acceptance.py -v
 python -m pytest tests/storage/test_p08_01_02_artifact_vault.py tests/storage/test_p08_03_04_evidence_and_knowledge.py tests/storage/test_p08_05_backup_trash_and_bulk.py tests/storage/test_gate_e_end_to_end.py -v
+python -m pytest tests/integration/test_stage_e_cross_stage_sync.py -v
 python -m pytest tests/tools -v
 $env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/tools/test_code_and_mcp_tools.py -k live -v
 $env:CREWAI_DISABLE_TELEMETRY="true"; $env:OTEL_SDK_DISABLED="true"; .runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/benchmarks/p03_02/test_crewai_evaluation_unit.py -v

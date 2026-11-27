@@ -26,7 +26,7 @@ def register_phase07_tools(
     allow_private_urls_for_test: bool = False,
     registered_at: datetime | None = None,
 ) -> list[ToolManifest]:
-    """Register all 15 canonical Phase 07 tools into ``registry`` and return manifests."""
+    """Register all 17 canonical Phase 07 tools into ``registry`` and return manifests."""
     bridge = mcp_bridge or GovernedMcpBridge()
     bundles = [
         *build_file_tools(),

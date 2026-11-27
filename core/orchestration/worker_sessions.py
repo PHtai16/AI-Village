@@ -254,6 +254,8 @@ class WorkerSessionLifecycleService:
         approval_service: ApprovalService | None = None,
         handoff_repo: WorkerHandoffRepository | None = None,
         connection_resolver: Callable[[str], EngineConnectionRef | None] | None = None,
+        tool_runtime: Any | None = None,
+        artifact_vault: Any | None = None,
     ) -> None:
         """Inject explicit persistence, Registry, Governance, Engine, and Lifecycle dependencies."""
         self._worker_sessions = worker_session_repo
@@ -270,6 +272,8 @@ class WorkerSessionLifecycleService:
         self._approvals = approval_service
         self._handoffs = handoff_repo
         self._connection_resolver = connection_resolver
+        self._tool_runtime = tool_runtime
+        self._artifact_vault = artifact_vault
         self._lock = threading.RLock()
         self._session_locks: dict[str, threading.Lock] = {}
         self._task_locks: dict[str, threading.RLock] = {}
@@ -2341,4 +2345,112 @@ class WorkerSessionLifecycleService:
                 latest is not None and latest.binding.reconciliation_status == "NEEDS_RECONCILIATION"
             ),
             reconciliation_reason=latest.binding.reconciliation_reason if latest is not None else None,
+        )
+
+    def invoke_session_tool(
+        self,
+        session_id: str,
+        *,
+        tool_id: str,
+        parameters: dict[str, Any],
+        workspace_root: str,
+        timestamp: datetime,
+        approval_id: str | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> Any:
+        """Invoke a Phase 07 tool strictly within a pinned ACTIVE Worker session."""
+        if self._tool_runtime is None:
+            raise WorkerSessionError(
+                "TOOL_RUNTIME_UNCONFIGURED",
+                "WorkerSessionLifecycleService requires tool_runtime to invoke tools.",
+            )
+        validate_aware_datetime(timestamp, "timestamp")
+        stored = self._worker_sessions.get_stored_session(session_id)
+        if stored is None:
+            raise WorkerSessionNotFoundError("SESSION_NOT_FOUND", f"Worker session '{session_id}' not found.")
+        if stored.session.status != "ACTIVE":
+            raise SessionTransitionError(
+                "SESSION_NOT_ACTIVE",
+                f"Worker session '{session_id}' is '{stored.session.status}', must be ACTIVE to invoke tools.",
+            )
+        binding = stored.binding
+        pinned = self._registry.get_manifest_version(binding.agent_id, binding.pinned_manifest_revision)
+        if pinned is None:
+            raise WorkerSessionError(
+                "MANIFEST_REVISION_MISSING",
+                f"Pinned manifest '{binding.agent_id}@r{binding.pinned_manifest_revision}' not found.",
+            )
+        auth_ctx = TrustedAuthContext(
+            actor_id=binding.agent_id,
+            actor_kind="worker_agent",
+            auth_source="application_boundary",
+            authenticated=True,
+            allowed_tools=list(pinned.manifest.tools.allowed),
+            assigned_task_ids=[binding.task_id],
+        )
+        from core.tools.models import ToolInvocationRequest
+
+        req = ToolInvocationRequest(
+            auth_context=auth_ctx,
+            tool_id=tool_id,
+            parameters=parameters,
+            task_id=binding.task_id,
+            run_id=binding.run_id,
+            session_id=binding.session_id,
+            workspace_root=workspace_root,
+            approval_id=approval_id,
+            correlation_id=binding.correlation_id,
+            timestamp=timestamp,
+        )
+        return self._tool_runtime.invoke(req, is_cancelled=is_cancelled)
+
+    def register_session_artifact(
+        self,
+        session_id: str,
+        *,
+        logical_key: str,
+        relative_path: str,
+        timestamp: datetime,
+        source_path: Path | str | None = None,
+        content_bytes: bytes | None = None,
+        content_type: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        """Register an artifact in Phase 08 Vault anchored to an ACTIVE/CLOSED Worker session."""
+        if self._artifact_vault is None:
+            raise WorkerSessionError(
+                "ARTIFACT_VAULT_UNCONFIGURED",
+                "WorkerSessionLifecycleService requires artifact_vault to register artifacts.",
+            )
+        validate_aware_datetime(timestamp, "timestamp")
+        stored = self._worker_sessions.get_stored_session(session_id)
+        if stored is None:
+            raise WorkerSessionNotFoundError("SESSION_NOT_FOUND", f"Worker session '{session_id}' not found.")
+        if stored.session.status not in {"ACTIVE", "CLOSED"}:
+            raise SessionTransitionError(
+                "INVALID_SESSION_STATE",
+                f"Worker session '{session_id}' is '{stored.session.status}', must be ACTIVE or CLOSED.",
+            )
+        binding = stored.binding
+        auth_ctx = TrustedAuthContext(
+            actor_id=binding.agent_id,
+            actor_kind="worker_agent",
+            auth_source="application_boundary",
+            authenticated=True,
+            assigned_task_ids=[binding.task_id],
+        )
+        return self._artifact_vault.register_artifact(
+            auth_context=auth_ctx,
+            task_id=binding.task_id,
+            run_id=binding.run_id,
+            owner_agent_id=binding.agent_id,
+            logical_key=logical_key,
+            relative_path=relative_path,
+            timestamp=timestamp,
+            source_path=source_path,
+            content_bytes=content_bytes,
+            content_type=content_type,
+            tags=tags,
+            metadata=metadata,
         )

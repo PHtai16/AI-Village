@@ -2,7 +2,7 @@
 
 Tài liệu này quy định kiến trúc, hợp đồng dữ liệu, vòng đời thực thi, ranh giới an toàn và cơ chế tích hợp cho hệ thống Công cụ (Tools) trong AI Village. Đây là hợp đồng thiết kế nền tảng cho Tool Registry và Tool Runtime trong các phase triển khai tiếp theo.
 
-Toàn bộ cơ chế thực thi runtime, tích hợp Engine và giao diện gọi công cụ trong tài liệu này đang ở mức đặc tả thiết kế, chưa được lập trình hay kiểm chứng chạy thực tế.
+Ghi chú đồng bộ Phase 07: Tool Registry, Tool Runtime 10 bước (`core/tools/runtime.py`), Governed MCP Bridge (`tools/mcp_bridge/`) và 17 công cụ chuẩn hóa trên 5 nhóm (`tools/`) đã được triển khai và kiểm chứng; hợp đồng dưới đây phản ánh chính xác mô hình `ToolManifest` và `ToolResult` trong `core/tools/models.py`.
 
 ## 1. Kiến trúc và Phân định trách nhiệm
 
@@ -22,26 +22,28 @@ Hệ thống tách biệt rõ bảy thành phần tham gia vào một lượt s�
 
 ## 2. Định danh và Tool Manifest Schema
 
-Mỗi công cụ trong Tool Registry được mô tả bằng một tệp cấu hình có cấu trúc theo bảng đặc tả 16 trường chuẩn dưới đây:
+Mỗi công cụ trong Tool Registry (`ToolManifest` tại `core/tools/models.py`) được mô tả bằng một tệp cấu hình có cấu trúc theo bảng đặc tả 18 trường chuẩn dưới đây (kèm `mcp_binding` tùy chọn cho công cụ qua MCP Bridge):
 
 | Tên trường | Kiểu dữ liệu | Bắt buộc | Ràng buộc giá trị và mô tả |
 | :--- | :--- | :--- | :--- |
-| `spec_version` | String | Có | Phiên bản của chuẩn đặc tả Tool, ví dụ `"1.0.0"`. |
-| `tool_id` | String | Có | Khóa định danh duy nhất, định dạng `^tools\.[a-z0-9_]+\.[a-z0-9_]+$` (ví dụ: `tools.files.read`). |
+| `spec_version` | String | Có | Phiên bản của chuẩn đặc tả Tool theo SemVer, ví dụ `"1.0.0"`. |
+| `id` | String | Có | Khóa định danh duy nhất, định dạng `^tools\.[a-z0-9_]+\.[a-z0-9_]+$` (ví dụ: `tools.files.read`). |
 | `name` | String | Có | Tên hiển thị ngắn gọn của công cụ, độ dài từ 3 đến 80 ký tự. |
-| `description` | String | Có | Mô tả chính xác công dụng, phạm vi tác động và giới hạn của công cụ. |
 | `version` | String | Có | Phiên bản phát hành theo chuẩn SemVer (`MAJOR.MINOR.PATCH`). |
-| `category` | String | Có | Một trong 5 nhóm thư mục chuẩn: `files`, `code`, `browser`, `research`, `office`. |
-| `capabilities` | List[String] | Có | Danh sách ít nhất 1 nhãn năng lực liên kết để tra cứu trong hệ thống. |
-| `input_schema` | Object | Có | Đặc tả JSON Schema cho dữ liệu đầu vào, gồm kiểu, ràng buộc bắt buộc và giới hạn kích thước. |
-| `output_schema` | Object | Có | Đặc tả JSON Schema cho dữ liệu kết quả trả về trong trường `output`. |
-| `permissions_required` | List[String] | Có | Danh sách Action ID bắt buộc phải được Rule System cho phép trước khi chạy (ví dụ: `files.read`). |
-| `execution_environment` | String | Có | Môi trường thực thi: `sandbox_only`, `restricted_local`, hoặc `provider_managed`. |
-| `timeout_seconds` | Integer | Có | Thời gian chờ tối đa mặc định tính bằng giây, giá trị hợp lệ từ `1` đến `3600`. |
-| `risk_level` | String | Có | Mức độ rủi ro thao tác: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`. |
-| `approval_policy` | String | Có | Chính sách xin phê duyệt: `NONE`, `CONDITIONAL`, `ALWAYS_REQUIRED`. |
-| `idempotency` | Object | Có | Chứa `supported` (Boolean) và `safe_retry` (Boolean) để kiểm soát việc gọi lại khi gặp sự cố. |
-| `status` | String | Có | Trạng thái trong Registry: `DRAFT`, `REGISTERED`, `AVAILABLE`, `DEPRECATED`, `DISABLED`. |
+| `category` | String | Có | Một trong 5 nhóm thư mục chuẩn khớp phần đầu sau `tools.`: `files`, `code`, `browser`, `research`, `office`. |
+| `description` | String | Có | Mô tả chính xác công dụng, phạm vi tác động và giới hạn của công cụ (`3..500` ký tự). |
+| `capabilities` | List[String] | Có | Danh sách `1..32` nhãn năng lực `snake_case` duy nhất để tra cứu trong hệ thống. |
+| `input_schema` | Object | Có | JSON Schema (Draft 2020-12) cho tham số đầu vào tại `ToolInvocationRequest.parameters`. |
+| `output_schema` | Object | Có | JSON Schema (Draft 2020-12) cho dữ liệu kết quả trả về trong `ToolResult.data`. |
+| `permissions_required` | List[String] | Có | Danh sách `1..16` Action ID (`<domain>.<verb>`) bắt buộc phải qua Policy Engine (ví dụ: `files.read`). |
+| `approval_required` | Boolean | Không | Mặc định `false`. Đặt `true` nếu mọi lệnh gọi công cụ đều phải qua single-use Approval Gate (ngoài rule động). |
+| `risk_level` | String | Có | Mức độ rủi ro thao tác: `LOW`, `MEDIUM`, `HIGH`. |
+| `execution_mode` | String | Có | Chế độ thực thi cách ly: `sandbox_only`, `restricted_local`, hoặc `approved_external`. |
+| `timeout_seconds` | Integer | Không | Thời gian chờ tối đa mặc định tính bằng giây, mặc định `30`, hợp lệ từ `1` đến `600`. |
+| `cost_profile` | Object | Có | Đối tượng `ToolCostProfile` gồm `unit`, `estimated_unit_cost_usd` (`float \| null`, cấm bịa đặt) và `notes` tùy chọn. |
+| `status` | String | Không | Trạng thái trong Registry: `AVAILABLE` (mặc định khi sẵn sàng), `DEGRADED`, `DISABLED` (hồ sơ thiết kế mẫu chưa đăng ký dùng `DRAFT`). |
+| `safe_retry` | Boolean | Không | Mặc định `false`. Chỉ cho phép retry tự động ở thao tác idempotent an toàn. |
+| `mcp_binding` | Object \| null | Không | Tùy chọn `McpToolBinding` (`server_id`, `remote_tool_name`, `transport: "stdio"`) khi chạy qua `GovernedMcpBridge`. |
 
 ## 3. Phân nhóm công cụ (Tool Categories)
 
@@ -61,35 +63,37 @@ Mỗi công cụ phải khai báo đầy đủ cấu trúc dữ liệu đầu v�
 
 ### 4.1. Cấu trúc chuẩn `ToolResult`
 
-Mọi lời gọi công cụ qua Tool Runtime phải trả về đối tượng có cấu trúc thống nhất:
+Mọi lời gọi công cụ qua Tool Runtime phải trả về đối tượng `ToolResult` có cấu trúc thống nhất (`core/tools/models.py`):
 
-- `tool_call_id` (String, UUID v4): Mã định danh duy nhất cho từng lần gọi công cụ.
+- `execution_id` (String): Mã định danh duy nhất cho từng lần gọi công cụ theo định dạng `tex_[a-z0-9][a-z0-9_-]{3,63}`.
 - `tool_id` (String): Mã công cụ được triệu gọi.
 - `status` (String): Trạng thái kỹ thuật của lời gọi công cụ:
-  - `EXECUTION_SUCCEEDED`: Công cụ chạy hoàn tất và dữ liệu đầu ra khớp với `output_schema`.
-  - `EXECUTION_FAILED`: Lỗi validation đầu vào, lỗi thực thi nội bộ hoặc tiến trình kết thúc với mã lỗi.
-  - `PERMISSION_DENIED`: Yêu cầu bị Permission Manager từ chối trước khi thực thi.
+  - `SUCCESS`: Công cụ chạy hoàn tất và `data` đầu ra khớp với `output_schema`.
+  - `FAILED`: Lỗi validation đầu vào/đầu ra, lỗi thực thi nội bộ hoặc tiến trình kết thúc với mã lỗi.
+  - `DENIED`: Yêu cầu bị Registry, Allowlist hoặc Permission Manager từ chối trước khi thực thi.
   - `APPROVAL_REQUIRED`: Yêu cầu đang bị tạm giữ chờ người vận hành phê duyệt qua Approval Gate.
   - `CANCELLED`: Lời gọi bị hủy chủ động bởi hệ thống hoặc người dùng.
-  - `TIMED_OUT`: Tiến trình vượt quá ngưỡng `timeout_seconds` và bị cưỡng chế dừng.
-- `business_verification_status` (String): Trạng thái kiểm chứng giá trị nghiệp vụ: `UNVERIFIED` (mặc định khi công cụ vừa chạy xong), `VERIFIED_PASS`, `VERIFIED_FAIL`.
-- `started_at` (Timestamp ISO 8601) và `finished_at` (Timestamp ISO 8601): Mốc thời gian bắt đầu và kết thúc thực tế.
-- `output` (Optional[Object]): Dữ liệu kết quả hợp lệ theo `output_schema`; nhận `null` nếu thất bại hoặc bị từ chối.
-- `error` (Optional[Object]): Chi tiết lỗi gồm `error_code`, `message`, `retryable` (Boolean) và `details`.
-- `artifact_references` (List[Object]): Danh sách tệp tin sinh ra hoặc thay đổi gồm `path`, `sha256`, `size_bytes` và `content_type`.
-- `evidence` (Object): Dữ liệu chứng thực gồm `exit_code`, `redacted_stdout_ref`, `redacted_stderr_ref` và `command_summary`.
-- `telemetry` (Object): Số liệu vận hành gồm `duration_ms`, `cpu_time_ms` (Optional), `memory_peak_mb` (Optional) và `telemetry_status`.
+  - `TIMED_OUT`: Tín hiệu timeout ở lỗi; trong `ToolResult.status` trả về giá trị enum `TIMEOUT`.
+- `data` (Object): Dữ liệu kết quả hợp lệ theo `output_schema`; nhận `{}` nếu thất bại hoặc bị từ chối.
+- `artifacts` (List[Object]): Danh sách tệp tin sinh ra hoặc tham chiếu artifact đi kèm.
+- `evidence_refs` (List[String]): Danh sách tham chiếu bằng chứng do công cụ thu thập được.
+- `business_verification_status` (String): Trạng thái kiểm chứng giá trị nghiệp vụ cố định là `UNVERIFIED` ở tầng Tool Runtime; QA độc lập xác nhận sau.
+- `untrusted_content` (Boolean): Cờ đánh dấu dữ liệu đến từ nguồn bên ngoài không tin cậy (mặc định `false`).
+- `duration_ms` (Integer): Thời gian thực thi thực tế đo bằng mili-giây (`>= 0`).
+- `estimated_cost_usd` (Optional[Float]): Chi phí ước tính nếu xác định được, ngược lại đặt `null`.
+- `error_code` (Optional[String]) và `error_message` (Optional[String], tối đa 500 ký tự đã lọc secret).
+- `audit_event_id` (Optional[String]) và `approval_id` (Optional[String]): Liên kết Event Journal và Approval Gate.
 
 ### 4.2. Phân tách trạng thái kỹ thuật, nghiệp vụ và vòng đời
 
-Tool Runtime chỉ xác nhận việc công cụ có chạy xong đúng hợp đồng hay không (`EXECUTION_SUCCEEDED`). Hệ thống tuyệt đối không đánh đồng `exit_code == 0` với việc nhiệm vụ đạt chuẩn nghiệp vụ (`VERIFIED_PASS`) hay Task chuyển sang `COMPLETED`. Mọi đánh giá đạt hay không đạt về mặt nội dung và chất lượng phải do bước kiểm chứng độc lập của QA thực hiện.
+Tool Runtime chỉ xác nhận việc công cụ có chạy xong đúng hợp đồng hay không (`SUCCESS`). Hệ thống tuyệt đối không đánh đồng `exit_code == 0` với việc nhiệm vụ đạt chuẩn nghiệp vụ (`VERIFIED_PASS`) hay Task chuyển sang `COMPLETED`. Mọi đánh giá đạt hay không đạt về mặt nội dung và chất lượng phải do bước kiểm chứng độc lập của QA thực hiện.
 
 Các miền trạng thái trong hệ thống hoàn toàn tách biệt (không dùng chung tên để suy diễn đồng nghĩa):
 - **Agent Task Lifecycle (`AGENT_SPEC.md`):** `QUEUED`, `ASSIGNED`, `RUNNING`, `WAITING_INPUT`, `WAITING_APPROVAL`, `BLOCKED`, `COMPLETED`, `FAILED`, `CANCELLED`.
 - **Skill Lifecycle (`SKILL_SPEC.md`):** `DRAFT`, `CANDIDATE`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `DEPRECATED`, `DISABLED`.
 - **Rule Lifecycle (`RULE_SPEC.md`):** `DRAFT`, `UNDER_REVIEW`, `ACTIVE`, `DEPRECATED`, `DISABLED`.
-- **Tool Availability Status (`TOOL_SPEC.md`):** `DRAFT`, `REGISTERED`, `AVAILABLE`, `DEPRECATED`, `DISABLED`.
-- **Tool Execution Status (`ToolResult.status`):** `EXECUTION_SUCCEEDED`, `EXECUTION_FAILED`, `PERMISSION_DENIED`, `APPROVAL_REQUIRED`, `CANCELLED`, `TIMED_OUT`.
+- **Tool Availability Status (`ToolManifest.status`):** `AVAILABLE`, `DEGRADED`, `DISABLED`.
+- **Tool Execution Status (`ToolResult.status`):** `SUCCESS`, `FAILED`, `DENIED`, `APPROVAL_REQUIRED`, `TIMEOUT`, `CANCELLED`.
 - **QA Verification Status (`business_verification_status`):** `UNVERIFIED`, `VERIFIED_PASS`, `VERIFIED_FAIL`.
 
 ## 5. Vòng đời gọi công cụ (Tool Invocation Lifecycle)
@@ -188,52 +192,62 @@ Mọi lời gọi công cụ phải để lại dấu vết kiểm toán đầy 
 - Một `tool_id` khai báo các `action_id` mà nó cần trong trường `permissions_required`.
 - Khi Agent muốn chạy một công cụ, Permission Manager thực hiện kiểm tra hai bước: (1) xác nhận `tool_id` nằm trong `agent.tools.allowed`, và (2) đánh giá từng `action_id` trong `tool.permissions_required` đối chiếu với tài nguyên yêu cầu qua Rule System.
 
-Bảng ánh xạ chuẩn hóa giữa Tool ID, Action ID và Capability ID:
+Bảng ánh xạ chuẩn hóa 17 công cụ Phase 07 đã đăng ký trong `tools/registry_bootstrap.py`:
 
 | Tool ID (`tools.allowed` / `requirements.tools` / `default_tools`) | Action ID (`permissions_required` / `rule.actions` / `requires_approval`) | Capability ID liên quan |
 | :--- | :--- | :--- |
 | `tools.files.read` | `files.read` | `file_reading`, `workspace_inspection` |
 | `tools.files.write` | `files.write` | `file_writing` |
-| `tools.code.run_test` | `code.run_test`, `files.read` | `automated_testing` |
-| `tools.code.run_linter` | `code.run_linter`, `files.read` | `git_diff_analysis` |
-| `tools.code.run_ast_parser` | `code.run_ast_parser`, `files.read` | `python_ast_audit` |
-| `tools.code.run_custom_script` | `code.exec_custom`, `terminal.exec` | `custom_automation` |
-| `tools.research.query` | `network.http` | `web_research` |
+| `tools.files.list` | `files.read` | `workspace_inspection` |
+| `tools.files.delete` | `files.delete` | `file_writing` |
+| `tools.office.read_docx` | `office.read`, `files.read` | `office_reading`, `docx_processing` |
+| `tools.office.write_docx` | `office.write`, `files.write` | `office_writing`, `docx_processing` |
+| `tools.office.read_excel` | `office.read`, `files.read` | `office_reading`, `xlsx_processing` |
+| `tools.office.write_excel` | `office.write`, `files.write` | `office_writing`, `xlsx_processing` |
+| `tools.office.read_pdf` | `office.read`, `files.read` | `office_reading`, `pdf_processing` |
+| `tools.office.parse_markdown` | `office.read`, `files.read` | `office_reading`, `markdown_conversion` |
+| `tools.office.compute_table` | `office.read` | `tabular_computation`, `deterministic_analytics` |
+| `tools.code.run_sandbox` | `code.execute`, `files.read` | `automated_testing`, `code_execution`, `sandbox_verification` |
+| `tools.code.git_inspect` | `git.read` | `git_diff_analysis`, `repository_inspection` |
+| `tools.research.web_search` | `network.search` | `web_research`, `search_discovery` |
+| `tools.research.web_fetch` | `network.fetch` | `web_research`, `source_verification` |
+| `tools.browser.session` | `browser.open`, `browser.screenshot` | `browser_inspection`, `screenshot_capture` |
+| `tools.browser.interact` | `browser.interact`, `browser.open` | `browser_automation`, `screenshot_capture` |
 
-*(Các định danh trên đã được đối chiếu và đồng bộ thống nhất giữa `AGENT_SPEC.md`, `DEPARTMENT_SPEC.md`, `SKILL_SPEC.md`, `RULE_SPEC.md` và `TOOL_SPEC.md` trong P01B.07.)*
+*(Các định danh trên đồng bộ giữa `tools/registry_bootstrap.py`, `agents/departments/*/department.yaml`, `core/tools/models.py` và `core/governance/evaluator.py`.)*
 
 ## 13. Kịch bản kiểm chứng độc lập (Verification Scenarios)
 
-Bảng 12 kịch bản kiểm thử dùng để nghiệm thu Tool Registry và Tool Runtime khi triển khai code ở các phase sau (chưa viết test code trong P01B.05):
+Bảng 12 kịch bản kiểm thử dùng để nghiệm thu Tool Registry và Tool Runtime (`ToolResult.status` dùng giá trị enum trong `core/tools/models.py`):
 
 | STT | Tình huống kiểm thử | Expected Result | Evidence cần kiểm chứng |
 | :--- | :--- | :--- | :--- |
-| 1 | Tool đọc tệp hợp lệ trong workspace | `status: EXECUTION_SUCCEEDED`, `business_verification_status: UNVERIFIED`. | `ToolResult` chứa nội dung đúng, SHA-256 tệp khớp, có Audit Event. |
-| 2 | Tool bị từ chối khi truy cập ngoài phạm vi | `status: PERMISSION_DENIED` (`PATH_OUTSIDE_WORKSPACE`). | `PolicyDecision(DENY)`, tệp ngoài không bị chạm tới, có Security Audit Event. |
-| 3 | Tool nhận tham số đầu vào sai schema | `status: EXECUTION_FAILED` (`INVALID_INPUT_SCHEMA`). | Chi tiết lỗi JSON Schema validation; không có tiến trình nào được khởi chạy. |
+| 1 | Tool đọc tệp hợp lệ trong workspace | `status: SUCCESS`, `business_verification_status: UNVERIFIED`. | `ToolResult` chứa nội dung đúng, SHA-256 tệp khớp, có Audit Event. |
+| 2 | Tool bị từ chối khi truy cập ngoài phạm vi | `status: DENIED` (`PATH_OUTSIDE_WORKSPACE`). | `PolicyDecision(DENY)`, tệp ngoài không bị chạm tới, có Security Audit Event. |
+| 3 | Tool nhận tham số đầu vào sai schema | `status: FAILED` (`INVALID_INPUT_SCHEMA`). | Chi tiết lỗi JSON Schema validation; không có tiến trình nào được khởi chạy. |
 | 4 | Tool kích hoạt yêu cầu Approval Gate | `status: APPROVAL_REQUIRED`; Agent chuyển `WAITING_APPROVAL`. | Bản ghi `ApprovalRequest` tồn tại với `approval_id`; hành động chưa thực thi. |
-| 5 | Yêu cầu Approval bị người dùng từ chối | `status: EXECUTION_FAILED` hoặc `CANCELLED` (`APPROVAL_REJECTED`). | Nhật ký quyết định `REJECTED` của người dùng; công cụ không chạy. |
-| 6 | Tool chạy vượt quá giới hạn timeout | `status: TIMED_OUT`. | Tiến trình con bị ngắt đúng ngưỡng `timeout_seconds`, không còn tiến trình treo. |
+| 5 | Yêu cầu Approval bị người dùng từ chối | `status: DENIED` hoặc `CANCELLED` (`APPROVAL_REJECTED`). | Nhật ký quyết định `REJECTED` của người dùng; công cụ không chạy. |
+| 6 | Tool chạy vượt quá giới hạn timeout | `status: TIMEOUT` (`error_code: TIMED_OUT`). | Tiến trình con bị ngắt đúng ngưỡng `timeout_seconds`, không còn tiến trình treo. |
 | 7 | Tool nhận lệnh hủy giữa chừng (Cancel) | `status: CANCELLED`. | Tín hiệu hủy được thực thi, tài nguyên dọn dẹp sạch, không ghi nhận hoàn thành giả. |
-| 8 | Tool trả về mã thoát khác 0 | `status: EXECUTION_FAILED`. | Ghi nhận đúng `exit_code`, log lỗi đã lọc secret (`redacted_stderr_ref`). |
-| 9 | Tool tạo tệp artifact mới | `status: EXECUTION_SUCCEEDED` kèm `artifact_references`. | Tệp tồn tại trên đĩa, mã băm SHA-256 và dung lượng trong `ToolResult` khớp thực tế. |
-| 10 | Tool chạy xong (`exit_code == 0`) nhưng kết quả nghiệp vụ sai | Tool báo `EXECUTION_SUCCEEDED`, sau kiểm chứng báo `VERIFIED_FAIL`. | Báo cáo từ QA/validator chứng minh hệ thống không đánh đồng exit code 0 với PASS. |
-| 11 | AI Provider không hỗ trợ công cụ yêu cầu | `status: EXECUTION_FAILED` (`TOOL_UNSUPPORTED_BY_PROVIDER`). | Thông báo lỗi chuẩn từ Engine Adapter, tuyệt đối không tạo kết quả giả lập. |
-| 12 | Tool lỗi giữa chừng ở thao tác không an toàn để thử lại (`safe_retry: false`) | Chặn retry tự động, trả `EXECUTION_FAILED` (`PARTIAL_EXECUTION`). | Audit log xác nhận chỉ chạy 1 lần, không gọi lại mù quáng, đã báo cáo Master. |
+| 8 | Tool trả về mã thoát khác 0 | `status: FAILED`. | Ghi nhận đúng `exit_code`, log lỗi đã lọc secret. |
+| 9 | Tool tạo tệp artifact mới | `status: SUCCESS` kèm `artifacts`. | Tệp tồn tại trên đĩa, mã băm SHA-256 và dung lượng khớp thực tế. |
+| 10 | Tool chạy xong (`exit_code == 0`) nhưng kết quả nghiệp vụ sai | Tool báo `SUCCESS`, sau kiểm chứng QA báo `VERIFIED_FAIL`. | Báo cáo từ QA/validator chứng minh hệ thống không đánh đồng exit code 0 với PASS. |
+| 11 | AI Provider không hỗ trợ công cụ yêu cầu | `status: FAILED` (`TOOL_UNSUPPORTED_BY_PROVIDER`). | Thông báo lỗi chuẩn từ Engine Adapter, tuyệt đối không tạo kết quả giả lập. |
+| 12 | Tool lỗi giữa chừng ở thao tác không an toàn để thử lại (`safe_retry: false`) | Chặn retry tự động, trả `FAILED` (`PARTIAL_EXECUTION`). | Audit log xác nhận chỉ chạy 1 lần, không gọi lại mù quáng, đã báo cáo Master. |
 
 ## 14. Hồ sơ minh họa mẫu (Example Tool Manifests)
 
-Ba tệp cấu hình dưới đây tuân thủ hoàn toàn bảng Tool Manifest Schema 16 trường tại Mục 2 và đặt `status: "DRAFT"` để phản ánh đây chỉ là ví dụ thiết kế minh họa cấu trúc dữ liệu, chưa phải công cụ đã được lập trình hay đang hoạt động ở trạng thái `AVAILABLE` trong Runtime.
+Ba tệp cấu hình dưới đây tuân thủ cấu trúc `ToolManifest` tại Mục 2 và đặt `status: "DRAFT"` để phản ánh đây là ví dụ thiết kế minh họa cấu trúc YAML, tách biệt với bản đăng ký `AVAILABLE` trong Runtime.
 
 ### 14.1. Ví dụ 1: Công cụ chỉ đọc tệp (`tools.files.read`)
 
 ```yaml
 spec_version: "1.0.0"
-tool_id: "tools.files.read"
+id: "tools.files.read"
 name: "Read File in Workspace"
-description: "Đọc nội dung tệp văn bản trong phạm vi đường dẫn workspace hoặc tài liệu được cấp phép."
 version: "1.0.0"
 category: "files"
+description: "Đọc nội dung tệp văn bản trong phạm vi đường dẫn workspace được cấp phép."
 capabilities:
   - "file_reading"
   - "workspace_inspection"
@@ -260,81 +274,86 @@ output_schema:
       type: "string"
 permissions_required:
   - "files.read"
-execution_environment: "restricted_local"
-timeout_seconds: 15
+approval_required: false
 risk_level: "LOW"
-approval_policy: "NONE"
-idempotency:
-  supported: true
-  safe_retry: true
+execution_mode: "restricted_local"
+timeout_seconds: 15
+cost_profile:
+  unit: "local_io"
+  estimated_unit_cost_usd: 0.0
+safe_retry: true
 status: "DRAFT"
 ```
 
-### 14.2. Ví dụ 2: Công cụ chạy kiểm thử trong sandbox (`tools.code.run_test`)
+### 14.2. Ví dụ 2: Công cụ chạy mã trong sandbox (`tools.code.run_sandbox`)
 
 ```yaml
 spec_version: "1.0.0"
-tool_id: "tools.code.run_test"
-name: "Run Automated Tests in Sandbox"
-description: "Thực thi bộ kiểm thử tự động trong môi trường sandbox cách ly và trả về nhật ký kết quả."
+id: "tools.code.run_sandbox"
+name: "Run Controlled Command in Sandbox"
 version: "1.0.0"
 category: "code"
+description: "Thực thi lệnh hoặc bộ kiểm thử trong sandbox cách ly và trả về nhật ký đã lọc secret."
 capabilities:
   - "automated_testing"
-  - "code_verification"
+  - "code_execution"
+  - "sandbox_verification"
 input_schema:
   type: "object"
-  required: ["test_path"]
+  required: ["command"]
   properties:
-    test_path:
-      type: "string"
-      description: "Đường dẫn thư mục hoặc tệp test trong workspace."
-    framework:
-      type: "string"
-      enum: ["pytest", "unittest"]
-      default: "pytest"
+    command:
+      type: "array"
+      items:
+        type: "string"
+    timeout_seconds:
+      type: "integer"
+      default: 60
 output_schema:
   type: "object"
-  required: ["passed", "exit_code", "summary"]
+  required: ["exit_code", "stdout", "stderr", "sandbox_mode"]
   properties:
-    passed:
-      type: "boolean"
     exit_code:
       type: "integer"
-    summary:
+    stdout:
+      type: "string"
+    stderr:
+      type: "string"
+    sandbox_mode:
       type: "string"
 permissions_required:
-  - "code.run_test"
+  - "code.execute"
   - "files.read"
-execution_environment: "sandbox_only"
+approval_required: false
+risk_level: "HIGH"
+execution_mode: "sandbox_only"
 timeout_seconds: 300
-risk_level: "MEDIUM"
-approval_policy: "CONDITIONAL"
-idempotency:
-  supported: true
-  safe_retry: true
+cost_profile:
+  unit: "container_cpu_second"
+  estimated_unit_cost_usd: 0.0
+safe_retry: false
 status: "DRAFT"
 ```
 
-### 14.3. Ví dụ 3: Công cụ tra cứu thông tin mạng (`tools.research.query`)
+### 14.3. Ví dụ 3: Công cụ tìm kiếm thông tin mạng (`tools.research.web_search`)
 
 ```yaml
 spec_version: "1.0.0"
-tool_id: "tools.research.query"
-name: "Query External Research Sources"
-description: "Tìm kiếm và trích xuất tài liệu từ các nguồn công khai được phép theo chính sách mạng của nhiệm vụ."
+id: "tools.research.web_search"
+name: "Web Search with Untrusted Boundary"
 version: "1.0.0"
 category: "research"
+description: "Tìm kiếm tài liệu từ nguồn công khai theo chính sách mạng và gắn cờ dữ liệu không tin cậy."
 capabilities:
   - "web_research"
-  - "source_verification"
+  - "search_discovery"
 input_schema:
   type: "object"
   required: ["query"]
   properties:
     query:
       type: "string"
-      minLength: 3
+      minLength: 2
       maxLength: 500
     max_results:
       type: "integer"
@@ -351,15 +370,15 @@ output_schema:
         required: ["url", "title", "snippet"]
     retrieved_at:
       type: "string"
-      format: "date-time"
 permissions_required:
-  - "network.http"
-execution_environment: "sandbox_only"
-timeout_seconds: 60
+  - "network.search"
+approval_required: false
 risk_level: "MEDIUM"
-approval_policy: "CONDITIONAL"
-idempotency:
-  supported: true
-  safe_retry: true
+execution_mode: "approved_external"
+timeout_seconds: 60
+cost_profile:
+  unit: "http_request"
+  estimated_unit_cost_usd: 0.0
+safe_retry: true
 status: "DRAFT"
 ```

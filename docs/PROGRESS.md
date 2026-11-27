@@ -387,7 +387,7 @@ AI-Village/
 
 Mọi tiểu phase phải theo thứ tự: **đọc trạng thái → xác định đúng scope → làm đúng một việc → chạy test liên quan → kiểm diff → ghi evidence → commit → cập nhật PROGRESS.md**. Nếu ảnh hưởng nhiều folder, tách thành tiểu phase chuẩn bị contract, triển khai adapter, sau đó tích hợp; không dùng một prompt để thay toàn bộ codebase.
 
-**Công việc tiếp theo hiện tại:** chờ lệnh triển khai **`P04.04 — SQLite migrations`** của `PHASE 04 — Contracts & Task Runtime` (tiếp nối `P04.01`–`P04.03` DONE offline tại `docs/reviews/PHASE_04_P04_03_AUDIT.md`). Chưa tự đánh dấu `P04.04`–`P04.07`, `PHASE 04 DONE` hay `Gate C PASS`; chưa triển khai SQLite, Repository, Permission Manager, `agents/*.yaml`, Mission Control UI hay dựng 3D.
+**Công việc tiếp theo hiện tại:** Hoàn tất **CHẶNG E (`PHASE 07`–`08` + `Gate E PASS`)** và bản vá đồng bộ xuyên chặng (A–E); sẵn sàng chuyển sang **`PHASE 09 — Department Behaviors`** (`P09.01`–`P09.09`) của CHẶNG F.
 
 ---
 
@@ -991,4 +991,18 @@ Summary:
 - Mở khóa tối giản hai endpoint đọc-chỉ phục vụ `Gate E` tại `api/artifacts.py` (`GET /api/v1/artifacts/{artifact_id}` và `GET /api/v1/artifacts/{artifact_id}/download` kiểm SHA-256 và phạm vi quyền); cập nhật ranh giới tại `tests/stage_a/test_stage_a_baseline.py`, `tests/standards/test_standards_consistency.py`, `storage/README.md`, `api/README.md`, `tests/README.md` và lập báo cáo `docs/reviews/PHASE_08_GATE_E_AUDIT.md`.
 Blocking issue: Chưa chạy container Docker sandbox của Phase 07 trên host do daemon Docker Desktop đang tắt; tầng `api/` mới giới hạn ở endpoint tải Artifact cho Gate E, chưa mở endpoint điều phối Phase 12.
 Next: Chuyển sang **CHẶNG F — PHASE 09 (`P09.01`–`P09.09`) — Department Behaviors**.
+
+---
+
+### [2026-11-27] Cross-Stage Synchronization Hardening (Chặng A–E)
+Phase: Cross-Stage Sync Audit & Fix (`CHẶNG A–E`)
+Actor: AI Village Agent
+Summary:
+- **Mục A (Sửa 4 lỗi đồng bộ xuyên chặng):** `ArtifactVaultService.register_artifact` (`storage/artifacts/vault.py`) cập nhật `tasks.artifact_ids_json` (kèm `version = version + 1`) để `recover_task` trên Task `COMPLETED` đạt `VERIFIED_CLEAN`; `core/events/replay.py` đọc thêm `tool_id` bên cạnh `tool_name` để Replay ghi nhận `observed_tool_names`; `purge_artifact` thực thi `_do_purge()` ở cả nhánh `ALLOW` và `restore_backup` khôi phục tại chỗ bảo toàn các bảng `vault_backups`, `events` liên kết và trạng thái `CONSUMED` của `approval_requests`; `CollaborationDeliveryService.compile_master_delivery` (`core/orchestration/delivery.py`) tích hợp kiểm tra Vault `ACTIVE`/SHA-256 blob, chặn `TRASHED` và dùng `download_ref` `/api/v1/artifacts/{id}/download`.
+- **Mục B (Đồng bộ hợp đồng & nối dây A–D–E):** Đồng bộ `docs/standards/TOOL_SPEC.md` (Mục 2, 4.1–4.2, 12, 13, 14) và `tests/standards/test_standards_consistency.py` khớp 17 công cụ Phase 07 và `core/tools/models.py`; gắn `agent_registry` vào `ToolRuntime` (`core/tools/runtime.py`) để ép allowlist `tools.allowed` (giữ `agents/roles/it_artifact_worker/agent.yaml` ở mức tối thiểu `[]`, cấp quyền qua Approval Gate); nối `tool_runtime` + `artifact_vault` (`invoke_session_tool`, `register_session_artifact`) vào `WorkerSessionLifecycleService` (`core/orchestration/worker_sessions.py`); bổ sung `load_department_manifests` (`core/agents/loader.py`) và kiểm tra phòng ban `ACTIVE` trong `DynamicTeamBuilderService` (`core/orchestration/team_builder.py`).
+- **Mục C (Vệ sinh tài liệu):** Sửa dòng trạng thái cũ `P04.04` trong `docs/PROGRESS.md` và cập nhật docstring 17 công cụ tại `tools/registry_bootstrap.py`.
+- Bổ sung bộ kiểm thử tích hợp `tests/integration/test_stage_e_cross_stage_sync.py` (4 kịch bản bao phủ A1–A4 & B6) và cập nhật `tests/README.md`.
+Blocking issue: Docker Desktop daemon trên host vẫn đang tắt (`test_docker_sandbox_live_execution` bị skip).
+Tests / Evidence: `tests/integration/test_stage_e_cross_stage_sync.py` (`4 passed in 7.76s`); nhóm kiểm thử mục tiêu (`137 passed, 1 skipped in 43.54s`); toàn kho `python -m pytest tests -q` (`269 passed, 25 skipped`); `git diff --check` sạch lỗi.
+Next: Bắt đầu **CHẶNG F — PHASE 09 (`P09.01`–`P09.09`) — Department Behaviors**.
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from core.contracts.event import Event
@@ -42,6 +43,7 @@ from core.orchestration.team_models import (
 )
 
 if TYPE_CHECKING:
+    from core.agents.department import DepartmentManifest
     from core.agents.registry import AgentRegistryRecord, AgentRegistryService
 
 logger = logging.getLogger(__name__)
@@ -192,6 +194,8 @@ class DynamicTeamBuilderService:
         allowed_connections: Collection[str] | None = None,
         registered_tools: Collection[str] | None = None,
         local_only_providers: Collection[str] | None = None,
+        department_manifests: Mapping[str, DepartmentManifest] | None = None,
+        departments_root: str | Path | None = None,
     ) -> None:
         """Initialize Dynamic Team Builder with explicit Registry, Governance, and Storage ports."""
         self._repo = team_repo
@@ -207,6 +211,14 @@ class DynamicTeamBuilderService:
             if local_only_providers is not None
             else set(_DEFAULT_LOCAL_ONLY_PROVIDERS)
         )
+        if department_manifests is not None:
+            self._departments: dict[str, DepartmentManifest] | None = dict(department_manifests)
+        elif departments_root is not None:
+            from core.agents.loader import load_department_manifests
+
+            self._departments = load_department_manifests(departments_root)
+        else:
+            self._departments = None
 
     def _load_registry_split(self) -> tuple[list[AgentRegistryRecord], list[AgentRegistryRecord]]:
         """Load full Registry snapshot and verified ACTIVE-only search subset."""
@@ -279,6 +291,10 @@ class DynamicTeamBuilderService:
             exclusion_reasons.append("ORCHESTRATOR_NOT_WORKER")
         if not record.is_eligible_for_assignment():
             exclusion_reasons.append(f"AGENT_NOT_ACTIVE:{record.registration_status}")
+        if self._departments is not None:
+            dept_manifest = self._departments.get(record.manifest.department)
+            if dept_manifest is None or dept_manifest.status != "ACTIVE":
+                exclusion_reasons.append(f"DEPARTMENT_INACTIVE_OR_UNKNOWN:{record.manifest.department}")
 
         min_rank = _LEVEL_RANK[request.min_capability_level]
         for cap_id in step.required_capabilities:

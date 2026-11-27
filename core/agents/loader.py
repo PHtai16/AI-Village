@@ -217,3 +217,37 @@ def load_department_manifest_file(
             "INVALID_MANIFEST_SCHEMA",
             f"Department manifest failed schema validation: {exc}",
         ) from exc
+
+
+def load_department_manifests(
+    departments_root: str | Path,
+    *,
+    max_bytes: int = DEFAULT_MAX_MANIFEST_BYTES,
+) -> dict[str, DepartmentManifest]:
+    """Load and validate all ``*/department.yaml`` manifests under ``departments_root``."""
+    real_root = Path(os.path.realpath(departments_root))
+    if not real_root.is_dir():
+        raise ManifestLoadError(
+            "FILE_NOT_FOUND",
+            f"Departments root directory does not exist: '{real_root}'.",
+        )
+    manifests: dict[str, DepartmentManifest] = {}
+    for dept_file in sorted(real_root.glob("*/department.yaml")):
+        manifest = load_department_manifest_file(
+            dept_file,
+            allowed_root=real_root,
+            max_bytes=max_bytes,
+        )
+        folder_id = dept_file.parent.name
+        if folder_id != manifest.department_id:
+            raise ManifestLoadError(
+                "PATH_ID_MISMATCH",
+                f"Department directory '{folder_id}' does not match department_id '{manifest.department_id}'.",
+            )
+        if manifest.department_id in manifests:
+            raise ManifestLoadError(
+                "DUPLICATE_YAML_KEY",
+                f"Duplicate department_id '{manifest.department_id}' under '{real_root}'.",
+            )
+        manifests[manifest.department_id] = manifest
+    return manifests

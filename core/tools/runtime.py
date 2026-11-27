@@ -92,12 +92,14 @@ class ToolRuntime:
         permission_manager: PermissionManager,
         journal: EventJournal,
         tool_repo: ToolRepository | None = None,
+        agent_registry: Any | None = None,
     ) -> None:
-        """Compose ToolRegistry, Governance PermissionManager, EventJournal, and ToolRepository."""
+        """Compose ToolRegistry, Governance PermissionManager, EventJournal, ToolRepository, and optional AgentRegistry."""
         self._registry = registry
         self._permissions = permission_manager
         self._journal = journal
         self._repo = tool_repo
+        self._agent_registry = agent_registry
         self._records: list[ToolExecutionRecord] = []
 
     def invoke(
@@ -225,6 +227,64 @@ class ToolRuntime:
                 event_type="tool.call_failed",
             )
 
+        # Resolve Agent manifest tools.allowed when AgentRegistryService is wired.
+        effective_auth = request.auth_context
+        if self._agent_registry is not None and request.auth_context.actor_kind in {
+            "worker_agent",
+            "master_agent",
+        }:
+            agent_rec = self._agent_registry.get_agent(request.auth_context.actor_id)
+            if agent_rec is None:
+                return _finalize(
+                    status="DENIED",
+                    action="tool.invoke",
+                    error_code="AGENT_NOT_REGISTERED",
+                    error_message=f"Agent '{request.auth_context.actor_id}' is not registered in AgentRegistry.",
+                    event_type="tool.call_denied",
+                )
+            if agent_rec.registration_status != "ACTIVE":
+                return _finalize(
+                    status="DENIED",
+                    action="tool.invoke",
+                    error_code="AGENT_NOT_ACTIVE",
+                    error_message=(
+                        f"Agent '{request.auth_context.actor_id}' is '{agent_rec.registration_status}', not ACTIVE."
+                    ),
+                    event_type="tool.call_denied",
+                )
+            manifest_allowed = list(agent_rec.manifest.tools.allowed)
+            if manifest.id not in manifest_allowed:
+                return _finalize(
+                    status="DENIED",
+                    action="tool.invoke",
+                    error_code="TOOL_NOT_IN_AGENT_ALLOWLIST",
+                    error_message=(
+                        f"Tool '{manifest.id}' is not in manifest tools.allowed for '{request.auth_context.actor_id}'."
+                    ),
+                    event_type="tool.call_denied",
+                )
+            if request.auth_context.allowed_tools:
+                ctx_allowed = set(request.auth_context.allowed_tools)
+                eff_tools = [
+                    tool_name
+                    for tool_name in manifest_allowed
+                    if tool_name in ctx_allowed or "*" in ctx_allowed
+                ]
+                if manifest.id not in eff_tools:
+                    return _finalize(
+                        status="DENIED",
+                        action="tool.invoke",
+                        error_code="TOOL_NOT_IN_AGENT_ALLOWLIST",
+                        error_message=(
+                            f"Tool '{manifest.id}' is excluded from effective allowlist for "
+                            f"'{request.auth_context.actor_id}'."
+                        ),
+                        event_type="tool.call_denied",
+                    )
+            else:
+                eff_tools = manifest_allowed
+            effective_auth = request.auth_context.model_copy(update={"allowed_tools": eff_tools})
+
         # Resolve workspace scope path and canonical resource string.
         derived_target_path = _derive_target_path(manifest, request)
         resource = f"tool:{manifest.id}"
@@ -234,7 +294,7 @@ class ToolRuntime:
 
         # Step 3: Evaluate `tool.invoke` against allowlist, tool registry, and workspace bounds.
         invoke_req = PolicyRequest(
-            auth_context=request.auth_context,
+            auth_context=effective_auth,
             action="tool.invoke",
             resource=resource,
             tool_id=manifest.id,
@@ -264,7 +324,7 @@ class ToolRuntime:
         approval_trigger: tuple[str, PolicyDecision] | None = None
         for perm_action in manifest.permissions_required:
             perm_req = PolicyRequest(
-                auth_context=request.auth_context,
+                auth_context=effective_auth,
                 action=perm_action,
                 resource=resource,
                 tool_id=manifest.id,

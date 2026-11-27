@@ -489,6 +489,18 @@ class ArtifactVaultService:
                     ts_iso,
                 ),
             )
+            task_row = conn.execute(
+                "SELECT artifact_ids_json FROM tasks WHERE task_id = ?;",
+                (task_id,),
+            ).fetchone()
+            if task_row is not None:
+                existing_ids = json.loads(str(task_row["artifact_ids_json"]))
+                if aid not in existing_ids:
+                    existing_ids.append(aid)
+                    conn.execute(
+                        "UPDATE tasks SET artifact_ids_json = ?, version = version + 1 WHERE task_id = ?;",
+                        (_dumps(existing_ids), task_id),
+                    )
             entry = self._fetch_entry(conn, aid)
             assert entry is not None
 
@@ -560,6 +572,14 @@ class ArtifactVaultService:
             raise VaultError("ARTIFACT_NOT_FOUND", f"Artifact '{artifact_id}' does not exist.")
         self._assert_read_access(entry, auth_context)
         return entry
+
+    def inspect_artifact_for_delivery(self, artifact_id: str) -> tuple[ArtifactRegistryEntry, Path] | None:
+        """Return Vault metadata and canonical blob path for Master delivery verification."""
+        with self._store.open_connection() as conn:
+            entry = self._fetch_entry(conn, artifact_id)
+        if entry is None:
+            return None
+        return entry, self._canonical_blob_path(entry.blob_sha256)
 
     def get_version_history(
         self,
@@ -989,6 +1009,31 @@ class ArtifactVaultService:
                 f"Artifact '{artifact_id}' is referenced by other tasks {other_refs}; purge blocked.",
             )
 
+        def _do_purge() -> bool:
+            with self._store.transaction_scope() as conn:
+                conn.execute(
+                    """
+                    UPDATE artifact_registry_entries
+                    SET lifecycle_status = 'PURGED', purged_at = ?
+                    WHERE artifact_id = ?;
+                    """,
+                    (timestamp.isoformat(), artifact_id),
+                )
+                remaining = conn.execute(
+                    """
+                    SELECT COUNT(*) AS cnt FROM artifact_registry_entries
+                    WHERE blob_sha256 = ? AND lifecycle_status IN ('ACTIVE', 'TRASHED');
+                    """,
+                    (entry.blob_sha256,),
+                ).fetchone()
+                no_refs = int(remaining["cnt"]) == 0 if remaining is not None else False
+                if no_refs:
+                    conn.execute(
+                        "UPDATE vault_blobs SET purged_at = ? WHERE sha256 = ?;",
+                        (timestamp.isoformat(), entry.blob_sha256),
+                    )
+                return no_refs
+
         approval_svc = self._permissions.approval_service
         if decision.decision == "APPROVAL_REQUIRED":
             if approval_id is None or approval_svc is None:
@@ -1006,31 +1051,6 @@ class ArtifactVaultService:
                 parameters=params,
             )
 
-            def _do_purge() -> bool:
-                with self._store.open_connection() as conn:
-                    conn.execute(
-                        """
-                        UPDATE artifact_registry_entries
-                        SET lifecycle_status = 'PURGED', purged_at = ?
-                        WHERE artifact_id = ?;
-                        """,
-                        (timestamp.isoformat(), artifact_id),
-                    )
-                    remaining = conn.execute(
-                        """
-                        SELECT COUNT(*) AS cnt FROM artifact_registry_entries
-                        WHERE blob_sha256 = ? AND lifecycle_status IN ('ACTIVE', 'TRASHED');
-                        """,
-                        (entry.blob_sha256,),
-                    ).fetchone()
-                    no_refs = int(remaining["cnt"]) == 0 if remaining is not None else False
-                    if no_refs:
-                        conn.execute(
-                            "UPDATE vault_blobs SET purged_at = ? WHERE sha256 = ?;",
-                            (timestamp.isoformat(), entry.blob_sha256),
-                        )
-                    return no_refs
-
             try:
                 _, should_unlink = approval_svc.verify_and_consume(
                     approval_id,
@@ -1047,7 +1067,7 @@ class ArtifactVaultService:
             except ApprovalError as exc:
                 raise VaultError(exc.error_code, exc.message) from exc
         else:
-            should_unlink = False
+            should_unlink = _do_purge()
 
         blob_deleted = False
         if should_unlink:
@@ -1305,6 +1325,8 @@ class ArtifactVaultService:
                 raise VaultError("BACKUP_CORRUPTED", f"Backed blob '{rel_path}' failed SHA-256 check.")
             verified_blobs[rel_path] = raw
 
+        consumed_approval_row: dict[str, Any] | None = None
+        consumed_event_rows: list[dict[str, Any]] = []
         approval_svc = self._permissions.approval_service
         if decision.decision == "APPROVAL_REQUIRED":
             if approval_id is None or approval_svc is None:
@@ -1336,6 +1358,29 @@ class ArtifactVaultService:
                 )
             except ApprovalError as exc:
                 raise VaultError(exc.error_code, exc.message) from exc
+            with self._store.open_connection() as conn:
+                app_row = conn.execute(
+                    "SELECT * FROM approval_requests WHERE approval_id = ?;",
+                    (approval_id,),
+                ).fetchone()
+                if app_row is not None:
+                    consumed_approval_row = dict(app_row)
+                    ev_ids = [
+                        eid
+                        for eid in (
+                            consumed_approval_row.get("request_event_id"),
+                            consumed_approval_row.get("decision_event_id"),
+                            consumed_approval_row.get("consumed_event_id"),
+                        )
+                        if isinstance(eid, str) and eid
+                    ]
+                    if ev_ids:
+                        placeholders = ",".join("?" for _ in ev_ids)
+                        ev_rows = conn.execute(
+                            f"SELECT * FROM events WHERE event_id IN ({placeholders}) ORDER BY sequence_number ASC;",
+                            tuple(ev_ids),
+                        ).fetchall()
+                        consumed_event_rows = [dict(r) for r in ev_rows]
 
         dest_db = Path(target_db_path) if target_db_path is not None else self._store.config.db_path
         dest_vault = Path(target_vault_root) if target_vault_root is not None else self._root
@@ -1345,10 +1390,98 @@ class ArtifactVaultService:
         if target_db_path is not None:
             _atomic_write_bytes(dest_db, bak_db_path.read_bytes())
         else:
+            live_backup_rows: list[dict[str, Any]] = []
             with sqlite3.connect(str(bak_db_path)) as src_bak:
                 with self._store.open_connection() as live_conn:
+                    live_backup_rows = [
+                        dict(r) for r in live_conn.execute("SELECT * FROM vault_backups;").fetchall()
+                    ]
                     live_conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
                     src_bak.backup(live_conn)
+            if consumed_approval_row is not None or live_backup_rows:
+                with self._store.transaction_scope() as conn:
+                    for bkp_row in live_backup_rows:
+                        conn.execute(
+                            """
+                            INSERT OR IGNORE INTO vault_backups (
+                                backup_id, backup_relpath, db_sha256, manifest_sha256,
+                                blob_count, created_by, created_at, retention_days
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                            """,
+                            (
+                                bkp_row["backup_id"],
+                                bkp_row["backup_relpath"],
+                                bkp_row["db_sha256"],
+                                bkp_row["manifest_sha256"],
+                                bkp_row["blob_count"],
+                                bkp_row["created_by"],
+                                bkp_row["created_at"],
+                                bkp_row["retention_days"],
+                            ),
+                        )
+                    for ev_row in consumed_event_rows:
+                        conn.execute(
+                            """
+                            INSERT OR IGNORE INTO events (
+                                event_id, timestamp, event_type, source,
+                                task_id, run_id, session_id, actor_id,
+                                provider_id, connection_id, model_id, artifact_id,
+                                evidence_id, correlation_id, redacted_payload_json, batch_id
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                            """,
+                            (
+                                ev_row["event_id"],
+                                ev_row["timestamp"],
+                                ev_row["event_type"],
+                                ev_row["source"],
+                                ev_row["task_id"],
+                                ev_row["run_id"],
+                                ev_row["session_id"],
+                                ev_row["actor_id"],
+                                ev_row["provider_id"],
+                                ev_row["connection_id"],
+                                ev_row["model_id"],
+                                ev_row["artifact_id"],
+                                ev_row["evidence_id"],
+                                ev_row["correlation_id"],
+                                ev_row["redacted_payload_json"],
+                                ev_row["batch_id"],
+                            ),
+                        )
+                    if consumed_approval_row is not None:
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO approval_requests (
+                                approval_id, requester_id, requester_kind, action, target_resource,
+                                task_id, run_id, request_fingerprint, policy_snapshot_json, risk_summary,
+                                status, requested_at, expires_at, decided_at, decided_by, decision_reason,
+                                consumed_at, request_event_id, decision_event_id, consumed_event_id, version
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                            """,
+                            (
+                                consumed_approval_row["approval_id"],
+                                consumed_approval_row["requester_id"],
+                                consumed_approval_row["requester_kind"],
+                                consumed_approval_row["action"],
+                                consumed_approval_row["target_resource"],
+                                consumed_approval_row["task_id"],
+                                consumed_approval_row["run_id"],
+                                consumed_approval_row["request_fingerprint"],
+                                consumed_approval_row["policy_snapshot_json"],
+                                consumed_approval_row["risk_summary"],
+                                consumed_approval_row["status"],
+                                consumed_approval_row["requested_at"],
+                                consumed_approval_row["expires_at"],
+                                consumed_approval_row["decided_at"],
+                                consumed_approval_row["decided_by"],
+                                consumed_approval_row["decision_reason"],
+                                consumed_approval_row["consumed_at"],
+                                consumed_approval_row["request_event_id"],
+                                consumed_approval_row["decision_event_id"],
+                                consumed_approval_row["consumed_event_id"],
+                                consumed_approval_row["version"],
+                            ),
+                        )
 
         with sqlite_connection(SQLiteConfig(db_path=dest_db, enable_foreign_keys=True)) as check_conn:
             verify_schema_compatibility(check_conn)

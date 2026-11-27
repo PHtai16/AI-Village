@@ -275,7 +275,7 @@ def test_spec_yaml_examples_valid_and_consistent() -> None:
     assert len(tool_blocks) == 3
     for block in tool_blocks:
         tool_ex = yaml.safe_load(block)
-        assert TOOL_ID_RE.match(tool_ex["tool_id"])
+        assert TOOL_ID_RE.match(tool_ex["id"])
         assert tool_ex["status"] == "DRAFT", "Design example tools must not claim AVAILABLE"
         for action_id in tool_ex["permissions_required"]:
             assert ACTION_ID_RE.match(action_id)

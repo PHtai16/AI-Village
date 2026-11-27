@@ -167,7 +167,7 @@ def _extract_observed_tool(event: Event) -> str | None:
         return None
     if event.source not in {"provider", "tool_runtime", "agent_runtime", "engine_adapter"}:
         return None
-    tool_name = event.redacted_payload.get("tool_name")
+    tool_name = event.redacted_payload.get("tool_name") or event.redacted_payload.get("tool_id")
     if isinstance(tool_name, str) and tool_name.strip():
         return tool_name.strip()
     return None

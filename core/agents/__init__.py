@@ -14,6 +14,7 @@ from core.agents.loader import (
     ManifestLoadErrorCode,
     load_agent_manifest_file,
     load_department_manifest_file,
+    load_department_manifests,
     load_yaml_document,
 )
 from core.agents.manifest import (
@@ -142,6 +143,7 @@ __all__ = [
     "is_valid_worker_department",
     "load_agent_manifest_file",
     "load_department_manifest_file",
+    "load_department_manifests",
     "load_yaml_document",
     "manifest_to_spike_agent_spec",
     "new_recruitment_id",

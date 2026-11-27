@@ -45,6 +45,7 @@ class CollaborationDeliveryService:
         run_repo: Any,
         metadata_repo: Any,
         permission_manager: PermissionManager,
+        artifact_vault: Any | None = None,
     ) -> None:
         """Inject explicit persistence ports and Governance manager."""
         self._collab = collaboration_repo
@@ -53,6 +54,7 @@ class CollaborationDeliveryService:
         self._runs = run_repo
         self._metadata = metadata_repo
         self._permissions = permission_manager
+        self._vault = artifact_vault
 
     def _authorize(
         self,
@@ -329,18 +331,51 @@ class CollaborationDeliveryService:
             disk_exists = False
             actual_sha: str | None = None
             matched = False
+            download_ref = f"artifact://{task.task_id}/{art.artifact_id}/{art.relative_path}"
+            ws_blocker: str | None = None
             if not ws_res.allowed or ws_res.canonical_path is None:
-                blockers.append(f"Artifact '{art_id}' path violation: {ws_res.message}")
+                ws_blocker = f"Artifact '{art_id}' path violation: {ws_res.message}"
             else:
                 disk_path = Path(ws_res.canonical_path)
                 disk_exists = disk_path.is_file()
                 if not disk_exists:
-                    blockers.append(f"Artifact '{art_id}' file missing on disk: '{art.relative_path}'.")
+                    ws_blocker = f"Artifact '{art_id}' file missing on disk: '{art.relative_path}'."
                 else:
                     actual_sha = compute_sha256_file(disk_path)
                     matched = art.sha256 is not None and actual_sha == art.sha256
                     if not matched:
-                        blockers.append(f"Artifact '{art_id}' disk SHA-256 mismatches recorded digest.")
+                        ws_blocker = f"Artifact '{art_id}' disk SHA-256 mismatches recorded digest."
+
+            vault_info = (
+                self._vault.inspect_artifact_for_delivery(art_id)
+                if self._vault is not None
+                else None
+            )
+            if vault_info is not None:
+                vault_entry, blob_path = vault_info
+                download_ref = f"/api/v1/artifacts/{art.artifact_id}/download"
+                if vault_entry.lifecycle_status != "ACTIVE":
+                    if not ws_res.allowed and ws_blocker is not None:
+                        blockers.append(ws_blocker)
+                    blockers.append(
+                        f"Artifact '{art_id}' is not ACTIVE in Vault (status='{vault_entry.lifecycle_status}')."
+                    )
+                    matched = False
+                else:
+                    if not disk_exists and ws_res.allowed and blob_path.is_file():
+                        blob_sha = compute_sha256_file(blob_path)
+                        disk_exists = True
+                        actual_sha = blob_sha
+                        matched = art.sha256 is not None and blob_sha == art.sha256
+                        ws_blocker = (
+                            None
+                            if matched
+                            else f"Artifact '{art_id}' Vault blob SHA-256 mismatches recorded digest."
+                        )
+                    if ws_blocker is not None:
+                        blockers.append(ws_blocker)
+            elif ws_blocker is not None:
+                blockers.append(ws_blocker)
 
             if art.verification_status != "VERIFIED_PASS":
                 blockers.append(f"Artifact '{art_id}' QA status is '{art.verification_status}', not VERIFIED_PASS.")
@@ -357,7 +392,7 @@ class CollaborationDeliveryService:
                     integrity_matched=matched,
                     verification_status=art.verification_status,
                     evidence_reference=art.evidence_reference,
-                    download_ref=f"artifact://{task.task_id}/{art.artifact_id}/{art.relative_path}",
+                    download_ref=download_ref,
                 )
             )
 
