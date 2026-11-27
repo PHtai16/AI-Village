@@ -552,6 +552,91 @@ class ArtifactVaultService:
             assert updated is not None
             return updated
 
+    def update_verification_status(
+        self,
+        artifact_id: str,
+        *,
+        verification_status: ArtifactVerificationStatus,
+        evidence_reference: str | None,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> ArtifactRegistryEntry:
+        """Independently update QA verification status and evidence link inside one transaction."""
+        self._authorize(
+            auth_context=auth_context,
+            action="vault.write",
+            resource=f"vault:verify:{artifact_id}",
+            timestamp=timestamp,
+        )
+        if auth_context.actor_kind not in {"trusted_verifier", "human_operator"}:
+            raise VaultError(
+                "INDEPENDENT_VERIFIER_REQUIRED",
+                f"Actor kind '{auth_context.actor_kind}' cannot grant Vault QA verification status.",
+            )
+        if verification_status == "VERIFIED_PASS" and (
+            evidence_reference is None or not evidence_reference.strip()
+        ):
+            raise VaultError(
+                "QA_EVIDENCE_REQUIRED",
+                "VERIFIED_PASS requires non-empty independent QA evidence_reference.",
+            )
+
+        with self._store.transaction_scope() as conn:
+            existing = self._fetch_entry(conn, artifact_id)
+            if existing is None:
+                raise VaultError("ARTIFACT_NOT_FOUND", f"Artifact '{artifact_id}' does not exist.")
+            if auth_context.actor_id == existing.owner_agent_id:
+                raise VaultError(
+                    "SELF_VERIFICATION_FORBIDDEN",
+                    f"Artifact producer '{existing.owner_agent_id}' cannot self-verify '{artifact_id}'.",
+                )
+            conn.execute(
+                """
+                UPDATE artifact_registry_entries
+                SET verification_status = ?, evidence_reference = ?
+                WHERE artifact_id = ?;
+                """,
+                (verification_status, evidence_reference, artifact_id),
+            )
+            conn.execute(
+                """
+                UPDATE artifacts
+                SET verification_status = ?, evidence_reference = ?
+                WHERE artifact_id = ?;
+                """,
+                (verification_status, evidence_reference, artifact_id),
+            )
+            updated = self._fetch_entry(conn, artifact_id)
+            assert updated is not None
+
+        ev_id_ref = (
+            evidence_reference
+            if evidence_reference and evidence_reference.startswith("evd_")
+            else None
+        )
+        self._journal.append(
+            Event(
+                event_id=new_event_id(),
+                timestamp=timestamp,
+                event_type="qa.verification_recorded",
+                source="qa_verifier",
+                task_id=updated.task_id,
+                run_id=updated.run_id,
+                artifact_id=updated.artifact_id,
+                evidence_id=ev_id_ref,
+                correlation_id=f"qa-ver-{updated.artifact_id}",
+                redacted_payload=sanitize_payload(
+                    {
+                        "artifact_id": updated.artifact_id,
+                        "verification_status": verification_status,
+                        "evidence_reference": evidence_reference,
+                        "verified_by": auth_context.actor_id,
+                    }
+                ),
+            )
+        )
+        return updated
+
     def get_artifact(
         self,
         artifact_id: str,

@@ -174,7 +174,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
 
     core_root = REPO_ROOT / "core"
     assert not list(core_root.rglob("*.js")), "Unexpected JS files inside core/."
-    # Phase 05 authorizes core/agents/*.py (P05.01-P05.02) while agents/ stays YAML-only.
+    # Phase 05 authorizes core/agents/*.py (P05.01-P05.02) and Phase 09 authorizes core/departments/*.py while agents/ stays YAML-only.
     allowed_core_subdirs = {
         core_root / "orchestration",
         core_root / "runtime",
@@ -184,6 +184,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         core_root / "governance",
         core_root / "agents",
         core_root / "tools",
+        core_root / "departments",
     }
     unexpected_core_py = [
         p.relative_to(core_root).as_posix()
