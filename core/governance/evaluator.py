@@ -43,6 +43,10 @@ PERMISSION_MATRIX_ACTIONS: frozenset[str] = frozenset(
         "agent.change_permissions",
         "agent.change_department",
         "agent.change_connection",
+        "meeting.convene",
+        "meeting.participate",
+        "meeting.decide",
+        "master.deliver",
         "runtime.cancel",
         "connection.read",
         "connection.manage",
@@ -109,6 +113,10 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "agent.update",
                 "agent.disable",
                 "agent.enable",
+                "meeting.convene",
+                "meeting.participate",
+                "meeting.decide",
+                "master.deliver",
                 "runtime.cancel",
                 "connection.read",
                 "approval.request",
@@ -161,6 +169,10 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "agent.assign",
                 "agent.recruit",
                 "agent.read",
+                "meeting.convene",
+                "meeting.participate",
+                "meeting.decide",
+                "master.deliver",
                 "runtime.cancel",
                 "connection.read",
                 "approval.request",
@@ -184,6 +196,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "tool.invoke",
                 "agent.read",
                 "agent.handoff",
+                "meeting.participate",
                 "approval.request",
             ],
         ),
@@ -205,6 +218,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "agent.handoff",
                 "agent.recruit",
                 "agent.read",
+                "meeting.participate",
                 "runtime.cancel",
                 "files.read",
             ],
@@ -381,6 +395,9 @@ class PolicyEvaluator:
             "agent.disable",
             "agent.enable",
             "agent.change_department",
+            "meeting.convene",
+            "meeting.decide",
+            "master.deliver",
             "trash.purge",
         }:
             return _make_decision(
@@ -402,6 +419,18 @@ class PolicyEvaluator:
                 reason_code="PRIVILEGE_ESCALATION_DENIED",
                 message="Handoff cannot expand receiver permissions, grant tools, or bypass QA.",
                 matched_ids=["inv.handoff_no_privilege_escalation"],
+                system_deny=True,
+            )
+
+        if request.action == "master.deliver" and (
+            bool(request.parameters.get("override_qa_unverified"))
+            or bool(request.parameters.get("force_verified"))
+        ):
+            return _make_decision(
+                "DENY",
+                reason_code="QA_BYPASS_DENIED",
+                message="Master delivery cannot mark unverified deliverables as VERIFIED or bypass QA.",
+                matched_ids=["inv.master_delivery_no_qa_bypass"],
                 system_deny=True,
             )
 

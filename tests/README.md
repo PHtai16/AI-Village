@@ -57,6 +57,8 @@ python -m pytest tests/orchestration/test_p05_03_04_integration_acceptance.py -v
 python -m pytest tests/orchestration/test_p05_05_worker_session_lifecycle.py -v
 python -m pytest tests/orchestration/test_p05_06_worker_handoff.py -v
 python -m pytest tests/orchestration/test_p05_05_06_integration_acceptance.py -v
+python -m pytest tests/orchestration/test_p06_01_04_meetings.py -v
+python -m pytest tests/orchestration/test_p06_05_06_delivery_and_gate_d.py -v
 python -m pytest tests/storage/test_p04_04_sqlite_migrations.py -v
 python -m pytest tests/storage/test_p04_05_persistent_repositories.py -v
 python -m pytest tests/storage/test_p04_05_persistence_acceptance.py -v
