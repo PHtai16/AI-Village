@@ -439,6 +439,10 @@ def replay_task_history(
 
         if ev.artifact_id and ev.artifact_id not in artifact_ids:
             artifact_ids.append(ev.artifact_id)
+        if ev.event_type == "agent.handoff":
+            for raw_art_id in ev.redacted_payload.get("artifact_ids", []):
+                if isinstance(raw_art_id, str) and raw_art_id and raw_art_id not in artifact_ids:
+                    artifact_ids.append(raw_art_id)
 
         tool_name = _extract_observed_tool(ev)
         if tool_name and tool_name not in observed_tools:

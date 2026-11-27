@@ -32,7 +32,7 @@ Khi phát hiện sự không đồng nhất giữa Blueprint và các tài liệ
 - Tuyệt đối không âm thầm thay đổi mã nguồn hoặc cấu trúc tài liệu kiến trúc.
 - Báo cáo rõ ràng tệp tin, vị trí mâu thuẫn và đề xuất phương án giải quyết cụ thể.
 - Yêu cầu người vận hành phê duyệt trước khi áp dụng bất kỳ thay đổi nào lên các hợp đồng dữ liệu.
-- Lưu ý đặc biệt: Định danh Master Agent (`id: "core.master"`, `department: "orchestration"`) và trường `system_role` (`"worker"` / `"orchestrator"`) đã được đồng bộ vào `docs/standards/AGENT_SPEC.md`, nhưng Runtime hiện chưa triển khai hay kích hoạt schema này.
+- Lưu ý đặc biệt: Định danh Master Agent (`id: "core.master"`, `department: "orchestration"`) và trường `system_role` (`"worker"` / `"orchestrator"`) đã được đồng bộ vào `docs/standards/AGENT_SPEC.md`, triển khai tại `core/agents/` (`AgentRegistryService`, `AgentRecruitmentService`) và kích hoạt cùng `agents/master/agent.yaml` từ Phase 05.
 
 ## 4. Bảo vệ định hướng dự án
 

@@ -7,10 +7,16 @@ from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any, Literal
 
-from core.contracts.event import Event, EventSource
+from core.contracts.event import Event
 from core.contracts.identifiers import new_event_id, validate_agent_id, validate_aware_datetime
 from core.governance.manager import PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyDecision, PolicyRequest, RoutingContext, TrustedAuthContext
+from core.governance.models import (
+    PolicyDecision,
+    PolicyRequest,
+    RoutingContext,
+    TrustedAuthContext,
+    actor_kind_to_event_source as _actor_kind_to_event_source,
+)
 from core.orchestration.planning_models import PlanNotFoundError, PlanRepository, PlanStepSpec, StoredMasterPlan
 from core.orchestration.team_models import (
     AgentStalenessIssue,
@@ -57,19 +63,6 @@ def _resolve_team_actor_id(auth_context: TrustedAuthContext) -> str:
         if auth_context.actor_kind == "human_operator":
             return "operator.local"
         return "core.master"
-
-
-def _actor_kind_to_event_source(actor_kind: str) -> EventSource:
-    """Map actor_kind to canonical EventSource."""
-    if actor_kind == "human_operator":
-        return "operator"
-    if actor_kind == "master_agent":
-        return "orchestrator"
-    if actor_kind == "runtime_service":
-        return "core_runtime"
-    if actor_kind == "trusted_verifier":
-        return "qa_verifier"
-    return "governance"
 
 
 def _highest_verification_level(

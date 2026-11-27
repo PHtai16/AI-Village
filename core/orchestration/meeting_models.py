@@ -10,7 +10,7 @@ import uuid
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.contracts.artifact import ArtifactVerificationStatus
-from core.contracts.event import Event, EventSource
+from core.contracts.event import Event
 from core.contracts.identifiers import (
     AgentId,
     ArtifactId,
@@ -24,7 +24,11 @@ from core.contracts.identifiers import (
     validate_aware_datetime,
     validate_safe_relative_path,
 )
-from core.governance.models import TrustedAuthContext
+from core.governance.models import (
+    TrustedAuthContext,
+    actor_kind_to_event_source,
+    resolve_trusted_auth_context,
+)
 from core.orchestration.handoff_models import HandoffId, HandoffRevisionRecord, StoredWorkerHandoff
 from core.orchestration.planning_models import PlanId, StepId
 from core.orchestration.team_models import TeamProposalId
@@ -48,52 +52,6 @@ VALID_MEETING_TRANSITIONS: dict[MeetingStatus, frozenset[MeetingStatus]] = {
     "DECIDED": frozenset({"CLOSED"}),
     "CLOSED": frozenset(),
 }
-
-_ACTOR_KIND_TO_SOURCE: dict[str, EventSource] = {
-    "operator": "operator",
-    "human_operator": "operator",
-    "orchestrator": "orchestrator",
-    "master_agent": "orchestrator",
-    "core_runtime": "core_runtime",
-    "runtime_service": "core_runtime",
-    "qa_verifier": "qa_verifier",
-    "trusted_verifier": "qa_verifier",
-    "worker_agent": "agent_runtime",
-}
-
-_TO_GOV_ACTOR_KIND: dict[
-    str,
-    Literal["human_operator", "master_agent", "worker_agent", "runtime_service", "trusted_verifier"],
-] = {
-    "operator": "human_operator",
-    "human_operator": "human_operator",
-    "orchestrator": "master_agent",
-    "master_agent": "master_agent",
-    "core_runtime": "runtime_service",
-    "runtime_service": "runtime_service",
-    "qa_verifier": "trusted_verifier",
-    "trusted_verifier": "trusted_verifier",
-    "worker_agent": "worker_agent",
-}
-
-
-def actor_kind_to_event_source(actor_kind: str) -> EventSource:
-    """Map workflow ``actor_kind`` into canonical ``EventSource``."""
-    return _ACTOR_KIND_TO_SOURCE.get(actor_kind, "governance")
-
-
-def build_trusted_auth(actor_id: str, actor_kind: str) -> TrustedAuthContext:
-    """Build verified ``TrustedAuthContext`` for Phase 06 Governance checks."""
-    gov_kind = _TO_GOV_ACTOR_KIND.get(actor_kind, "worker_agent")
-    auth_source: Literal["application_boundary", "operator_session"] = (
-        "operator_session" if gov_kind == "human_operator" else "application_boundary"
-    )
-    return TrustedAuthContext(
-        actor_id=actor_id,
-        actor_kind=gov_kind,
-        auth_source=auth_source,
-        authenticated=True,
-    )
 
 
 def _new_prefixed_id(prefix: str) -> str:
@@ -510,6 +468,7 @@ class MeetingOpenRequest(BaseModel):
     involved_step_ids: list[StepId] = Field(default_factory=list, max_length=16)
     actor_id: AgentId = "core.master"
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     max_rounds: int = Field(default=3, ge=1, le=5)
     max_turns: int = Field(default=6, ge=2, le=20)
     timestamp: datetime
@@ -527,6 +486,7 @@ class MeetingTurnRequest(BaseModel):
     round_number: int = Field(ge=1)
     speaker_id: AgentId
     speaker_kind: ActorTrustKind = "worker_agent"
+    auth_context: TrustedAuthContext | None = None
     turn_kind: MeetingTurnKind
     statement: str = Field(min_length=3, max_length=2000)
     target_turn_id: str | None = None
@@ -552,6 +512,7 @@ class MasterDecisionRequest(BaseModel):
     run_id: RunId | None = None
     actor_id: AgentId = "core.master"
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     chosen_option: str = Field(min_length=3, max_length=500)
     decision_summary: str = Field(min_length=3, max_length=1000)
     user_visible_rationale: str = Field(min_length=10, max_length=2000)
@@ -594,6 +555,7 @@ class WorkerConflictResolveRequest(BaseModel):
     conflict_id: ConflictId
     actor_id: AgentId = "core.master"
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     resolution_summary: str = Field(min_length=5, max_length=1000)
     decision_id: DecisionId | None = None
     handoff_id: HandoffId | None = None
@@ -613,6 +575,7 @@ class MasterDeliveryCompileRequest(BaseModel):
     run_id: RunId
     actor_id: AgentId = "core.master"
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     workspace_root: str = Field(min_length=1, max_length=512)
     artifact_ids: list[ArtifactId] = Field(default_factory=list, max_length=64)
     known_limitations: list[str] = Field(default_factory=list, max_length=32)

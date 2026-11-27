@@ -30,6 +30,7 @@ from core.contracts.identifiers import (
     validate_aware_datetime,
     validate_safe_relative_path,
 )
+from core.governance.models import TrustedAuthContext
 from core.orchestration.planning_models import PlanId, StepId
 from core.orchestration.team_models import TeamProposalId
 from core.tasks.transitions import ActorTrustKind
@@ -404,6 +405,7 @@ class HandoffCreateRequest(BaseModel):
     from_session_id: SessionId
     actor_id: AgentId
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     workspace_root: str = Field(min_length=1, max_length=512)
     target_workspace_scope: str = Field(min_length=1, max_length=512)
     artifact_ids: list[ArtifactId] = Field(default_factory=list, max_length=64)
@@ -454,6 +456,7 @@ class HandoffDeliveryRequest(BaseModel):
     handoff_id: HandoffId
     actor_id: AgentId
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     workspace_root: str = Field(min_length=1, max_length=512)
     to_session_id: SessionId | None = None
     timestamp: datetime
@@ -476,6 +479,7 @@ class HandoffAcknowledgeRequest(BaseModel):
     handoff_id: HandoffId
     actor_id: AgentId
     actor_kind: ActorTrustKind = "worker_agent"
+    auth_context: TrustedAuthContext | None = None
     to_session_id: SessionId | None = None
     note: str = Field(default="Acknowledged structured handoff package", min_length=1, max_length=500)
     timestamp: datetime
@@ -502,6 +506,7 @@ class HandoffRejectRequest(BaseModel):
     handoff_id: HandoffId
     actor_id: AgentId
     actor_kind: ActorTrustKind = "worker_agent"
+    auth_context: TrustedAuthContext | None = None
     rejection_reason: str = Field(min_length=3, max_length=500)
     timestamp: datetime
     correlation_id: str | None = Field(default=None, min_length=1, max_length=80)

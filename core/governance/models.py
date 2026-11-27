@@ -8,6 +8,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from core.contracts.event import EventSource
 from core.contracts.identifiers import (
     EventId,
     RunId,
@@ -75,6 +76,70 @@ class TrustedAuthContext(BaseModel):
                 "Agent-claimed context cannot authenticate as a trusted human_operator."
             )
         return self
+
+
+_ACTOR_KIND_TO_SOURCE: dict[str, EventSource] = {
+    "operator": "operator",
+    "human_operator": "operator",
+    "orchestrator": "orchestrator",
+    "master_agent": "orchestrator",
+    "core_runtime": "core_runtime",
+    "runtime_service": "core_runtime",
+    "qa_verifier": "qa_verifier",
+    "trusted_verifier": "qa_verifier",
+    "worker_agent": "agent_runtime",
+}
+
+_TO_GOV_ACTOR_KIND: dict[str, ActorKind] = {
+    "operator": "human_operator",
+    "human_operator": "human_operator",
+    "orchestrator": "master_agent",
+    "master_agent": "master_agent",
+    "core_runtime": "runtime_service",
+    "runtime_service": "runtime_service",
+    "governance": "runtime_service",
+    "qa_verifier": "trusted_verifier",
+    "trusted_verifier": "trusted_verifier",
+    "worker_agent": "worker_agent",
+}
+
+
+def actor_kind_to_event_source(actor_kind: str) -> EventSource:
+    """Map workflow or governance ``actor_kind`` into canonical ``EventSource``."""
+    return _ACTOR_KIND_TO_SOURCE.get(actor_kind, "governance")
+
+
+def resolve_trusted_auth_context(
+    *,
+    auth_context: TrustedAuthContext | None,
+    actor_id: str,
+    actor_kind: str,
+) -> TrustedAuthContext:
+    """Return explicit caller ``auth_context`` or build bounded context without minting operator auth."""
+    if auth_context is not None:
+        return auth_context
+    gov_kind = _TO_GOV_ACTOR_KIND.get(actor_kind)
+    if gov_kind is None:
+        return TrustedAuthContext(
+            actor_id=actor_id,
+            actor_kind="worker_agent",
+            auth_source="agent_claimed",
+            authenticated=False,
+        )
+    if gov_kind == "human_operator":
+        # Never mint authenticated operator session from unverified string request fields.
+        return TrustedAuthContext(
+            actor_id=actor_id,
+            actor_kind="human_operator",
+            auth_source="application_boundary",
+            authenticated=False,
+        )
+    return TrustedAuthContext(
+        actor_id=actor_id,
+        actor_kind=gov_kind,
+        auth_source="application_boundary",
+        authenticated=True,
+    )
 
 
 class PolicyRule(BaseModel):

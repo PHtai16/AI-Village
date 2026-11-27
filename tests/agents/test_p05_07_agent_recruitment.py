@@ -133,6 +133,7 @@ def test_p05_07_propose_evaluate_activate_and_restart_recovery(tmp_path: Path) -
                 proposal_id=proposed.proposal.proposal_id,
                 actor_id="operator.alice",
                 actor_kind="operator",
+                auth_context=_operator_ctx("operator.alice"),
                 validated_capabilities=["security_audit"],
                 timestamp=t0 + timedelta(seconds=10),
             )
@@ -190,6 +191,7 @@ def test_p05_07_sensitive_grants_require_approval_and_succeed_with_approval(tmp_
                     proposal_id=proposed.proposal.proposal_id,
                     actor_id="operator.alice",
                     actor_kind="operator",
+                    auth_context=_operator_ctx("operator.alice"),
                     timestamp=t0 + timedelta(seconds=4),
                 )
             )
@@ -238,6 +240,7 @@ def test_p05_07_sensitive_grants_require_approval_and_succeed_with_approval(tmp_
                 proposal_id=proposed.proposal.proposal_id,
                 actor_id="operator.alice",
                 actor_kind="operator",
+                auth_context=_operator_ctx("operator.alice"),
                 approval_id=apr.approval_id,
                 timestamp=t0 + timedelta(seconds=7),
             )
@@ -357,6 +360,7 @@ def test_p05_07_fail_closed_blocks_invalid_recruitment_cases(tmp_path: Path, cas
                         proposal_id=proposed.proposal.proposal_id,
                         actor_id="operator.alice",
                         actor_kind="operator",
+                        auth_context=_operator_ctx("operator.alice"),
                         timestamp=t0 + timedelta(seconds=1),
                     )
                 )
@@ -378,6 +382,7 @@ def test_p05_07_fail_closed_blocks_invalid_recruitment_cases(tmp_path: Path, cas
                         proposal_id=proposed.proposal.proposal_id,
                         actor_id="operator.alice",
                         actor_kind="operator",
+                        auth_context=_operator_ctx("operator.alice"),
                         timestamp=t0 + timedelta(seconds=2),
                     )
                 )
@@ -387,6 +392,7 @@ def test_p05_07_fail_closed_blocks_invalid_recruitment_cases(tmp_path: Path, cas
                     proposal_id=proposed.proposal.proposal_id,
                     actor_id="operator.alice",
                     actor_kind="operator",
+                    auth_context=_operator_ctx("operator.alice"),
                     reason="Role unnecessary.",
                     timestamp=t0 + timedelta(seconds=1),
                 )
@@ -398,6 +404,7 @@ def test_p05_07_fail_closed_blocks_invalid_recruitment_cases(tmp_path: Path, cas
                         proposal_id=proposed.proposal.proposal_id,
                         actor_id="operator.alice",
                         actor_kind="operator",
+                        auth_context=_operator_ctx("operator.alice"),
                         timestamp=t0 + timedelta(seconds=2),
                     )
                 )

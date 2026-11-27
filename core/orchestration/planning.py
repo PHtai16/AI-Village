@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from core.contracts.event import Event, EventSource
+from core.contracts.event import Event
 from core.contracts.identifiers import (
     AgentId,
     CapabilityId,
@@ -27,7 +27,13 @@ from core.contracts.identifiers import (
 )
 from core.contracts.references import ChecklistItem
 from core.governance.manager import PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyDecision, PolicyRequest, RoutingContext, TrustedAuthContext
+from core.governance.models import (
+    PolicyDecision,
+    PolicyRequest,
+    RoutingContext,
+    TrustedAuthContext,
+    actor_kind_to_event_source as _actor_kind_to_event_source,
+)
 from core.governance.workspace import validate_workspace_path
 from core.orchestration.planning_models import (
     MasterWorkPlan,
@@ -61,19 +67,6 @@ _DEFAULT_LOCAL_ONLY_PROVIDERS: frozenset[str] = frozenset({"ollama", "local_llm"
 _VAGUE_OBJECTIVES: frozenset[str] = frozenset(
     {"tbd", "todo", "help", "fix", "work", "do it", "chua ro", "chưa rõ", "n/a", "none"}
 )
-
-
-def _actor_kind_to_event_source(actor_kind: str) -> EventSource:
-    """Map TrustedAuthContext.actor_kind to canonical EventSource."""
-    if actor_kind == "human_operator":
-        return "operator"
-    if actor_kind == "master_agent":
-        return "orchestrator"
-    if actor_kind == "runtime_service":
-        return "core_runtime"
-    if actor_kind == "trusted_verifier":
-        return "qa_verifier"
-    return "governance"
 
 
 def _resolve_plan_actor_id(auth_context: TrustedAuthContext) -> str:

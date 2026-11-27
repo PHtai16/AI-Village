@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from core.agents.manifest import AgentManifest
 from core.agents.recruitment_models import (
@@ -30,10 +30,15 @@ from core.agents.registry import (
     AgentRegistryService,
     _manifest_has_sensitive_initial_grants,
 )
-from core.contracts.event import Event, EventSource, sanitize_event_payload
+from core.contracts.event import Event, sanitize_event_payload
 from core.contracts.identifiers import new_event_id, validate_aware_datetime
 from core.governance.manager import GovernanceAuditError, PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyRequest, TrustedAuthContext
+from core.governance.models import (
+    PolicyRequest,
+    TrustedAuthContext,
+    actor_kind_to_event_source,
+    resolve_trusted_auth_context,
+)
 from core.governance.workspace import validate_workspace_path
 
 if TYPE_CHECKING:
@@ -41,47 +46,6 @@ if TYPE_CHECKING:
     from engines.registry import EngineRegistry
 
 logger = logging.getLogger(__name__)
-
-_ACTOR_KIND_TO_SOURCE: dict[str, EventSource] = {
-    "operator": "operator",
-    "human_operator": "operator",
-    "orchestrator": "orchestrator",
-    "master_agent": "orchestrator",
-    "core_runtime": "core_runtime",
-    "runtime_service": "core_runtime",
-    "qa_verifier": "qa_verifier",
-    "trusted_verifier": "qa_verifier",
-    "worker_agent": "agent_runtime",
-}
-
-_TO_GOV_ACTOR_KIND: dict[
-    str,
-    Literal["human_operator", "master_agent", "worker_agent", "runtime_service", "trusted_verifier"],
-] = {
-    "operator": "human_operator",
-    "human_operator": "human_operator",
-    "orchestrator": "master_agent",
-    "master_agent": "master_agent",
-    "core_runtime": "runtime_service",
-    "runtime_service": "runtime_service",
-    "qa_verifier": "trusted_verifier",
-    "trusted_verifier": "trusted_verifier",
-    "worker_agent": "worker_agent",
-}
-
-
-def _trusted_auth(actor_id: str, actor_kind: str) -> TrustedAuthContext:
-    """Build verified ``TrustedAuthContext`` for recruitment Governance checks."""
-    gov_kind = _TO_GOV_ACTOR_KIND.get(actor_kind, "worker_agent")
-    auth_source: Literal["application_boundary", "operator_session"] = (
-        "operator_session" if gov_kind == "human_operator" else "application_boundary"
-    )
-    return TrustedAuthContext(
-        actor_id=actor_id,
-        actor_kind=gov_kind,
-        auth_source=auth_source,
-        authenticated=True,
-    )
 
 
 class AgentRecruitmentService:
@@ -106,6 +70,7 @@ class AgentRecruitmentService:
     def _authorize_recruit(
         self,
         *,
+        auth_context: TrustedAuthContext | None = None,
         actor_id: str,
         actor_kind: str,
         candidate_agent_id: str,
@@ -115,7 +80,11 @@ class AgentRecruitmentService:
         parameters: dict[str, Any],
     ) -> TrustedAuthContext:
         """Enforce Governance ``agent.recruit`` action fail-closed."""
-        auth = _trusted_auth(actor_id, actor_kind)
+        auth = resolve_trusted_auth_context(
+            auth_context=auth_context,
+            actor_id=actor_id,
+            actor_kind=actor_kind,
+        )
         req = PolicyRequest(
             auth_context=auth,
             action="agent.recruit",
@@ -168,6 +137,7 @@ class AgentRecruitmentService:
         proposal_id = request.proposal_id or new_recruitment_id()
         corr_id = request.correlation_id or f"corr-recruit-{proposal_id}"
         self._authorize_recruit(
+            auth_context=request.auth_context,
             actor_id=request.proposer_id,
             actor_kind=request.proposer_kind,
             candidate_agent_id=manifest.id,
@@ -196,7 +166,7 @@ class AgentRecruitmentService:
             event_id=new_event_id(),
             timestamp=request.timestamp,
             event_type="agent.recruitment_proposed",
-            source=_ACTOR_KIND_TO_SOURCE.get(request.proposer_kind, "governance"),
+            source=actor_kind_to_event_source(request.proposer_kind),
             task_id=request.task_id,
             actor_id=request.proposer_id,
             correlation_id=corr_id,
@@ -308,6 +278,7 @@ class AgentRecruitmentService:
 
         corr_id = request.correlation_id or prop.correlation_id
         self._authorize_recruit(
+            auth_context=request.auth_context,
             actor_id=request.evaluator_id,
             actor_kind=request.evaluator_kind,
             candidate_agent_id=prop.candidate_agent_id,
@@ -350,7 +321,7 @@ class AgentRecruitmentService:
             event_id=new_event_id(),
             timestamp=request.timestamp,
             event_type="agent.recruitment_evaluated",
-            source=_ACTOR_KIND_TO_SOURCE.get(request.evaluator_kind, "qa_verifier"),
+            source=actor_kind_to_event_source(request.evaluator_kind),
             task_id=prop.task_id,
             actor_id=request.evaluator_id,
             correlation_id=corr_id,
@@ -405,6 +376,7 @@ class AgentRecruitmentService:
 
         corr_id = request.correlation_id or prop.correlation_id
         auth = self._authorize_recruit(
+            auth_context=request.auth_context,
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
             candidate_agent_id=prop.candidate_agent_id,
@@ -416,6 +388,14 @@ class AgentRecruitmentService:
                 "sensitive_initial_grants": _manifest_has_sensitive_initial_grants(prop.candidate_manifest),
             },
         )
+        if auth.actor_kind != "human_operator":
+            raise RecruitmentGovernanceError(
+                "OPERATOR_ACTIVATION_REQUIRED",
+                (
+                    f"Only an authenticated human_operator can activate recruited agent "
+                    f"'{prop.candidate_agent_id}' into AgentRegistryService."
+                ),
+            )
 
         try:
             reg_outcome = self._registry.register_agent(
@@ -447,7 +427,7 @@ class AgentRecruitmentService:
             event_id=new_event_id(),
             timestamp=request.timestamp,
             event_type="agent.recruitment_activated",
-            source=_ACTOR_KIND_TO_SOURCE.get(request.actor_kind, "operator"),
+            source=actor_kind_to_event_source(request.actor_kind),
             task_id=prop.task_id,
             actor_id=request.actor_id,
             correlation_id=corr_id,
@@ -497,6 +477,7 @@ class AgentRecruitmentService:
 
         corr_id = request.correlation_id or prop.correlation_id
         self._authorize_recruit(
+            auth_context=request.auth_context,
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
             candidate_agent_id=prop.candidate_agent_id,
@@ -518,7 +499,7 @@ class AgentRecruitmentService:
             event_id=new_event_id(),
             timestamp=request.timestamp,
             event_type="agent.recruitment_rejected",
-            source=_ACTOR_KIND_TO_SOURCE.get(request.actor_kind, "operator"),
+            source=actor_kind_to_event_source(request.actor_kind),
             task_id=prop.task_id,
             actor_id=request.actor_id,
             correlation_id=corr_id,

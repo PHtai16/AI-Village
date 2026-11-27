@@ -23,6 +23,7 @@ from core.contracts.identifiers import (
     reject_secret_text,
     validate_aware_datetime,
 )
+from core.governance.models import TrustedAuthContext
 from core.tasks.transitions import ActorTrustKind
 from engines.antigravity.diagnostics import redact_secrets
 
@@ -252,6 +253,7 @@ class RecruitmentProposalRequest(BaseModel):
     task_id: TaskId | None = None
     proposer_id: str = Field(min_length=1, max_length=128)
     proposer_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     timestamp: datetime
     correlation_id: str | None = Field(default=None, min_length=1, max_length=80)
 
@@ -278,6 +280,7 @@ class RecruitmentEvaluationRequest(BaseModel):
     proposal_id: RecruitmentId
     evaluator_id: str = Field(min_length=1, max_length=128)
     evaluator_kind: ActorTrustKind = "qa_verifier"
+    auth_context: TrustedAuthContext | None = None
     summary: str = Field(min_length=3, max_length=1000)
     checks_passed: list[str] = Field(default_factory=list, max_length=64)
     findings: list[str] = Field(default_factory=list, max_length=64)
@@ -308,6 +311,7 @@ class RecruitmentActivationRequest(BaseModel):
     proposal_id: RecruitmentId
     actor_id: str = Field(min_length=1, max_length=128)
     actor_kind: ActorTrustKind = "operator"
+    auth_context: TrustedAuthContext | None = None
     validated_capabilities: list[CapabilityId] = Field(default_factory=list, max_length=32)
     approval_id: str | None = Field(default=None, min_length=1, max_length=64)
     timestamp: datetime
@@ -336,6 +340,7 @@ class RecruitmentRejectRequest(BaseModel):
     proposal_id: RecruitmentId
     actor_id: str = Field(min_length=1, max_length=128)
     actor_kind: ActorTrustKind = "operator"
+    auth_context: TrustedAuthContext | None = None
     reason: str = Field(min_length=3, max_length=500)
     timestamp: datetime
     correlation_id: str | None = Field(default=None, min_length=1, max_length=80)

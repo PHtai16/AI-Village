@@ -33,6 +33,7 @@ from core.contracts.identifiers import (
 from core.contracts.run import Run, RunStatus
 from core.contracts.session import Session, SessionStatus
 from core.contracts.task import Task
+from core.governance.models import TrustedAuthContext
 from core.orchestration.planning_models import PlanId, StepId
 from core.orchestration.team_models import TeamProposalId
 from core.tasks.transitions import ActorTrustKind
@@ -294,6 +295,7 @@ class WorkerExecutionRequest(BaseModel):
     agent_id: AgentId
     actor_id: AgentId
     actor_kind: ActorTrustKind = "orchestrator"
+    auth_context: TrustedAuthContext | None = None
     workspace_root: str = Field(min_length=1, max_length=512)
     workspace_scope: str = Field(min_length=1, max_length=512)
     timestamp: datetime

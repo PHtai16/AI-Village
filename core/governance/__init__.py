@@ -28,7 +28,9 @@ from core.governance.models import (
     RuleEffect,
     RuleStatus,
     TrustedAuthContext,
+    actor_kind_to_event_source,
     new_approval_id,
+    resolve_trusted_auth_context,
 )
 from core.governance.workspace import WorkspaceAccessCheck, validate_workspace_path
 
@@ -57,8 +59,10 @@ __all__ = [
     "RuleStatus",
     "TrustedAuthContext",
     "WorkspaceAccessCheck",
+    "actor_kind_to_event_source",
     "build_default_policy_rules",
     "compute_request_fingerprint",
     "new_approval_id",
+    "resolve_trusted_auth_context",
     "validate_workspace_path",
 ]

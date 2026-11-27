@@ -947,6 +947,7 @@ def test_p05_05_session_transitions_failures_cancel_race_timeout_and_recovery(tm
             init_stored.session.session_id,
             actor_id="operator.local",
             actor_kind="operator",
+            auth_context=_operator_auth("operator.local"),
             reason="Cancel unobservable session",
             timestamp=BASE_TIME + timedelta(seconds=16),
         )
@@ -1034,6 +1035,7 @@ def test_p05_05_session_transitions_failures_cancel_race_timeout_and_recovery(tm
         sessions_active[0].session.session_id,
         actor_id="operator.local",
         actor_kind="operator",
+        auth_context=_operator_auth("operator.local"),
         reason="Operator cancelled mid-execution",
         timestamp=BASE_TIME + timedelta(seconds=15),
     )

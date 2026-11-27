@@ -1046,14 +1046,6 @@ def _pump_stdout_lines(
                     break
 
 
-def _terminate_process(proc: Any) -> int | None:
-    """Terminate an unguarded subprocess cleanly without hanging."""
-    controller = ProcessHandleController()
-    controller.bind_process(proc, Win32JobGuard())
-    rc, _, _ = controller.terminate_owned_process(grace_seconds=3.0)
-    return rc
-
-
 def run_streaming_process(
     *,
     command: list[str],

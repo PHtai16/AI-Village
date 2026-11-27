@@ -8,7 +8,7 @@ from typing import Any
 from core.contracts.event import Event, sanitize_event_payload
 from core.contracts.identifiers import ensure_not_secret, new_event_id, validate_aware_datetime
 from core.governance.manager import GovernanceAuditError, PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyRequest
+from core.governance.models import PolicyRequest, TrustedAuthContext
 from core.governance.workspace import validate_workspace_path
 from core.orchestration.handoff_models import WorkerHandoffRepository
 from core.orchestration.meeting_models import (
@@ -26,9 +26,9 @@ from core.orchestration.meeting_models import (
     WorkerConflictRecord,
     WorkerConflictResolveRequest,
     actor_kind_to_event_source,
-    build_trusted_auth,
     new_conflict_id,
     new_delivery_id,
+    resolve_trusted_auth_context,
 )
 from engines.antigravity.verification import compute_sha256_file
 
@@ -59,6 +59,7 @@ class CollaborationDeliveryService:
         *,
         actor_id: str,
         actor_kind: str,
+        auth_context: TrustedAuthContext | None = None,
         action: str,
         resource: str,
         task_id: str,
@@ -68,7 +69,11 @@ class CollaborationDeliveryService:
         parameters: dict[str, Any] | None = None,
     ) -> None:
         req = PolicyRequest(
-            auth_context=build_trusted_auth(actor_id, actor_kind),
+            auth_context=resolve_trusted_auth_context(
+                auth_context=auth_context,
+                actor_id=actor_id,
+                actor_kind=actor_kind,
+            ),
             action=action,
             resource=resource,
             task_id=task_id,
@@ -195,6 +200,7 @@ class CollaborationDeliveryService:
         self._authorize(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             action="meeting.decide",
             resource=f"task:{cfl.task_id}/conflict:{cfl.conflict_id}",
             task_id=cfl.task_id,
@@ -211,8 +217,16 @@ class CollaborationDeliveryService:
 
         if request.decision_id is not None:
             decisions = self._collab.list_decisions(task_id=cfl.task_id)
-            if not any(d.decision_id == request.decision_id for d in decisions):
-                raise MeetingNotFoundError("DECISION_NOT_FOUND", f"Decision '{request.decision_id}' not found on task.")
+            if not any(
+                d.decision_id == request.decision_id
+                and (d.run_id is None or d.run_id == cfl.run_id)
+                and (d.conflict_id is None or d.conflict_id == cfl.conflict_id)
+                for d in decisions
+            ):
+                raise MeetingNotFoundError(
+                    "DECISION_NOT_FOUND",
+                    f"Decision '{request.decision_id}' not found for task/run conflict.",
+                )
             next_status = "RESOLVED_DECIDED"
         else:
             assert request.handoff_id is not None
@@ -221,6 +235,17 @@ class CollaborationDeliveryService:
                 raise MeetingStateError(
                     "HANDOFF_NOT_ACKNOWLEDGED",
                     f"Handoff '{request.handoff_id}' must exist on task in ACKNOWLEDGED status.",
+                )
+            if (
+                hoff.handoff.run_id != cfl.run_id
+                or {hoff.handoff.from_agent_id, hoff.handoff.to_agent_id} != {cfl.agent_a_id, cfl.agent_b_id}
+            ):
+                raise MeetingStateError(
+                    "HANDOFF_CONFLICT_MISMATCH",
+                    (
+                        f"Handoff '{request.handoff_id}' does not serialize conflict agents "
+                        f"({cfl.agent_a_id}, {cfl.agent_b_id}) on run '{cfl.run_id}'."
+                    ),
                 )
             next_status = "RESOLVED_SERIALIZED"
 
@@ -266,6 +291,7 @@ class CollaborationDeliveryService:
         self._authorize(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             action="master.deliver",
             resource=f"task:{request.task_id}/delivery:{delivery_id}",
             task_id=request.task_id,

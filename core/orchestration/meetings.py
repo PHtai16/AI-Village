@@ -10,7 +10,7 @@ from core.contracts.event import Event, sanitize_event_payload
 from core.contracts.identifiers import ensure_not_secret, new_event_id, validate_aware_datetime
 from core.events.journal import EventJournal
 from core.governance.manager import GovernanceAuditError, PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyRequest
+from core.governance.models import PolicyRequest, TrustedAuthContext
 from core.orchestration.meeting_models import (
     VALID_MEETING_TRANSITIONS,
     CollaborationRepository,
@@ -32,9 +32,9 @@ from core.orchestration.meeting_models import (
     MeetingTurnRequest,
     StoredMeeting,
     actor_kind_to_event_source,
-    build_trusted_auth,
     new_decision_id,
     new_meeting_id,
+    resolve_trusted_auth_context,
 )
 from core.orchestration.planning_models import PlanRepository
 from core.orchestration.team_models import TeamProposalRepository
@@ -76,6 +76,7 @@ class MeetingCoordinatorService:
         *,
         actor_id: str,
         actor_kind: str,
+        auth_context: TrustedAuthContext | None = None,
         action: str,
         resource: str,
         task_id: str | None,
@@ -86,7 +87,11 @@ class MeetingCoordinatorService:
     ) -> None:
         """Enforce Governance action authorization fail-closed."""
         req = PolicyRequest(
-            auth_context=build_trusted_auth(actor_id, actor_kind),
+            auth_context=resolve_trusted_auth_context(
+                auth_context=auth_context,
+                actor_id=actor_id,
+                actor_kind=actor_kind,
+            ),
             action=action,
             resource=resource,
             task_id=task_id,
@@ -111,6 +116,7 @@ class MeetingCoordinatorService:
         team_proposal_id: str,
         actor_id: str = "core.master",
         actor_kind: str = "orchestrator",
+        auth_context: TrustedAuthContext | None = None,
         timestamp: datetime,
         correlation_id: str | None = None,
     ) -> MeetingNecessityOutcome:
@@ -127,6 +133,7 @@ class MeetingCoordinatorService:
         self._authorize(
             actor_id=actor_id,
             actor_kind=actor_kind,
+            auth_context=auth_context,
             action="meeting.convene",
             resource=f"task:{task.task_id}/meeting:necessity",
             task_id=task.task_id,
@@ -192,6 +199,7 @@ class MeetingCoordinatorService:
         self._authorize(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             action="meeting.convene",
             resource=f"task:{request.task_id}/meeting:{meeting_id}",
             task_id=request.task_id,
@@ -322,6 +330,7 @@ class MeetingCoordinatorService:
         self._authorize(
             actor_id=request.speaker_id,
             actor_kind=request.speaker_kind,
+            auth_context=request.auth_context,
             action="meeting.participate",
             resource=f"task:{mtg.task_id}/meeting:{mtg.meeting_id}",
             task_id=mtg.task_id,
@@ -423,6 +432,7 @@ class MeetingCoordinatorService:
         self._authorize(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             action="meeting.decide",
             resource=f"task:{request.task_id}/decision:{decision_id}",
             task_id=request.task_id,

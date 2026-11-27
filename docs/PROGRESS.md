@@ -958,6 +958,16 @@ Summary:
 - Kiểm chứng qua `tests/orchestration/test_p06_01_04_meetings.py` (`10 passed`), `tests/orchestration/test_p06_05_06_delivery_and_gate_d.py` (`3 passed`), kịch bản E2E `Gate D` khép kín và báo cáo `docs/reviews/PHASE_06_GATE_D_AUDIT.md` ở mức `Offline End-to-End Verified` (`PASS`).
 Next: Chuyển sang `PHASE 07 — Tools độc lập với phòng ban`.
 
+### [2026-11-27] Pre-Stage E Hardening & Ponytail Optimization
+Phase: CHẶNG D -> Tiền điều kiện CHẶNG E
+Actor: AI Village Agent
+Summary:
+- Chuẩn hóa `resolve_trusted_auth_context` và `actor_kind_to_event_source` về `core/governance/models.py`, gắn trường `auth_context` vào các request tuyển dụng, handoff, phiên worker và hội họp/bàn giao để chặn tự đúc quyền `human_operator` khi thiếu chứng thư xác thực; khóa quyền kích hoạt tuyển mới về `human_operator` (`OPERATOR_ACTIVATION_REQUIRED`).
+- Sửa đua khóa `StaleStateError` khi chạy hai worker song song qua `_task_locks`, cộng dồn `telemetry` đa bước trên `Run` bằng `_merge_run_telemetry` và cắt gọn an toàn `reason`/`evidence_summary` tối đa `500` ký tự trong `core/orchestration/worker_sessions.py`.
+- Đồng bộ kiểm chứng `artifact_ids` khi `recover_task` chạy giữa chừng sau Handoff (`core/events/replay.py`, `storage/repositories/recovery.py`), siết đối chiếu `run_id` và cặp Agent trong `resolve_worker_conflict` (`core/orchestration/delivery.py`), và tái sử dụng kết nối SQLite theo thread trong `SQLiteRepositoryStore` (`storage/repositories/sqlite_store.py`).
+- Dọn hàm thừa `_terminate_process`, hợp nhất `_row_to_session` và `_require_non_blank_prompt`, cập nhật `AGENTS.md`, `pyproject.toml`, `.gitattributes` (chuẩn hóa LF) và bổ sung bộ hồi quy `tests/orchestration/test_pre_stage_e_hardening.py` (`6 passed`; toàn bộ suite đạt `241 passed, 24 skipped`).
+Next: Chốt quyết định phạm vi endpoint tải Artifact cho `Gate E` với người vận hành rồi khởi động `P07.01`.
+
 
 
 

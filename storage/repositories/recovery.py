@@ -180,11 +180,19 @@ def recover_task(
                 inconsistencies.append(
                     f"Task snapshot active_run_id '{snapshot_task.active_run_id}' differs from replayed '{replayed.active_run_id}'."
                 )
-            missing_arts = set(replay_result.artifact_ids) - set(snapshot_task.artifact_ids)
-            if missing_arts:
-                inconsistencies.append(
-                    f"Task snapshot artifact_ids omits replayed artifacts: {sorted(missing_arts)}."
-                )
+            if snapshot_task.status == "COMPLETED":
+                missing_arts = set(replay_result.artifact_ids) - set(snapshot_task.artifact_ids)
+                if missing_arts:
+                    inconsistencies.append(
+                        f"Task snapshot artifact_ids omits replayed artifacts: {sorted(missing_arts)}."
+                    )
+            else:
+                known_arts = set(snapshot_task.artifact_ids) | {a.artifact_id for a in artifacts}
+                missing_arts = set(replay_result.artifact_ids) - known_arts
+                if missing_arts:
+                    inconsistencies.append(
+                        f"Persisted artifacts missing replayed references: {sorted(missing_arts)}."
+                    )
             snapshot_matches_replay = len(inconsistencies) == 0
 
     interrupted: list[InterruptedWorkAssessment] = []

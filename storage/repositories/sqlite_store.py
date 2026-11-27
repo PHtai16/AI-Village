@@ -1291,6 +1291,8 @@ class SQLiteRepositoryStore:
 
         self._closed = False
         self._local = threading.local()
+        self._conn_lock = threading.Lock()
+        self._pooled_conns: set[sqlite3.Connection] = set()
         try:
             with sqlite_connection(self._config) as conn:
                 verify_schema_compatibility(conn, expected_version=resolved_version)
@@ -1304,7 +1306,7 @@ class SQLiteRepositoryStore:
         self.events = SQLiteEventJournal(
             self._config,
             expected_schema_version=resolved_version,
-            shared_conn_provider=lambda: getattr(self._local, "tx_conn", None),
+            shared_conn_provider=self._shared_journal_conn,
         )
         from storage.repositories.agent_registry_repo import SQLiteAgentRegistryRepository
         from storage.repositories.approval_repo import SQLiteApprovalRepository
@@ -1331,17 +1333,49 @@ class SQLiteRepositoryStore:
         """Return immutable configuration bound to this repository store."""
         return self._config
 
+    def _get_thread_connection(self) -> sqlite3.Connection:
+        """Return or lazily open a thread-local SQLite connection managed by this store."""
+        conn: sqlite3.Connection | None = getattr(self._local, "pooled_conn", None)
+        if conn is not None:
+            return conn
+        with self._conn_lock:
+            if self._closed:
+                raise RepositoryError("STORE_CLOSED", "SQLiteRepositoryStore has been closed.")
+            conn = getattr(self._local, "pooled_conn", None)
+            if conn is None:
+                conn = open_sqlite_connection(self._config)
+                self._local.pooled_conn = conn
+                self._pooled_conns.add(conn)
+            return conn
+
+    def _shared_journal_conn(self) -> sqlite3.Connection | None:
+        """Expose active transaction or thread-local pooled connection to EventJournal."""
+        if self._closed:
+            return None
+        active: sqlite3.Connection | None = getattr(self._local, "tx_conn", None)
+        if active is not None:
+            return active
+        return self._get_thread_connection()
+
     @contextmanager
     def open_connection(self) -> Iterator[sqlite3.Connection]:
-        """Open a managed SQLite connection, reusing thread-bound transaction if active."""
+        """Yield thread-local SQLite connection, reusing active transaction if open."""
         if self._closed:
             raise RepositoryError("STORE_CLOSED", "SQLiteRepositoryStore has been closed.")
         active: sqlite3.Connection | None = getattr(self._local, "tx_conn", None)
         if active is not None:
             yield active
             return
-        with sqlite_connection(self._config) as conn:
+        conn = self._get_thread_connection()
+        try:
             yield conn
+        except BaseException:
+            if conn.in_transaction:
+                try:
+                    conn.execute("ROLLBACK;")
+                except sqlite3.Error as exc:
+                    logger.warning("Rollback on pooled SQLite connection failed: %s", exc)
+            raise
 
     @contextmanager
     def transaction_scope(self) -> Iterator[sqlite3.Connection]:
@@ -1353,18 +1387,39 @@ class SQLiteRepositoryStore:
             with sqlite_transaction(existing, immediate=True):
                 yield existing
             return
-        with self.open_connection() as conn:
-            with sqlite_transaction(conn, immediate=True):
-                self._local.tx_conn = conn
-                try:
-                    yield conn
-                finally:
-                    self._local.tx_conn = None
+        conn = self._get_thread_connection()
+        with sqlite_transaction(conn, immediate=True):
+            self._local.tx_conn = conn
+            try:
+                yield conn
+            finally:
+                self._local.tx_conn = None
 
     def close(self) -> None:
-        """Mark the repository store and its EventJournal closed."""
-        self._closed = True
+        """Mark the repository store closed and release all pooled SQLite connections."""
+        with self._conn_lock:
+            self._closed = True
+            conns = list(self._pooled_conns)
+            self._pooled_conns.clear()
+            self._local = threading.local()
         self.events.close()
+        for conn in conns:
+            try:
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK;")
+            except sqlite3.Error as exc:
+                logger.warning("Rollback during pooled SQLite connection close failed: %s", exc)
+            try:
+                conn.close()
+            except sqlite3.Error as exc:
+                logger.warning("Closing pooled SQLite connection failed: %s", exc)
+
+    def __del__(self) -> None:
+        """Best-effort cleanup of pooled connections if garbage collected before close()."""
+        try:
+            self.close()
+        except (sqlite3.Error, AttributeError, RuntimeError):
+            pass
 
     def __enter__(self) -> SQLiteRepositoryStore:
         """Enter context-managed repository lifecycle."""

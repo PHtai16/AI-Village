@@ -11,6 +11,13 @@ from engines.antigravity.diagnostics import redact_secrets
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
 
 
+def _require_non_blank_prompt(value: str) -> str:
+    """Ensure prompt fields contain non-whitespace content."""
+    if not value.strip():
+        raise ValueError("Prompt must not be empty or whitespace-only.")
+    return value
+
+
 class AntigravityDiscoveryResult(BaseModel):
     """Result of locating the Antigravity CLI executable on the local host."""
 
@@ -117,13 +124,7 @@ class AntigravityHandshakeRequest(BaseModel):
     sandbox: bool = False
     model: str | None = None
 
-    @field_validator("prompt")
-    @classmethod
-    def _prompt_must_not_be_blank(cls, value: str) -> str:
-        """Ensure the prompt contains non-whitespace content."""
-        if not value.strip():
-            raise ValueError("Prompt must not be empty or whitespace-only.")
-        return value
+    _validate_prompt = field_validator("prompt")(_require_non_blank_prompt)
 
 
 class AntigravityHandshakeResult(BaseModel):
@@ -163,13 +164,7 @@ class AntigravityToolExecutionRequest(BaseModel):
     execution_mode: Literal["accept-edits", "plan"] = "accept-edits"
     model: str | None = None
 
-    @field_validator("prompt")
-    @classmethod
-    def _prompt_not_blank(cls, value: str) -> str:
-        """Ensure the prompt contains non-whitespace content."""
-        if not value.strip():
-            raise ValueError("Prompt must not be empty or whitespace-only.")
-        return value
+    _validate_prompt = field_validator("prompt")(_require_non_blank_prompt)
 
 
 class ArtifactVerificationResult(BaseModel):
@@ -216,13 +211,7 @@ class AntigravityStreamRequest(BaseModel):
     max_payload_chars: int = Field(default=512, ge=64, le=4096)
     max_line_bytes: int = Field(default=262144, ge=1024, le=4194304)
 
-    @field_validator("prompt")
-    @classmethod
-    def _prompt_not_blank(cls, value: str) -> str:
-        """Ensure the prompt contains non-whitespace content."""
-        if not value.strip():
-            raise ValueError("Prompt must not be empty or whitespace-only.")
-        return value
+    _validate_prompt = field_validator("prompt")(_require_non_blank_prompt)
 
     @field_validator("conversation_id")
     @classmethod

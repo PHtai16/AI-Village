@@ -13,7 +13,7 @@ import uuid
 
 from pydantic import ValidationError
 
-from core.contracts.event import Event, EventSource, sanitize_event_payload
+from core.contracts.event import Event, sanitize_event_payload
 from core.contracts.identifiers import (
     AgentId,
     ArtifactId,
@@ -31,7 +31,13 @@ from core.contracts.session import Session, SessionStatus
 from core.contracts.task import Task
 from core.events.journal import EventJournal
 from core.governance.manager import GovernanceAuditError, PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyDecision, PolicyRequest, TrustedAuthContext
+from core.governance.models import (
+    PolicyDecision,
+    PolicyRequest,
+    TrustedAuthContext,
+    actor_kind_to_event_source as _actor_kind_to_event_source,
+    resolve_trusted_auth_context,
+)
 from core.governance.workspace import validate_workspace_path
 from core.orchestration.planning_models import (
     PlanRepository,
@@ -100,53 +106,6 @@ _LOCAL_ONLY_PROVIDERS: frozenset[str] = frozenset({"ollama", "local_llm", "llama
 _SENSITIVE_DENIED_PATHS: tuple[str, ...] = (".env", ".runtime", ".git", ".ssh", "secrets")
 
 
-def _actor_kind_to_event_source(actor_kind: str) -> EventSource:
-    """Map Governance/Workflow ``actor_kind`` into canonical ``EventSource``."""
-    mapping: dict[str, EventSource] = {
-        "human_operator": "operator",
-        "operator": "operator",
-        "master_agent": "orchestrator",
-        "orchestrator": "orchestrator",
-        "runtime_service": "core_runtime",
-        "core_runtime": "core_runtime",
-        "trusted_verifier": "qa_verifier",
-        "qa_verifier": "qa_verifier",
-        "worker_agent": "agent_runtime",
-    }
-    return mapping.get(actor_kind, "governance")
-
-
-def _to_governance_actor_kind(actor_kind: str) -> Literal["human_operator", "master_agent", "worker_agent", "runtime_service", "trusted_verifier"]:
-    """Map workflow ``ActorTrustKind`` onto Governance ``actor_kind`` literals."""
-    mapping = {
-        "operator": "human_operator",
-        "orchestrator": "master_agent",
-        "core_runtime": "runtime_service",
-        "qa_verifier": "trusted_verifier",
-        "worker_agent": "worker_agent",
-        "governance": "runtime_service",
-        "human_operator": "human_operator",
-        "master_agent": "master_agent",
-        "runtime_service": "runtime_service",
-        "trusted_verifier": "trusted_verifier",
-    }
-    return mapping.get(actor_kind, "worker_agent")  # type: ignore[return-value]
-
-
-def _build_trusted_auth_context(actor_id: str, actor_kind: str) -> TrustedAuthContext:
-    """Build a verified ``TrustedAuthContext`` from workflow actor identity and trust kind."""
-    gov_kind = _to_governance_actor_kind(actor_kind)
-    auth_source: Literal["application_boundary", "operator_session"] = (
-        "operator_session" if gov_kind == "human_operator" else "application_boundary"
-    )
-    return TrustedAuthContext(
-        actor_id=actor_id,
-        actor_kind=gov_kind,
-        auth_source=auth_source,
-        authenticated=True,
-    )
-
-
 def _monotonic_ts(candidate: datetime | None, floor: datetime) -> datetime:
     """Ensure journal/session timestamps never regress earlier than causality bounds."""
     if candidate is None:
@@ -184,6 +143,72 @@ def _scope_matches_patterns(
         if expanded.endswith("/*") and normalized_scope == expanded[:-2]:
             return True
     return False
+
+
+def _truncate_bounded(text: str, limit: int = 500) -> str:
+    """Trim whitespace and cap string length cleanly within Pydantic field limits."""
+    cleaned = text.strip()
+    if not cleaned:
+        return "unspecified"
+    if len(cleaned) <= limit:
+        return cleaned
+    return f"{cleaned[: limit - 3]}..."
+
+
+def _sum_optional_ints(left: int | None, right: int | None) -> int | None:
+    """Sum two optional non-negative counters while preserving None when both are absent."""
+    if left is None and right is None:
+        return None
+    return (left or 0) + (right or 0)
+
+
+def _sum_optional_floats(left: float | None, right: float | None) -> float | None:
+    """Sum two optional cost metrics while preserving None when both are absent."""
+    if left is None and right is None:
+        return None
+    return (left or 0.0) + (right or 0.0)
+
+
+def _merge_run_telemetry(existing: RunTelemetryRef | None, step: RunTelemetryRef) -> RunTelemetryRef:
+    """Accumulate per-step Worker telemetry onto the shared Run without overwriting prior steps."""
+    if existing is None:
+        return step
+
+    if existing.telemetry_status == "VERIFIED_MEASURED" and step.telemetry_status == "VERIFIED_MEASURED":
+        merged_status = "VERIFIED_MEASURED"
+        merged_source = (
+            existing.telemetry_source
+            if existing.telemetry_source == step.telemetry_source
+            else "adapter_measured"
+        )
+    elif (
+        existing.telemetry_status == "ESTIMATED_PENDING_AUDIT"
+        or step.telemetry_status == "ESTIMATED_PENDING_AUDIT"
+    ):
+        merged_status = "ESTIMATED_PENDING_AUDIT"
+        merged_source = "adapter_measured"
+    else:
+        merged_status = "UNAVAILABLE_FROM_PROVIDER"
+        merged_source = (
+            "unavailable"
+            if existing.telemetry_source == "unavailable" and step.telemetry_source == "unavailable"
+            else "adapter_measured"
+        )
+
+    return RunTelemetryRef(
+        total_duration_ms=_sum_optional_ints(existing.total_duration_ms, step.total_duration_ms),
+        provider_duration_ms=_sum_optional_ints(existing.provider_duration_ms, step.provider_duration_ms),
+        engine_call_count=(existing.engine_call_count or 0) + (step.engine_call_count or 1),
+        input_tokens=_sum_optional_ints(existing.input_tokens, step.input_tokens),
+        output_tokens=_sum_optional_ints(existing.output_tokens, step.output_tokens),
+        thinking_tokens=_sum_optional_ints(existing.thinking_tokens, step.thinking_tokens),
+        cached_tokens=_sum_optional_ints(existing.cached_tokens, step.cached_tokens),
+        total_tokens=_sum_optional_ints(existing.total_tokens, step.total_tokens),
+        estimated_cost_usd=_sum_optional_floats(existing.estimated_cost_usd, step.estimated_cost_usd),
+        actual_cost_usd=_sum_optional_floats(existing.actual_cost_usd, step.actual_cost_usd),
+        telemetry_status=merged_status,
+        telemetry_source=merged_source,
+    )
 
 
 def _map_engine_telemetry(result: EngineResult) -> RunTelemetryRef:
@@ -247,6 +272,7 @@ class WorkerSessionLifecycleService:
         self._connection_resolver = connection_resolver
         self._lock = threading.RLock()
         self._session_locks: dict[str, threading.Lock] = {}
+        self._task_locks: dict[str, threading.RLock] = {}
         self._live_handles: dict[str, OwnedExecutionHandle] = {}
 
     def _get_session_lock(self, session_id: str) -> threading.Lock:
@@ -256,6 +282,15 @@ class WorkerSessionLifecycleService:
             if lock is None:
                 lock = threading.Lock()
                 self._session_locks[session_id] = lock
+            return lock
+
+    def _get_task_lock(self, task_id: str) -> threading.RLock:
+        """Return a per-task lock serializing shared Task/Run state updates without blocking unrelated tasks."""
+        with self._lock:
+            lock = self._task_locks.get(task_id)
+            if lock is None:
+                lock = threading.RLock()
+                self._task_locks[task_id] = lock
             return lock
 
     def _resolve_target_run(
@@ -838,7 +873,11 @@ class WorkerSessionLifecycleService:
             _record("workspace_scope_valid", True, "OK", f"Workspace scope '{request.workspace_scope}' validated.")
 
         # 15 & 16. Governance PermissionManager check & Approval check (read-only evaluation)
-        auth_ctx = _build_trusted_auth_context(request.actor_id, request.actor_kind)
+        auth_ctx = resolve_trusted_auth_context(
+            auth_context=request.auth_context,
+            actor_id=request.actor_id,
+            actor_kind=request.actor_kind,
+        )
         policy_req = self._build_execute_policy_request(
             request=request,
             auth_context=auth_ctx,
@@ -1019,7 +1058,11 @@ class WorkerSessionLifecycleService:
         )
         assert pinned_version is not None
 
-        auth_ctx = _build_trusted_auth_context(request.actor_id, request.actor_kind)
+        auth_ctx = resolve_trusted_auth_context(
+            auth_context=request.auth_context,
+            actor_id=request.actor_id,
+            actor_kind=request.actor_kind,
+        )
         existing_run, existing_run_ver, _, _ = self._resolve_target_run(stored_task.task, request.run_id)
         policy_req = self._build_execute_policy_request(
             request=request,
@@ -1030,122 +1073,156 @@ class WorkerSessionLifecycleService:
         )
 
         def _materialize_session() -> StoredWorkerSession:
-            correlation_id = request.correlation_id or f"corr-{uuid.uuid4().hex[:12]}"
-            session_id = new_session_id()
-            resolved_provider = preflight.resolved_provider_id or "antigravity"
-            resolved_connection = preflight.resolved_connection_id
+            with self._get_task_lock(request.task_id):
+                if request.idempotency_key is not None:
+                    existing_idem = self._worker_sessions.find_by_idempotency(
+                        request.task_id,
+                        request.idempotency_key,
+                    )
+                    if existing_idem is not None:
+                        if existing_idem.binding.request_fingerprint != request.compute_request_fingerprint():
+                            raise DuplicateInvocationConflictError(
+                                "IDEMPOTENCY_CONFLICT",
+                                f"Idempotency key '{request.idempotency_key}' conflicts with session '{existing_idem.session.session_id}'.",
+                            )
+                        return existing_idem
 
-            if existing_run is None:
-                run_id = new_run_id()
-                new_run_obj = Run(
-                    run_id=run_id,
-                    task_id=stored_task.task.task_id,
-                    runtime_id="worker_session_lifecycle",
-                    correlation_id=correlation_id,
-                    status="PENDING",
-                    session_ids=[session_id],
-                    provider_id=resolved_provider,
-                    connection_id=resolved_connection,
-                    model_id=preflight.resolved_model_id,
-                )
-                updated_run_obj: Run | None = None
-                run_ver: int | None = None
-            else:
-                run_id = existing_run.run_id
-                next_session_ids = list(existing_run.session_ids)
-                if session_id not in next_session_ids:
-                    next_session_ids.append(session_id)
-                new_run_obj = None
-                updated_run_obj = existing_run.model_copy(update={"session_ids": next_session_ids})
-                run_ver = existing_run_ver
+                for attempt in range(3):
+                    latest_task = self._tasks.get_stored_task(request.task_id)
+                    assert latest_task is not None
+                    current_run, current_run_ver, run_err_code, run_err_msg = self._resolve_target_run(
+                        latest_task.task,
+                        request.run_id,
+                    )
+                    if run_err_code is not None:
+                        raise WorkerPreflightBlockedError(
+                            run_err_code,
+                            run_err_msg or "Target Run is unavailable.",
+                            report=preflight,
+                        )
 
-            session_obj = Session(
-                session_id=session_id,
-                agent_id=request.agent_id,
-                task_id=stored_task.task.task_id,
-                run_id=run_id,
-                provider_id=resolved_provider,
-                connection_id=resolved_connection,
-                workspace_reference=request.workspace_scope,
-                status="INITIALIZED",
-                started_at=None,
-                finished_at=None,
-            )
-            binding_obj = WorkerSessionBinding(
-                session_id=session_id,
-                task_id=stored_task.task.task_id,
-                run_id=run_id,
-                agent_id=request.agent_id,
-                plan_id=stored_plan.plan_id,
-                plan_revision=stored_plan.active_revision,
-                team_proposal_id=request.team_proposal_id,
-                step_id=request.step_id,
-                checklist_item_id=plan_step.checklist_item_id,
-                pinned_manifest_revision=pinned_version.manifest_revision,
-                pinned_manifest_sha256=pinned_version.manifest_sha256,
-                provider_id=resolved_provider,
-                connection_id=resolved_connection,
-                model_id=preflight.resolved_model_id,
-                workspace_scope=request.workspace_scope,
-                private_context_namespace=f"ctx/{stored_task.task.task_id}/{run_id}/{request.agent_id}/{session_id}",
-                idempotency_key=request.idempotency_key,
-                request_fingerprint=request.compute_request_fingerprint() if request.idempotency_key else None,
-                correlation_id=correlation_id,
-                reconciliation_status="NONE",
-                created_at=request.timestamp,
-                updated_at=request.timestamp,
-                last_audit_event_id=None,
-            )
-            init_event = Event(
-                event_id=new_event_id(),
-                timestamp=request.timestamp,
-                event_type="session.initialized",
-                source=_actor_kind_to_event_source(request.actor_kind),
-                task_id=stored_task.task.task_id,
-                run_id=run_id,
-                session_id=session_id,
-                actor_id=request.agent_id,
-                provider_id=resolved_provider,
-                connection_id=resolved_connection,
-                model_id=preflight.resolved_model_id,
-                correlation_id=correlation_id,
-                redacted_payload=sanitize_event_payload(
-                    {
-                        "previous_status": None,
-                        "new_status": "INITIALIZED",
-                        "step_id": request.step_id,
-                        "plan_id": stored_plan.plan_id,
-                        "plan_revision": stored_plan.active_revision,
-                        "team_proposal_id": request.team_proposal_id,
-                        "pinned_manifest_revision": pinned_version.manifest_revision,
-                        "pinned_manifest_sha256": pinned_version.manifest_sha256,
-                        "workspace_scope": request.workspace_scope,
-                        "private_context_namespace": binding_obj.private_context_namespace,
-                    }
-                ),
-            )
-            binding_obj = binding_obj.model_copy(update={"last_audit_event_id": init_event.event_id})
-            transition_rec = WorkerSessionTransitionRecord(
-                session_id=session_id,
-                task_id=stored_task.task.task_id,
-                run_id=run_id,
-                from_status=None,
-                to_status="INITIALIZED",
-                actor_id=request.actor_id,
-                reason=f"Initialized isolated Worker session for step '{request.step_id}'.",
-                evidence_summary=f"preflight=PASS team={request.team_proposal_id} rev=r{pinned_version.manifest_revision}",
-                event_id=init_event.event_id,
-                timestamp=request.timestamp,
-            )
-            return self._worker_sessions.create_session_atomic(
-                session=session_obj,
-                binding=binding_obj,
-                transition=transition_rec,
-                events=[init_event],
-                new_run=new_run_obj,
-                updated_run=updated_run_obj,
-                expected_run_version=run_ver,
-            )
+                    correlation_id = request.correlation_id or f"corr-{uuid.uuid4().hex[:12]}"
+                    session_id = new_session_id()
+                    resolved_provider = preflight.resolved_provider_id or "antigravity"
+                    resolved_connection = preflight.resolved_connection_id
+
+                    if current_run is None:
+                        run_id = new_run_id()
+                        new_run_obj: Run | None = Run(
+                            run_id=run_id,
+                            task_id=latest_task.task.task_id,
+                            runtime_id="worker_session_lifecycle",
+                            correlation_id=correlation_id,
+                            status="PENDING",
+                            session_ids=[session_id],
+                            provider_id=resolved_provider,
+                            connection_id=resolved_connection,
+                            model_id=preflight.resolved_model_id,
+                        )
+                        updated_run_obj: Run | None = None
+                        run_ver: int | None = None
+                    else:
+                        run_id = current_run.run_id
+                        next_session_ids = list(current_run.session_ids)
+                        if session_id not in next_session_ids:
+                            next_session_ids.append(session_id)
+                        new_run_obj = None
+                        updated_run_obj = current_run.model_copy(update={"session_ids": next_session_ids})
+                        run_ver = current_run_ver
+
+                    session_obj = Session(
+                        session_id=session_id,
+                        agent_id=request.agent_id,
+                        task_id=latest_task.task.task_id,
+                        run_id=run_id,
+                        provider_id=resolved_provider,
+                        connection_id=resolved_connection,
+                        workspace_reference=request.workspace_scope,
+                        status="INITIALIZED",
+                        started_at=None,
+                        finished_at=None,
+                    )
+                    binding_obj = WorkerSessionBinding(
+                        session_id=session_id,
+                        task_id=latest_task.task.task_id,
+                        run_id=run_id,
+                        agent_id=request.agent_id,
+                        plan_id=stored_plan.plan_id,
+                        plan_revision=stored_plan.active_revision,
+                        team_proposal_id=request.team_proposal_id,
+                        step_id=request.step_id,
+                        checklist_item_id=plan_step.checklist_item_id,
+                        pinned_manifest_revision=pinned_version.manifest_revision,
+                        pinned_manifest_sha256=pinned_version.manifest_sha256,
+                        provider_id=resolved_provider,
+                        connection_id=resolved_connection,
+                        model_id=preflight.resolved_model_id,
+                        workspace_scope=request.workspace_scope,
+                        private_context_namespace=f"ctx/{latest_task.task.task_id}/{run_id}/{request.agent_id}/{session_id}",
+                        idempotency_key=request.idempotency_key,
+                        request_fingerprint=request.compute_request_fingerprint() if request.idempotency_key else None,
+                        correlation_id=correlation_id,
+                        reconciliation_status="NONE",
+                        created_at=request.timestamp,
+                        updated_at=request.timestamp,
+                        last_audit_event_id=None,
+                    )
+                    init_event = Event(
+                        event_id=new_event_id(),
+                        timestamp=request.timestamp,
+                        event_type="session.initialized",
+                        source=_actor_kind_to_event_source(request.actor_kind),
+                        task_id=latest_task.task.task_id,
+                        run_id=run_id,
+                        session_id=session_id,
+                        actor_id=request.agent_id,
+                        provider_id=resolved_provider,
+                        connection_id=resolved_connection,
+                        model_id=preflight.resolved_model_id,
+                        correlation_id=correlation_id,
+                        redacted_payload=sanitize_event_payload(
+                            {
+                                "previous_status": None,
+                                "new_status": "INITIALIZED",
+                                "step_id": request.step_id,
+                                "plan_id": stored_plan.plan_id,
+                                "plan_revision": stored_plan.active_revision,
+                                "team_proposal_id": request.team_proposal_id,
+                                "pinned_manifest_revision": pinned_version.manifest_revision,
+                                "pinned_manifest_sha256": pinned_version.manifest_sha256,
+                                "workspace_scope": request.workspace_scope,
+                                "private_context_namespace": binding_obj.private_context_namespace,
+                            }
+                        ),
+                    )
+                    binding_obj = binding_obj.model_copy(update={"last_audit_event_id": init_event.event_id})
+                    transition_rec = WorkerSessionTransitionRecord(
+                        session_id=session_id,
+                        task_id=latest_task.task.task_id,
+                        run_id=run_id,
+                        from_status=None,
+                        to_status="INITIALIZED",
+                        actor_id=request.actor_id,
+                        reason=f"Initialized isolated Worker session for step '{request.step_id}'.",
+                        evidence_summary=f"preflight=PASS team={request.team_proposal_id} rev=r{pinned_version.manifest_revision}",
+                        event_id=init_event.event_id,
+                        timestamp=request.timestamp,
+                    )
+                    try:
+                        return self._worker_sessions.create_session_atomic(
+                            session=session_obj,
+                            binding=binding_obj,
+                            transition=transition_rec,
+                            events=[init_event],
+                            new_run=new_run_obj,
+                            updated_run=updated_run_obj,
+                            expected_run_version=run_ver,
+                        )
+                    except Exception as exc:
+                        if getattr(exc, "error_code", None) == "STALE_STATE" and attempt < 2:
+                            continue
+                        raise
+                raise WorkerSessionError("STALE_RUN_STATE", "Concurrent Run updates exhausted retries during session init.")
 
         try:
             if request.approval_id is not None or self._permissions.evaluator.evaluate(policy_req).decision == "APPROVAL_REQUIRED":
@@ -1183,6 +1260,8 @@ class WorkerSessionLifecycleService:
         validate_aware_datetime(timestamp, "timestamp")
         ensure_not_secret(reason, "reason")
         ensure_not_secret(evidence_summary, "evidence_summary")
+        safe_reason = _truncate_bounded(reason, 500)
+        safe_evidence = _truncate_bounded(evidence_summary, 500)
 
         stored = self._worker_sessions.get_stored_session(session_id)
         if stored is None:
@@ -1277,8 +1356,8 @@ class WorkerSessionLifecycleService:
                     "execution_id": execution_id or current_binding.execution_id,
                     "step_id": current_binding.step_id,
                     "provider_conversation_id": next_conv,
-                    "reason": reason,
-                    "evidence_summary": evidence_summary,
+                    "reason": safe_reason,
+                    "evidence_summary": safe_evidence,
                 }
             ),
         )
@@ -1296,8 +1375,8 @@ class WorkerSessionLifecycleService:
             from_status=current_session.status,
             to_status=target_status,
             actor_id=actor_id,
-            reason=reason,
-            evidence_summary=evidence_summary,
+            reason=safe_reason,
+            evidence_summary=safe_evidence,
             event_id=audit_event.event_id,
             timestamp=effective_ts,
         )
@@ -1530,67 +1609,7 @@ class WorkerSessionLifecycleService:
         )
 
         invocation_id = f"inv-{uuid.uuid4().hex[:12]}"
-        stored_task = self._tasks.get_stored_task(request.task_id)
-        stored_run = self._runs.get_stored_run(stored.binding.run_id)
-        assert stored_task is not None and stored_run is not None
-
-        updated_run: Run | None = None
-        expected_run_ver: int | None = None
-        updated_task: Task | None = None
-        expected_task_ver: int | None = None
         extra_start_events: list[Event] = []
-
-        if stored_run.run.status == "PENDING" and stored_task.task.status == "ASSIGNED":
-            pair_ctx = TransitionContext(
-                actor_id=request.actor_id,
-                actor_kind=request.actor_kind,
-                timestamp=request.timestamp,
-                reason=f"Start Run '{stored_run.run.run_id}' for Worker '{request.agent_id}' step '{request.step_id}'.",
-                execution_evidence=ExecutionEvidence(
-                    source="core_runtime",
-                    run_id=stored_run.run.run_id,
-                    invocation_id=invocation_id,
-                    reason=f"Worker session '{session_id}' starting Engine execution.",
-                ),
-                correlation_id=stored.binding.correlation_id,
-            )
-            pair_res = start_task_run(stored_task.task, stored_run.run, pair_ctx)
-            if not pair_res.accepted or pair_res.run is None or pair_res.task is None:
-                raise WorkerSessionError(
-                    pair_res.error.error_code if pair_res.error else "RUN_START_FAILED",
-                    pair_res.error.message if pair_res.error else "Failed to transition Task/Run to RUNNING.",
-                )
-            updated_run = pair_res.run
-            expected_run_ver = stored_run.version
-            updated_task = pair_res.task
-            expected_task_ver = stored_task.version
-            extra_start_events.extend(pair_res.events)
-        elif stored_run.run.status == "PENDING":
-            run_ctx = TransitionContext(
-                actor_id=request.actor_id,
-                actor_kind=request.actor_kind,
-                timestamp=request.timestamp,
-                reason=f"Start Run '{stored_run.run.run_id}' for Worker '{request.agent_id}'.",
-                execution_evidence=ExecutionEvidence(
-                    source="core_runtime",
-                    run_id=stored_run.run.run_id,
-                    invocation_id=invocation_id,
-                    reason=f"Worker session '{session_id}' starting Engine execution.",
-                ),
-                correlation_id=stored.binding.correlation_id,
-            )
-            run_res = transition_run(
-                RunTransitionRequest(run=stored_run.run, target_status="RUNNING", context=run_ctx)
-            )
-            if not run_res.accepted or run_res.run is None:
-                raise WorkerSessionError(
-                    run_res.error.error_code if run_res.error else "RUN_START_FAILED",
-                    run_res.error.message if run_res.error else "Failed to transition Run to RUNNING.",
-                )
-            updated_run = run_res.run
-            expected_run_ver = stored_run.version
-            if run_res.event is not None:
-                extra_start_events.append(run_res.event)
 
         # Register observable live execution handle if supplied
         if execution_handle is not None:
@@ -1604,23 +1623,94 @@ class WorkerSessionLifecycleService:
                     timestamp=request.timestamp,
                 )
 
-        # Transition Session INITIALIZED -> ACTIVE with invocation proof
-        stored = self.transition_session(
-            session_id,
-            target_status="ACTIVE",
-            actor_id=request.actor_id,
-            actor_kind=request.actor_kind,
-            reason=f"Launching EngineAdapter for step '{request.step_id}'.",
-            evidence_summary=f"invocation={invocation_id} provider={stored.binding.provider_id}",
-            timestamp=request.timestamp,
-            invocation_id=invocation_id,
-            execution_id=execution_handle.execution_id if execution_handle else None,
-            extra_events=extra_start_events,
-            updated_run=updated_run,
-            expected_run_version=expected_run_ver,
-            updated_task=updated_task,
-            expected_task_version=expected_task_ver,
-        )
+        # Serialize Run/Task RUNNING transitions across concurrent workers sharing a Task/Run
+        with self._get_task_lock(request.task_id):
+            for attempt in range(3):
+                stored_task = self._tasks.get_stored_task(request.task_id)
+                stored_run = self._runs.get_stored_run(stored.binding.run_id)
+                assert stored_task is not None and stored_run is not None
+
+                updated_run: Run | None = None
+                expected_run_ver: int | None = None
+                updated_task: Task | None = None
+                expected_task_ver: int | None = None
+                attempt_start_events: list[Event] = []
+
+                if stored_run.run.status == "PENDING" and stored_task.task.status == "ASSIGNED":
+                    pair_ctx = TransitionContext(
+                        actor_id=request.actor_id,
+                        actor_kind=request.actor_kind,
+                        timestamp=request.timestamp,
+                        reason=f"Start Run '{stored_run.run.run_id}' for Worker '{request.agent_id}' step '{request.step_id}'.",
+                        execution_evidence=ExecutionEvidence(
+                            source="core_runtime",
+                            run_id=stored_run.run.run_id,
+                            invocation_id=invocation_id,
+                            reason=f"Worker session '{session_id}' starting Engine execution.",
+                        ),
+                        correlation_id=stored.binding.correlation_id,
+                    )
+                    pair_res = start_task_run(stored_task.task, stored_run.run, pair_ctx)
+                    if not pair_res.accepted or pair_res.run is None or pair_res.task is None:
+                        raise WorkerSessionError(
+                            pair_res.error.error_code if pair_res.error else "RUN_START_FAILED",
+                            pair_res.error.message if pair_res.error else "Failed to transition Task/Run to RUNNING.",
+                        )
+                    updated_run = pair_res.run
+                    expected_run_ver = stored_run.version
+                    updated_task = pair_res.task
+                    expected_task_ver = stored_task.version
+                    attempt_start_events.extend(pair_res.events)
+                elif stored_run.run.status == "PENDING":
+                    run_ctx = TransitionContext(
+                        actor_id=request.actor_id,
+                        actor_kind=request.actor_kind,
+                        timestamp=request.timestamp,
+                        reason=f"Start Run '{stored_run.run.run_id}' for Worker '{request.agent_id}'.",
+                        execution_evidence=ExecutionEvidence(
+                            source="core_runtime",
+                            run_id=stored_run.run.run_id,
+                            invocation_id=invocation_id,
+                            reason=f"Worker session '{session_id}' starting Engine execution.",
+                        ),
+                        correlation_id=stored.binding.correlation_id,
+                    )
+                    run_res = transition_run(
+                        RunTransitionRequest(run=stored_run.run, target_status="RUNNING", context=run_ctx)
+                    )
+                    if not run_res.accepted or run_res.run is None:
+                        raise WorkerSessionError(
+                            run_res.error.error_code if run_res.error else "RUN_START_FAILED",
+                            run_res.error.message if run_res.error else "Failed to transition Run to RUNNING.",
+                        )
+                    updated_run = run_res.run
+                    expected_run_ver = stored_run.version
+                    if run_res.event is not None:
+                        attempt_start_events.append(run_res.event)
+
+                try:
+                    stored = self.transition_session(
+                        session_id,
+                        target_status="ACTIVE",
+                        actor_id=request.actor_id,
+                        actor_kind=request.actor_kind,
+                        reason=f"Launching EngineAdapter for step '{request.step_id}'.",
+                        evidence_summary=f"invocation={invocation_id} provider={stored.binding.provider_id}",
+                        timestamp=request.timestamp,
+                        invocation_id=invocation_id,
+                        execution_id=execution_handle.execution_id if execution_handle else None,
+                        extra_events=attempt_start_events,
+                        updated_run=updated_run,
+                        expected_run_version=expected_run_ver,
+                        updated_task=updated_task,
+                        expected_task_version=expected_task_ver,
+                    )
+                    extra_start_events = attempt_start_events
+                    break
+                except Exception as exc:
+                    if getattr(exc, "error_code", None) == "STALE_STATE" and attempt < 2:
+                        continue
+                    raise
         for ev in extra_start_events:
             recorded_event_ids.append(ev.event_id)
         if stored.binding.last_audit_event_id:
@@ -1679,7 +1769,10 @@ class WorkerSessionLifecycleService:
                 engine_result = raw_result
         except (ValidationError, ValueError, RuntimeError, OSError, TypeError) as exc:
             exec_error_code = "ENGINE_EXECUTION_ERROR"
-            exec_error_msg = redact_secrets(f"Engine execution raised {type(exc).__name__}: {exc}")
+            exec_error_msg = _truncate_bounded(
+                redact_secrets(f"Engine execution raised {type(exc).__name__}: {exc}"),
+                500,
+            )
         finally:
             if execution_handle is not None:
                 with self._lock:
@@ -1817,7 +1910,10 @@ class WorkerSessionLifecycleService:
                 end_err_msg: str | None = None
             elif engine_result.status == "CANCELLED":
                 target_session_status = "TERMINATED"
-                end_reason = engine_result.error.message if engine_result.error else "Execution cancelled."
+                end_reason = _truncate_bounded(
+                    redact_secrets(engine_result.error.message if engine_result.error else "Execution cancelled."),
+                    500,
+                )
                 end_err_code = engine_result.error.error_code if engine_result.error else "CANCELLED"
                 end_err_msg = end_reason
             else:
@@ -1825,38 +1921,50 @@ class WorkerSessionLifecycleService:
                 end_err_code = (
                     engine_result.error.error_code if engine_result.error else f"ENGINE_{engine_result.status}"
                 )
-                end_reason = (
+                raw_end_reason = (
                     engine_result.error.message
                     if engine_result.error
                     else f"Engine finished with non-success status '{engine_result.status}'."
                 )
+                end_reason = _truncate_bounded(redact_secrets(raw_end_reason), 500)
                 end_err_msg = end_reason
 
-            # Update non-mutated observed telemetry onto Run without marking Task COMPLETED
-            latest_run = self._runs.get_stored_run(current_stored.binding.run_id)
-            run_update: Run | None = None
-            run_ver_update: int | None = None
-            if latest_run is not None and latest_run.run.status not in TERMINAL_RUN_STATUSES:
-                run_update = latest_run.run.model_copy(
-                    update={"telemetry": _map_engine_telemetry(engine_result)}
-                )
-                run_ver_update = latest_run.version
+            # Accumulate per-step telemetry onto shared Run under task lock to prevent concurrent StaleStateError
+            step_telemetry = _map_engine_telemetry(engine_result)
+            with self._get_task_lock(current_stored.binding.task_id):
+                final_stored: StoredWorkerSession | None = None
+                for attempt in range(3):
+                    latest_run = self._runs.get_stored_run(current_stored.binding.run_id)
+                    run_update: Run | None = None
+                    run_ver_update: int | None = None
+                    if latest_run is not None and latest_run.run.status not in TERMINAL_RUN_STATUSES:
+                        run_update = latest_run.run.model_copy(
+                            update={"telemetry": _merge_run_telemetry(latest_run.run.telemetry, step_telemetry)}
+                        )
+                        run_ver_update = latest_run.version
 
-            final_stored = self.transition_session(
-                session_id,
-                target_status=target_session_status,
-                actor_id=request.actor_id,
-                actor_kind="core_runtime",
-                reason=end_reason,
-                evidence_summary=(
-                    f"engine_status={engine_result.status} adapter={engine_result.adapter_id} "
-                    f"telemetry={engine_result.telemetry.telemetry_status}"
-                ),
-                timestamp=finish_ts,
-                provider_conversation_id=observed_conv_id,
-                updated_run=run_update,
-                expected_run_version=run_ver_update,
-            )
+                    try:
+                        final_stored = self.transition_session(
+                            session_id,
+                            target_status=target_session_status,
+                            actor_id=request.actor_id,
+                            actor_kind="core_runtime",
+                            reason=end_reason,
+                            evidence_summary=(
+                                f"engine_status={engine_result.status} adapter={engine_result.adapter_id} "
+                                f"telemetry={engine_result.telemetry.telemetry_status}"
+                            ),
+                            timestamp=finish_ts,
+                            provider_conversation_id=observed_conv_id,
+                            updated_run=run_update,
+                            expected_run_version=run_ver_update,
+                        )
+                        break
+                    except Exception as exc:
+                        if getattr(exc, "error_code", None) == "STALE_STATE" and attempt < 2:
+                            continue
+                        raise
+                assert final_stored is not None
             if final_stored.binding.last_audit_event_id:
                 recorded_event_ids.append(final_stored.binding.last_audit_event_id)
 
@@ -1883,6 +1991,7 @@ class WorkerSessionLifecycleService:
         *,
         actor_id: AgentId,
         actor_kind: ActorTrustKind,
+        auth_context: TrustedAuthContext | None = None,
         reason: str,
         timestamp: datetime,
         owner_token: str | None = None,
@@ -1900,7 +2009,11 @@ class WorkerSessionLifecycleService:
                 f"Worker session '{session_id}' does not exist.",
             )
 
-        auth_ctx = _build_trusted_auth_context(actor_id, actor_kind)
+        auth_ctx = resolve_trusted_auth_context(
+            auth_context=auth_context,
+            actor_id=actor_id,
+            actor_kind=actor_kind,
+        )
         policy_req = PolicyRequest(
             auth_context=auth_ctx,
             action="runtime.cancel",

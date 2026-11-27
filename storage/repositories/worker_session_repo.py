@@ -23,7 +23,7 @@ from core.orchestration.worker_session_models import (
     WorkerSessionTransitionRecord,
 )
 from storage.repositories.errors import DuplicateEntityError, RepositoryError
-from storage.repositories.sqlite_store import SQLiteRepositoryStore
+from storage.repositories.sqlite_store import SQLiteRepositoryStore, _row_to_session
 
 _STORED_SELECT_SQL = """
 SELECT
@@ -146,27 +146,6 @@ def _row_to_transition(row: sqlite3.Row) -> WorkerSessionTransitionRecord:
     )
 
 
-def _row_to_bare_session(row: sqlite3.Row) -> Session:
-    """Rehydrate a ``Session`` row directly from ``sessions``."""
-    return Session.model_validate(
-        {
-            "session_id": row["session_id"],
-            "legacy_session_ref": row["legacy_session_ref"],
-            "agent_id": row["agent_id"],
-            "task_id": row["task_id"],
-            "run_id": row["run_id"],
-            "invocation_id": row["invocation_id"],
-            "provider_id": row["provider_id"],
-            "connection_id": row["connection_id"],
-            "provider_conversation_id": row["provider_conversation_id"],
-            "workspace_reference": row["workspace_reference"],
-            "status": row["status"],
-            "started_at": row["started_at"],
-            "finished_at": row["finished_at"],
-        }
-    )
-
-
 class SQLiteWorkerSessionRepository:
     """SQLite implementation of ``core.orchestration.worker_session_models.WorkerSessionRepository``."""
 
@@ -212,7 +191,7 @@ class SQLiteWorkerSessionRepository:
             (provider_id, provider_conversation_id, session_id, task_id, agent_id),
         ).fetchone()
         if row is not None:
-            return _row_to_bare_session(row)
+            return _row_to_session(row)
 
         same_owner_row = conn.execute(
             """
@@ -224,7 +203,7 @@ class SQLiteWorkerSessionRepository:
             """,
             (provider_id, provider_conversation_id, session_id),
         ).fetchone()
-        return _row_to_bare_session(same_owner_row) if same_owner_row is not None else None
+        return _row_to_session(same_owner_row) if same_owner_row is not None else None
 
     @staticmethod
     def _insert_transition_in_conn(

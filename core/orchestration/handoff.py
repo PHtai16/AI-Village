@@ -7,12 +7,17 @@ from fnmatch import fnmatch
 import hashlib
 import logging
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
-from core.contracts.event import Event, EventSource, sanitize_event_payload
+from core.contracts.event import Event, sanitize_event_payload
 from core.contracts.identifiers import ensure_not_secret, new_event_id, validate_aware_datetime
 from core.governance.manager import GovernanceAuditError, PermissionDeniedError, PermissionManager
-from core.governance.models import PolicyRequest, TrustedAuthContext
+from core.governance.models import (
+    PolicyRequest,
+    TrustedAuthContext,
+    actor_kind_to_event_source as _actor_kind_to_event_source,
+    resolve_trusted_auth_context,
+)
 from core.governance.workspace import validate_workspace_path
 from core.orchestration.handoff_models import (
     TERMINAL_HANDOFF_STATUSES,
@@ -50,55 +55,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _LOCAL_ONLY_PROVIDERS: frozenset[str] = frozenset({"ollama", "local_llm", "llama_cpp"})
-
-
-def _actor_kind_to_event_source(actor_kind: str) -> EventSource:
-    """Map workflow/governance ``actor_kind`` into canonical ``EventSource``."""
-    mapping: dict[str, EventSource] = {
-        "human_operator": "operator",
-        "operator": "operator",
-        "master_agent": "orchestrator",
-        "orchestrator": "orchestrator",
-        "runtime_service": "core_runtime",
-        "core_runtime": "core_runtime",
-        "trusted_verifier": "qa_verifier",
-        "qa_verifier": "qa_verifier",
-        "worker_agent": "agent_runtime",
-    }
-    return mapping.get(actor_kind, "governance")
-
-
-def _to_governance_actor_kind(
-    actor_kind: str,
-) -> Literal["human_operator", "master_agent", "worker_agent", "runtime_service", "trusted_verifier"]:
-    """Map workflow ``ActorTrustKind`` onto Governance ``actor_kind`` literals."""
-    mapping = {
-        "operator": "human_operator",
-        "orchestrator": "master_agent",
-        "core_runtime": "runtime_service",
-        "qa_verifier": "trusted_verifier",
-        "worker_agent": "worker_agent",
-        "governance": "runtime_service",
-        "human_operator": "human_operator",
-        "master_agent": "master_agent",
-        "runtime_service": "runtime_service",
-        "trusted_verifier": "trusted_verifier",
-    }
-    return mapping.get(actor_kind, "worker_agent")  # type: ignore[return-value]
-
-
-def _build_trusted_auth(actor_id: str, actor_kind: str) -> TrustedAuthContext:
-    """Build a verified ``TrustedAuthContext`` for Governance handoff authorization."""
-    gov_kind = _to_governance_actor_kind(actor_kind)
-    auth_source: Literal["application_boundary", "operator_session"] = (
-        "operator_session" if gov_kind == "human_operator" else "application_boundary"
-    )
-    return TrustedAuthContext(
-        actor_id=actor_id,
-        actor_kind=gov_kind,
-        auth_source=auth_source,
-        authenticated=True,
-    )
 
 
 def _normalize_posix(raw_path: str) -> str:
@@ -303,6 +259,7 @@ class WorkerHandoffService:
         *,
         actor_id: str,
         actor_kind: str,
+        auth_context: TrustedAuthContext | None = None,
         task_id: str,
         run_id: str,
         handoff_id: str,
@@ -314,7 +271,11 @@ class WorkerHandoffService:
         parameters: dict[str, Any],
     ) -> None:
         """Enforce Governance PolicyEvaluator and ApprovalService cleanly for ``agent.handoff``."""
-        auth_ctx = _build_trusted_auth(actor_id, actor_kind)
+        auth_ctx = resolve_trusted_auth_context(
+            auth_context=auth_context,
+            actor_id=actor_id,
+            actor_kind=actor_kind,
+        )
         req = PolicyRequest(
             auth_context=auth_ctx,
             action="agent.handoff",
@@ -587,6 +548,7 @@ class WorkerHandoffService:
         self._authorize_handoff_action(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             task_id=task.task_id,
             run_id=run.run_id,
             handoff_id=handoff_id,
@@ -785,6 +747,7 @@ class WorkerHandoffService:
         self._authorize_handoff_action(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             task_id=rec.task_id,
             run_id=rec.run_id,
             handoff_id=rec.handoff_id,
@@ -898,6 +861,7 @@ class WorkerHandoffService:
         self._authorize_handoff_action(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             task_id=rec.task_id,
             run_id=rec.run_id,
             handoff_id=rec.handoff_id,
@@ -985,6 +949,7 @@ class WorkerHandoffService:
         self._authorize_handoff_action(
             actor_id=request.actor_id,
             actor_kind=request.actor_kind,
+            auth_context=request.auth_context,
             task_id=rec.task_id,
             run_id=rec.run_id,
             handoff_id=rec.handoff_id,
