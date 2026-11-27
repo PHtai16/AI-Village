@@ -52,6 +52,7 @@ python -m pytest tests/agents/test_p05_01_agent_manifest.py -v
 python -m pytest tests/agents/test_p05_02_agent_registry.py -v
 python -m pytest tests/agents/test_p05_07_agent_recruitment.py -v
 python -m pytest tests/agents/test_p09_01_hr_department.py -v
+python -m pytest tests/departments/test_p09_02_04_departments.py tests/departments/test_p09_05_07_departments.py tests/departments/test_p09_08_09_departments.py tests/departments/test_gate_f_end_to_end.py -v
 python -m pytest tests/orchestration/test_p05_03_master_planning.py -v
 python -m pytest tests/orchestration/test_p05_04_dynamic_team_builder.py -v
 python -m pytest tests/orchestration/test_p05_03_04_integration_acceptance.py -v
