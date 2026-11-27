@@ -32,6 +32,7 @@ PERMISSION_MATRIX_ACTIONS: frozenset[str] = frozenset(
         "tool.invoke",
         "tool.configure",
         "agent.execute",
+        "agent.handoff",
         "agent.assign",
         "agent.read",
         "agent.create",
@@ -99,6 +100,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "files.read",
                 "files.write",
                 "agent.execute",
+                "agent.handoff",
                 "agent.assign",
                 "agent.read",
                 "agent.create",
@@ -153,6 +155,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "task.update_plan",
                 "files.read",
                 "agent.execute",
+                "agent.handoff",
                 "agent.assign",
                 "agent.read",
                 "runtime.cancel",
@@ -177,6 +180,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "files.write",
                 "tool.invoke",
                 "agent.read",
+                "agent.handoff",
                 "approval.request",
             ],
         ),
@@ -195,6 +199,7 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "task.transition",
                 "task.cancel",
                 "agent.execute",
+                "agent.handoff",
                 "agent.read",
                 "runtime.cancel",
                 "files.read",
@@ -378,6 +383,20 @@ class PolicyEvaluator:
                 reason_code="PRIVILEGE_ESCALATION_DENIED",
                 message=f"Worker agent cannot perform '{request.action}'.",
                 matched_ids=["inv.worker_least_privilege"],
+                system_deny=True,
+            )
+
+        if request.action == "agent.handoff" and (
+            bool(request.parameters.get("privilege_expansion"))
+            or bool(request.parameters.get("escalate_receiver_permissions"))
+            or bool(request.parameters.get("bypass_qa"))
+            or bool(request.parameters.get("grant_tools"))
+        ):
+            return _make_decision(
+                "DENY",
+                reason_code="PRIVILEGE_ESCALATION_DENIED",
+                message="Handoff cannot expand receiver permissions, grant tools, or bypass QA.",
+                matched_ids=["inv.handoff_no_privilege_escalation"],
                 system_deny=True,
             )
 

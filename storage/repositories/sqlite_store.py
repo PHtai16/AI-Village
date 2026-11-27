@@ -1308,6 +1308,7 @@ class SQLiteRepositoryStore:
         )
         from storage.repositories.agent_registry_repo import SQLiteAgentRegistryRepository
         from storage.repositories.approval_repo import SQLiteApprovalRepository
+        from storage.repositories.handoff_repo import SQLiteWorkerHandoffRepository
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
         from storage.repositories.planning_repo import SQLitePlanRepository
         from storage.repositories.team_repo import SQLiteTeamProposalRepository
@@ -1319,6 +1320,7 @@ class SQLiteRepositoryStore:
         self.plans = SQLitePlanRepository(self)
         self.teams = SQLiteTeamProposalRepository(self)
         self.worker_sessions = SQLiteWorkerSessionRepository(self)
+        self.handoffs = SQLiteWorkerHandoffRepository(self)
 
     @property
     def config(self) -> SQLiteConfig:

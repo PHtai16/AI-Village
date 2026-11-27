@@ -644,11 +644,11 @@ class WorkerSessionLifecycleService:
                         h
                         for h in handoffs
                         if h.handoff.to_agent_id == request.agent_id
-                        and h.handoff.status in {"DELIVERED", "ACKNOWLEDGED"}
+                        and h.handoff.status == "ACKNOWLEDGED"
                     ]
                     if not accepted:
                         dep_issues.append(
-                            f"Missing delivered/acknowledged handoff from '{dep_step_id}' to '{plan_step.step_id}'."
+                            f"Missing ACKNOWLEDGED handoff from '{dep_step_id}' to '{plan_step.step_id}'."
                         )
         if dep_issues:
             _record("step_dependencies_met", False, "DEPENDENCY_NOT_SATISFIED", "; ".join(dep_issues))
