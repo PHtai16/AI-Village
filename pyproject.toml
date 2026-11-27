@@ -21,6 +21,11 @@ stage-e = [
     "pypdf>=5.0",
     "httpx>=0.27",
     "playwright>=1.48",
+    "jsonschema>=4.23",
+    "mcp>=1.6",
+    "ddgs>=9.0",
+    "markitdown[pdf,docx,xlsx]>=0.1",
+    "markitdown-mcp>=0.0.1a4",
 ]
 
 [tool.pytest.ini_options]

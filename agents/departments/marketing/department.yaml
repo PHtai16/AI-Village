@@ -1,0 +1,40 @@
+# Hồ sơ tĩnh Phòng ban Marketing (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "marketing"
+name: "Marketing and Research Department"
+description: "Nghiên cứu nguồn công khai, tổng hợp xu hướng và biên soạn tài liệu truyền thông có trích dẫn."
+purpose: "Thu thập dữ liệu web gắn ranh giới Untrusted Data, chụp bằng chứng và xuất báo cáo nội dung."
+
+responsibilities:
+  - "Tra cứu nguồn công khai và lưu kèm URL, timestamp và mã băm nội dung."
+  - "Chụp ảnh tham chiếu trang web theo phiên được cấp quyền."
+  - "Biên soạn tài liệu nội dung và báo cáo Word trong workspace nhiệm vụ."
+
+supported_capabilities:
+  - "web_research"
+  - "search_discovery"
+  - "source_verification"
+  - "browser_inspection"
+  - "screenshot_capture"
+  - "office_reading"
+  - "office_writing"
+  - "file_reading"
+  - "file_writing"
+
+default_tools:
+  - "tools.research.web_search"
+  - "tools.research.web_fetch"
+  - "tools.browser.session"
+  - "tools.office.parse_markdown"
+  - "tools.office.write_docx"
+  - "tools.files.read"
+  - "tools.files.write"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#EA580C"
+  icon: "megaphone"
+  zone_id: "zone_marketing"

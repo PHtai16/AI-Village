@@ -1,0 +1,41 @@
+# Hồ sơ tĩnh Phòng ban IT (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "it"
+name: "IT and Engineering Department"
+description: "Phát triển phần mềm, vận hành kiểm thử kỹ thuật trong sandbox và kiểm tra mã nguồn."
+purpose: "Thực thi tác vụ kỹ thuật, chạy kiểm thử cô lập và rà soát thay đổi mã nguồn theo yêu cầu Master."
+
+responsibilities:
+  - "Viết và sửa mã nguồn trong workspace cách ly theo từng nhiệm vụ."
+  - "Chạy script kiểm thử trong sandbox và cung cấp log bằng chứng đã lọc bí mật."
+  - "Kiểm tra giao diện web hoặc tài liệu kỹ thuật phục vụ xây dựng sản phẩm."
+
+supported_capabilities:
+  - "file_reading"
+  - "file_writing"
+  - "workspace_inspection"
+  - "automated_testing"
+  - "code_execution"
+  - "sandbox_verification"
+  - "git_diff_analysis"
+  - "repository_inspection"
+  - "web_research"
+  - "browser_inspection"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.write"
+  - "tools.files.list"
+  - "tools.code.run_sandbox"
+  - "tools.code.git_inspect"
+  - "tools.research.web_fetch"
+  - "tools.browser.session"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#2563EB"
+  icon: "code-branch"
+  zone_id: "zone_it"

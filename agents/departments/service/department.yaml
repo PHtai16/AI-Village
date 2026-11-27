@@ -1,0 +1,36 @@
+# Hồ sơ tĩnh Phòng ban Service (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "service"
+name: "Customer Service and UX Department"
+description: "Tiếp nhận phản hồi người vận hành, đối chiếu yêu cầu và hoàn thiện tài liệu bàn giao."
+purpose: "Phân tích phản hồi người dùng, rà soát tài liệu Word/Excel và chuẩn hóa báo cáo giao nộp."
+
+responsibilities:
+  - "Làm rõ tiêu chí nghiệm thu và đối chiếu sản phẩm với yêu cầu ban đầu."
+  - "Đọc dữ liệu bảng biểu, chuyển đổi tài liệu đầu vào sang Markdown."
+  - "Xuất báo cáo tổng hợp DOCX sạch sẽ trong workspace nhiệm vụ."
+
+supported_capabilities:
+  - "file_reading"
+  - "file_writing"
+  - "office_reading"
+  - "office_writing"
+  - "markdown_conversion"
+  - "web_research"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.write"
+  - "tools.office.parse_markdown"
+  - "tools.office.read_excel"
+  - "tools.office.write_docx"
+  - "tools.research.web_fetch"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#0891B2"
+  icon: "headset"
+  zone_id: "zone_service"

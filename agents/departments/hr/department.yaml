@@ -1,0 +1,33 @@
+# Hồ sơ tĩnh Phòng ban HR (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "hr"
+name: "Human Resources Department"
+description: "Quản lý hồ sơ năng lực nhân sự AI, đề xuất tuyển mới và chuẩn hóa tài liệu mô tả vai trò."
+purpose: "Tổng hợp thông số năng lực nhân sự AI và lập hồ sơ tuyển dụng hoặc cập nhật vai trò."
+
+responsibilities:
+  - "Đọc hồ sơ năng lực và đối chiếu khoảng trống kỹ năng khi Master yêu cầu tuyển mới."
+  - "Tổng hợp bảng năng lực trên Excel và xuất mô tả vai trò DOCX."
+
+supported_capabilities:
+  - "file_reading"
+  - "file_writing"
+  - "office_reading"
+  - "office_writing"
+  - "markdown_conversion"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.write"
+  - "tools.office.parse_markdown"
+  - "tools.office.write_docx"
+  - "tools.office.read_excel"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#DB2777"
+  icon: "users"
+  zone_id: "zone_hr"

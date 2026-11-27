@@ -119,12 +119,31 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
     # Phase 03 authorizes core/__init__.py, core/orchestration/*.py, and core/runtime/*.py.
     # Phase 04 authorizes core/contracts/*.py (P04.01), core/tasks/*.py (P04.02),
     # core/events/*.py (P04.03), storage/db/*.py (P04.04), and storage/repositories/*.py (P04.05).
-    no_code_dirs = ["agents", "tools", "skills", "api", "sandbox"]
+    # Phase 07 authorizes tools/* subpackages and core/tools/*.py while agents/, skills/, api/, sandbox/ remain Python-free.
+    no_code_dirs = ["agents", "skills", "api", "sandbox"]
     for folder in no_code_dirs:
         py_files = list((REPO_ROOT / folder).rglob("*.py"))
         js_files = list((REPO_ROOT / folder).rglob("*.js"))
         assert not py_files, f"Unexpected Python files in Stage A folder {folder}: {py_files}"
         assert not js_files, f"Unexpected JS files in Stage A folder {folder}: {js_files}"
+
+    tools_root = REPO_ROOT / "tools"
+    assert not list(tools_root.rglob("*.js")), "Unexpected JS files inside tools/."
+    allowed_tools_subdirs = {
+        tools_root / "files",
+        tools_root / "code",
+        tools_root / "browser",
+        tools_root / "research",
+        tools_root / "office",
+        tools_root / "mcp_bridge",
+    }
+    unexpected_tools_py = [
+        p.relative_to(tools_root).as_posix()
+        for p in tools_root.rglob("*.py")
+        if p.relative_to(tools_root).as_posix() not in {"__init__.py", "registry_bootstrap.py"}
+        and p.parent not in allowed_tools_subdirs
+    ]
+    assert not unexpected_tools_py, f"Unexpected Python modules inside tools/: {unexpected_tools_py}"
 
     storage_root = REPO_ROOT / "storage"
     assert not list(storage_root.rglob("*.js")), "Unexpected JS files inside storage/."
@@ -150,6 +169,7 @@ def test_top_level_directories_exist_with_clean_boundaries() -> None:
         core_root / "events",
         core_root / "governance",
         core_root / "agents",
+        core_root / "tools",
     }
     unexpected_core_py = [
         p.relative_to(core_root).as_posix()
@@ -244,6 +264,15 @@ def test_templates_not_duplicated_and_no_secret_leaks(stage_a_markdown_files: li
     allowed_agent_yamls = {
         "master/agent.yaml",
         "roles/it_artifact_worker/agent.yaml",
+        "departments/hr/department.yaml",
+        "departments/resources/department.yaml",
+        "departments/service/department.yaml",
+        "departments/marketing/department.yaml",
+        "departments/it/department.yaml",
+        "departments/reception/department.yaml",
+        "departments/process/department.yaml",
+        "departments/qa/department.yaml",
+        "departments/vault/department.yaml",
     }
     found_agent_yamls = {
         p.relative_to(REPO_ROOT / "agents").as_posix()

@@ -1,0 +1,36 @@
+# Hồ sơ tĩnh Phòng ban Resources (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "resources"
+name: "Resources and Telemetry Department"
+description: "Theo dõi chi phí, thời gian thực thi, định mức và kiểm kê bảng số liệu bằng mã nguồn."
+purpose: "Kiểm kê mức tiêu thụ công cụ thực tế và tính toán phân bổ ngân sách có kiểm chứng."
+
+responsibilities:
+  - "Tính toán bảng định mức chi phí và thời gian thực thi bằng code tất định."
+  - "Đọc và xuất sổ liệu Excel kiểm kê tài nguyên theo từng nhiệm vụ."
+
+supported_capabilities:
+  - "file_reading"
+  - "workspace_inspection"
+  - "office_reading"
+  - "office_writing"
+  - "tabular_computation"
+  - "deterministic_analytics"
+  - "code_execution"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.list"
+  - "tools.office.read_excel"
+  - "tools.office.write_excel"
+  - "tools.office.compute_table"
+  - "tools.code.run_sandbox"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#D97706"
+  icon: "gauge"
+  zone_id: "zone_resources"

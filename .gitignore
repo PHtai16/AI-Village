@@ -41,6 +41,7 @@ __pycache__/
 htmlcov/
 .eslintcache
 .cache/
+.playwright-mcp/
 
 # 5. Runtime Sessions & Temporary Files
 *.session

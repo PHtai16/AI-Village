@@ -1,0 +1,36 @@
+# Hồ sơ tĩnh Phòng ban Vault (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "vault"
+name: "Vault and Knowledge Department"
+description: "Chuẩn hóa tài liệu lưu trữ, đọc trích xuất PDF/Word/Excel và lập chỉ mục bằng chứng."
+purpose: "Chuyển đổi tài liệu nguồn sang Markdown chuẩn hóa phục vụ lưu trữ phiên bản và truy xuất."
+
+responsibilities:
+  - "Đọc và chuyển đổi tài liệu đầu ra sang định dạng Markdown chuẩn hóa."
+  - "Kiểm tra tệp lưu trữ theo đường dẫn và mã băm SHA-256."
+
+supported_capabilities:
+  - "file_reading"
+  - "workspace_inspection"
+  - "office_reading"
+  - "pdf_processing"
+  - "docx_processing"
+  - "xlsx_processing"
+  - "markdown_conversion"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.list"
+  - "tools.office.parse_markdown"
+  - "tools.office.read_pdf"
+  - "tools.office.read_docx"
+  - "tools.office.read_excel"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#475569"
+  icon: "archive"
+  zone_id: "zone_vault"

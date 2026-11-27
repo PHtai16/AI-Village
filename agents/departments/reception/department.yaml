@@ -1,0 +1,32 @@
+# Hồ sơ tĩnh Phòng ban Reception (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "reception"
+name: "Reception and Routing Department"
+description: "Tiếp nhận yêu cầu đầu vào, bóc tách tài liệu đính kèm và định tuyến tới Master."
+purpose: "Đọc hiểu nhanh tệp PDF hoặc tài liệu đính kèm để phân loại mức ưu tiên và định tuyến."
+
+responsibilities:
+  - "Đọc tài liệu đính kèm trong workspace đầu vào của yêu cầu."
+  - "Chuyển đổi tệp sang Markdown để tổng hợp ngữ cảnh định tuyến cho Master."
+
+supported_capabilities:
+  - "file_reading"
+  - "workspace_inspection"
+  - "office_reading"
+  - "pdf_processing"
+  - "markdown_conversion"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.list"
+  - "tools.office.parse_markdown"
+  - "tools.office.read_pdf"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#0284C7"
+  icon: "inbox"
+  zone_id: "zone_reception"

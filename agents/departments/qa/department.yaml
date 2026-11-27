@@ -1,0 +1,41 @@
+# Hồ sơ tĩnh Phòng ban QA (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "qa"
+name: "Quality Assurance Department"
+description: "Kiểm chứng độc lập đầu ra kỹ thuật, tài liệu và bằng chứng thực thi trước khi bàn giao."
+purpose: "Đánh giá khách quan tính đúng đắn, toàn vẹn hash, kiểm thử tự động và bằng chứng giao diện."
+
+responsibilities:
+  - "Thực thi bộ kiểm thử độc lập trong sandbox và xác minh kết quả."
+  - "Đối chiếu thay đổi Git, tài liệu Word/Excel/PDF và ảnh chụp trình duyệt."
+  - "Từ chối xác nhận VERIFIED_PASS nếu thiếu bằng chứng kiểm chứng thực tế."
+
+supported_capabilities:
+  - "file_reading"
+  - "workspace_inspection"
+  - "automated_testing"
+  - "sandbox_verification"
+  - "git_diff_analysis"
+  - "browser_inspection"
+  - "screenshot_capture"
+  - "office_reading"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.list"
+  - "tools.code.run_sandbox"
+  - "tools.code.git_inspect"
+  - "tools.browser.session"
+  - "tools.office.parse_markdown"
+  - "tools.office.read_docx"
+  - "tools.office.read_excel"
+  - "tools.office.read_pdf"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#16A34A"
+  icon: "shield-check"
+  zone_id: "zone_qa"

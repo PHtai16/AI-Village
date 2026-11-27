@@ -1,0 +1,34 @@
+# Hồ sơ tĩnh Phòng ban Process (Department Manifest)
+# Trường default_tools chỉ mang tính khuyến nghị, không tự động cấp quyền cho Agent.
+
+spec_version: "1.0.0"
+department_id: "process"
+name: "Process and Improvement Department"
+description: "Theo dõi lỗi lặp, rà soát thay đổi quy trình và đề xuất cải tiến quy chuẩn vận hành."
+purpose: "Phân tích lịch sử thay đổi và ghi nhận biên bản chuẩn hóa quy trình hoặc đề xuất skill."
+
+responsibilities:
+  - "Đối chiếu thay đổi Git và nhật ký công cụ để phát hiện điểm nghẽn lặp lại."
+  - "Chuẩn hóa tài liệu quy trình và biên bản cải tiến dạng DOCX."
+
+supported_capabilities:
+  - "file_reading"
+  - "file_writing"
+  - "git_diff_analysis"
+  - "office_reading"
+  - "office_writing"
+  - "markdown_conversion"
+
+default_tools:
+  - "tools.files.read"
+  - "tools.files.write"
+  - "tools.code.git_inspect"
+  - "tools.office.parse_markdown"
+  - "tools.office.write_docx"
+
+status: "ACTIVE"
+
+visual_metadata:
+  color_code: "#7C3AED"
+  icon: "workflow"
+  zone_id: "zone_process"
