@@ -30,6 +30,7 @@ from storage.repositories.lifecycle_repo import (
     SQLiteLifecycleRepository,
 )
 from storage.repositories.planning_repo import SQLitePlanRepository
+from storage.repositories.recruitment_repo import SQLiteRecruitmentRepository
 from storage.repositories.team_repo import SQLiteTeamProposalRepository
 from storage.repositories.worker_session_repo import SQLiteWorkerSessionRepository
 from storage.repositories.recovery import (
@@ -77,6 +78,7 @@ __all__ = [
     "SQLiteLifecycleRepository",
     "SQLiteMetadataRepository",
     "SQLitePlanRepository",
+    "SQLiteRecruitmentRepository",
     "SQLiteRepositoryStore",
     "SQLiteRunRepository",
     "SQLiteSessionRepository",
