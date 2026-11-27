@@ -528,3 +528,19 @@ class AgentRecruitmentService:
             revision=revision,
             event=event,
         )
+
+    def get_proposal(self, proposal_id: str) -> StoredRecruitmentProposal | None:
+        """Return persisted recruitment proposal by ``proposal_id``, or None."""
+        return self._repo.get_proposal(proposal_id)
+
+    def list_proposals(
+        self,
+        *,
+        candidate_agent_id: str | None = None,
+        task_id: str | None = None,
+    ) -> list[StoredRecruitmentProposal]:
+        """List persisted recruitment proposals without modifying state."""
+        return self._repo.list_proposals(
+            candidate_agent_id=candidate_agent_id,
+            task_id=task_id,
+        )

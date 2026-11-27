@@ -204,6 +204,10 @@ class AgentExplorerSummary(BaseModel):
     active_revision: int = Field(ge=1)
     record_version: int = Field(ge=1)
     capabilities: list[CapabilityVerificationEntry]
+    declared_inputs: list[str] = Field(default_factory=list)
+    declared_outputs: list[str] = Field(default_factory=list)
+    skills_allowed: list[str] = Field(default_factory=list)
+    tools_allowed: list[str] = Field(default_factory=list)
     engine_preferences: dict[str, str | None]
     permission_summary: dict[str, Any]
     updated_at: datetime
@@ -1021,6 +1025,10 @@ class AgentRegistryService:
                     active_revision=rec.active_revision,
                     record_version=rec.record_version,
                     capabilities=list(rec.capability_verification),
+                    declared_inputs=list(rec.manifest.capabilities.inputs),
+                    declared_outputs=list(rec.manifest.capabilities.outputs),
+                    skills_allowed=list(rec.manifest.skills.allowed),
+                    tools_allowed=list(rec.manifest.tools.allowed),
                     engine_preferences={
                         "default_type": rec.manifest.engine.default_type,
                         "provider_id": rec.manifest.engine.provider_id,
