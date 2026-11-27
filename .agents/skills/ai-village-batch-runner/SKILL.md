@@ -38,15 +38,26 @@ Trước khi viết dòng mã đầu tiên, thực hiện tuần tự 4 bước 
 ## 4. Quy trình thực hiện 6 bước
 
 1. Dựng bản đặc tả batch 5 khối theo mẫu tại [references/batch-brief-template.md](./references/batch-brief-template.md), chỉ ghi các bất biến mới phát sinh của tiểu phase đang làm.
-2. Thiết kế ranh giới module sạch trước khi viết mã: chủ động tách `models`, `validator` hoặc `preflight`, `service` và `recovery` khi logic phình to nhằm giữ từng tệp dễ đọc thay vì dồn quá khoảng 800 dòng vào một tệp, đồng thời giữ tính thuần AST trong `core/`.
+2. Áp dụng kỷ luật `ponytail` mức `full` ngay từ lúc thiết kế: kiểm tra và tái sử dụng helper, mapper `actor_kind`, kiểm tra phạm vi đường dẫn, ngoại lệ và mẫu dựng sẵn trong kho mã trước khi viết hàm mới; chọn diff hoàn chỉnh nhỏ nhất, bỏ cấu hình dư thừa hoặc lớp bọc chưa dùng tới; tách gọn `models`, `validator` hoặc `preflight`, `service` và `recovery` để giữ tệp ngắn thay vì dồn thành khối nhiều nghìn dòng, đồng thời giữ tính thuần AST trong `core/`. Tuyệt đối không cắt giảm kiểm tra biên tin cậy, bảo mật, xử lý lỗi fail-closed, giao dịch nguyên tử SQLite hoặc yêu cầu đã chốt trong prompt.
 3. Triển khai tuần tự từng tiểu phase theo cổng riêng: khi chạy batch hai tiểu phase liên hoàn, phần A phải qua kiểm thử đạt ngưỡng mới được mở sang phần B; dừng lại báo cáo ngay nếu gặp xung đột giữa Blueprint và Standards.
-4. Xây dựng bộ kiểm thử tự động có cấu trúc rõ ràng: dùng hàm test riêng cho từng kịch bản nghiệp vụ hoặc `@pytest.mark.parametrize` cho ma trận tiêm lỗi để đầu ra pytest hiển thị rành mạch từng ca; phủ đủ happy path, đường lỗi fail-closed, rollback giao dịch SQLite, khôi phục sau restart và kiểm tra AST tầng kiến trúc.
+4. Xây dựng bộ kiểm thử tự động theo tinh thần `ponytail`: gom dựng SQLite, Manifest và Engine giả dùng chung về fixture tại `conftest.py` của nhóm test thay vì sao chép lặp hàng trăm dòng setup ở từng tệp; dùng hàm riêng cho từng kịch bản chính và `@pytest.mark.parametrize` cho ma trận tiêm lỗi để đầu ra pytest hiển thị rành mạch từng ca; phủ đủ happy path, fail-closed, rollback giao dịch SQLite, khôi phục sau restart và kiểm tra AST tầng kiến trúc.
 5. Cập nhật báo cáo kiểm toán tại `docs/reviews/PHASE_XX_PXX_YY_AUDIT.md`, cập nhật `docs/PROGRESS.md`, `tests/README.md` và `tests/standards/test_standards_consistency.py`; chạy lại `python -m pytest tests -v -rs` và `git diff --check` strictly sau chỉnh sửa tệp cuối cùng.
 6. Tạo Conventional Commit tách biệt cho từng tiểu phase hoàn chỉnh, chạy `git push origin main`, xác nhận `git rev-parse HEAD` trùng với `git ls-remote origin refs/heads/main` và `git status --short` trống.
 
-## 5. Công cụ và lưu ý môi trường Windows
+## 5. Công cụ, định tuyến kỹ năng và lưu ý Windows
 
 Chạy kiểm thử qua `python -m pytest` và lưu ý kho mã chạy trên Windows PowerShell 5. Khi nối lệnh trên PowerShell, luôn dùng `; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE };` thay cho `&&`. Dùng `Select-String` để tìm kiếm ký hiệu trong mã nguồn khi `rg` không khả dụng trên hệ thống.
+
+Chỉ nạp đúng kỹ năng chuyên biệt phát sinh theo từng chặng thay vì tự viết lại quy trình sẵn có:
+
+| Giai đoạn | Kỹ năng kích hoạt | Mục đích sử dụng |
+| :--- | :--- | :--- |
+| Điều tra và gỡ lỗi | `codebase-investigator` | Truy vết stack trace, lỗi build hoặc ca kiểm thử thất bại |
+| Thiết kế kiến trúc | `architecture`, `system-design` | Đánh giá ADR mới hoặc xử lý xung đột đặc tả |
+| Viết mã và kiểm soát diff | `ponytail`, `ponytail-review`, `ponytail-audit` | Giữ diff nhỏ nhất, rà soát trước commit, dọn mã thừa toàn repo |
+| Kiểm định và tài liệu | `output-verification`, `doc-coauthoring` | Thẩm định bằng chứng độc lập, chuẩn hóa báo cáo `docs/` |
+| Đẩy mã và tra cứu ngoài | `git-commit`, `web-researcher`, `mcp-builder` | Staging an toàn, tra tài liệu API, tích hợp MCP mới |
+| Giao diện ở phase sau | `frontend-design`, `webapp-testing`, `accessibility-review` | Thiết kế, kiểm thử E2E và rà chuẩn truy cập cho `ui/` |
 
 ## 6. Xử lý ngoại lệ và điểm dừng an toàn
 
@@ -60,7 +71,7 @@ Mọi lượt chạy chưa kích hoạt `AI_VILLAGE_RUN_LIVE=1` chỉ được p
 
 ## 7. Tiêu chí kiểm soát chất lượng đầu ra
 
-Giữ nguyên ranh giới phân tách 10 trạng thái vòng đời: không gộp trạng thái đăng ký Agent, phân công Team, khởi tạo Session, chạy Engine, sinh Output thô, QA xác minh Artifact, tạo Handoff, tiếp nhận Handoff, QA Task và hoàn thành Task vào cùng một nhãn thành công chung. Chỉ công bố các con số kiểm thử, đường dẫn tệp, tên ký hiệu và mã SHA quan sát trực tiếp sau lần chỉnh sửa cuối. Dừng đúng tại điểm kết của tiểu phase được giao, không viết đón đầu sang phase sau hoặc tự đánh dấu mở khóa Gate tổng hợp khi chưa nghiệm thu.
+Giữ nguyên ranh giới phân tách 10 trạng thái vòng đời: không gộp trạng thái đăng ký Agent, phân công Team, khởi tạo Session, chạy Engine, sinh Output thô, QA xác minh Artifact, tạo Handoff, tiếp nhận Handoff, QA Task và hoàn thành Task vào cùng một nhãn thành công chung. Chỉ công bố các con số kiểm thử, đường dẫn tệp, tên ký hiệu và mã SHA quan sát trực tiếp sau lần chỉnh sửa cuối. Bảo đảm mã nguồn không chứa hàm ánh xạ, kiểm tra đường dẫn, lớp bọc ngoại lệ hay đoạn dựng fixture trùng lặp. Dừng đúng tại điểm kết của tiểu phase được giao, không viết đón đầu sang phase sau hoặc tự đánh dấu mở khóa Gate tổng hợp khi chưa nghiệm thu.
 
 ## 8. Nguyên tắc bảo mật và toàn vẹn dữ liệu
 
@@ -68,7 +79,7 @@ Không đưa khóa API, token, mật khẩu hay đường dẫn tuyệt đối c
 
 ## 9. Định dạng báo cáo bàn giao gọn
 
-Thay vì lặp lại hàng chục mục đã ghi chi tiết trong tệp `docs/reviews/`, phản hồi kết thúc tới người dùng gồm 6 đến 8 mục súc tích: phạm vi và mã SHA commit, tệp và kiến trúc thay đổi, các bất biến đã khóa, bảng kết quả kiểm thử sau lần sửa cuối, liên kết tài liệu kiểm toán và tiến độ, trạng thái đồng bộ Git, giới hạn hiện tại cùng điểm dừng kế tiếp.
+Thay vì lặp lại hàng chục mục đã ghi chi tiết trong tệp `docs/reviews/`, phản hồi kết thúc tới người dùng gồm 6 đến 8 mục súc tích: phạm vi và mã SHA commit, tệp và kiến trúc thay đổi, các bất biến đã khóa, bảng kết quả kiểm thử sau lần sửa cuối, liên kết tài liệu kiểm toán và tiến độ, trạng thái đồng bộ Git, cùng 1 đến 2 dòng nêu rõ phần đã bỏ qua như kiểm thử live CLI và rủi ro còn lại cho người vận hành biết.
 
 ## 10. Ví dụ sử dụng và tham chiếu
 
