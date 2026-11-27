@@ -22,6 +22,7 @@ from core.governance import (
     compute_request_fingerprint,
 )
 from core.tools import (
+    ToolCancelledError,
     ToolCostProfile,
     ToolExecutionContext,
     ToolExecutionError,
@@ -540,5 +541,215 @@ def test_secret_redaction_immutability_timeout_output_invalid_and_usage_summary(
         by_tool = {b.tool_id: b for b in summary_unknown_only.by_tool}
         assert by_tool[m_unknown_cost.id].known_cost_usd is None
         assert by_tool[m_unknown_cost.id].unknown_cost_calls == 1
+    finally:
+        store.close()
+
+
+def test_rejected_expired_tampered_approval_cancellation_and_no_blind_retry(tmp_path: Path) -> None:
+    """Cover TOOL_SPEC scenarios 5 (rejected/expired/tampered approval), 7 (cancelled), and 12 (safe_retry=False)."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    exec_count = 0
+
+    def _probe(params: dict[str, Any], _ctx: ToolExecutionContext) -> ToolHandlerOutput:
+        nonlocal exec_count
+        exec_count += 1
+        note = params.get("note", "")
+        if note == "cancel_mid":
+            raise ToolCancelledError("Worker session cancelled mid-step.")
+        if note == "partial_fail":
+            raise ToolExecutionError("PARTIAL_EXECUTION", "Write interrupted half-way.")
+        return ToolHandlerOutput(data={"echo": str(params["path"])})
+
+    store, reg, runtime, approval_svc, task_id, run_id = _setup_runtime(tmp_path)
+    try:
+        m_sens = _sample_manifest(
+            "tools.files.cancel_approval_probe",
+            approval_required=True,
+            safe_retry=False,
+        )
+        m_plain = _sample_manifest("tools.files.cancel_plain_probe", safe_retry=False)
+        reg.register(m_sens, _probe, registered_at=_utc())
+        reg.register(m_plain, _probe, registered_at=_utc())
+        runtime._permissions._evaluator._registered_tools = reg.registered_tool_ids()
+        worker = _worker_ctx(allowed_tools=[m_sens.id, m_plain.id])
+        approver = _operator_ctx()
+
+        from core.governance import ApprovalError, ApprovalPolicyContext
+
+        pending = runtime.invoke(
+            ToolInvocationRequest(
+                auth_context=worker,
+                tool_id=m_sens.id,
+                parameters={"path": "item.txt"},
+                workspace_root=str(workspace),
+                task_id=task_id,
+                run_id=run_id,
+                timestamp=_utc(1),
+            )
+        )
+        assert pending.status == "APPROVAL_REQUIRED"
+        snap = ApprovalPolicyContext(
+            matched_rule_ids=["test"],
+            rule_versions={"test": "1.0.0"},
+            reason_code="APPROVAL_REQUIRED",
+        )
+
+        # Scenario 5a: Rejected approval never executes handler
+        apr_rej = approval_svc.create_approval_request(
+            requester=worker,
+            action=pending.data["approval_action"],
+            target_resource=pending.data["resource"],
+            task_id=task_id,
+            run_id=run_id,
+            request_fingerprint=pending.data["request_fingerprint"],
+            policy_snapshot=snap,
+            risk_summary="Test reject",
+            requested_at=_utc(2),
+            expires_at=_utc(30),
+        )
+        approval_svc.decide_approval(
+            apr_rej.approval_id,
+            decider=approver,
+            approved=False,
+            reason="Operator denied",
+            timestamp=_utc(3),
+        )
+        res_rej = runtime.invoke(
+            ToolInvocationRequest(
+                auth_context=worker,
+                tool_id=m_sens.id,
+                parameters={"path": "item.txt"},
+                workspace_root=str(workspace),
+                task_id=task_id,
+                run_id=run_id,
+                approval_id=apr_rej.approval_id,
+                timestamp=_utc(4),
+            )
+        )
+        assert res_rej.status == "DENIED"
+        assert res_rej.error_code == "APPROVAL_REJECTED"
+
+        # Scenario 5b: Expired approval blocked fail-closed
+        apr_exp = approval_svc.create_approval_request(
+            requester=worker,
+            action=pending.data["approval_action"],
+            target_resource=pending.data["resource"],
+            task_id=task_id,
+            run_id=run_id,
+            request_fingerprint=pending.data["request_fingerprint"],
+            policy_snapshot=snap,
+            risk_summary="Test expire",
+            requested_at=_utc(2),
+            expires_at=_utc(10),
+        )
+        with pytest.raises(ApprovalError) as exp_err:
+            approval_svc.decide_approval(
+                apr_exp.approval_id,
+                decider=approver,
+                approved=True,
+                reason="Too late",
+                timestamp=_utc(15),
+            )
+        assert exp_err.value.error_code == "APPROVAL_EXPIRED"
+
+        # Scenario 5c: Parameter tampering after approval rejected by fingerprint guard
+        apr_ok = approval_svc.create_approval_request(
+            requester=worker,
+            action=pending.data["approval_action"],
+            target_resource=pending.data["resource"],
+            task_id=task_id,
+            run_id=run_id,
+            request_fingerprint=pending.data["request_fingerprint"],
+            policy_snapshot=snap,
+            risk_summary="Test tamper",
+            requested_at=_utc(2),
+            expires_at=_utc(40),
+        )
+        approval_svc.decide_approval(
+            apr_ok.approval_id,
+            decider=approver,
+            approved=True,
+            reason="Only item.txt approved",
+            timestamp=_utc(3),
+        )
+        res_tamper = runtime.invoke(
+            ToolInvocationRequest(
+                auth_context=worker,
+                tool_id=m_sens.id,
+                parameters={"path": "item.txt", "note": "tampered"},
+                workspace_root=str(workspace),
+                task_id=task_id,
+                run_id=run_id,
+                approval_id=apr_ok.approval_id,
+                timestamp=_utc(5),
+            )
+        )
+        assert res_tamper.status == "DENIED"
+        assert res_tamper.error_code == "APPROVAL_FINGERPRINT_MISMATCH"
+        assert exec_count == 0
+
+        # Scenario 7a: Pre-launch cooperative cancellation
+        res_pre_cancel = runtime.invoke(
+            ToolInvocationRequest(
+                auth_context=worker,
+                tool_id=m_plain.id,
+                parameters={"path": "item.txt"},
+                workspace_root=str(workspace),
+                task_id=task_id,
+                run_id=run_id,
+                timestamp=_utc(6),
+            ),
+            is_cancelled=lambda: True,
+        )
+        assert res_pre_cancel.status == "CANCELLED"
+        assert res_pre_cancel.error_code == "CANCELLED"
+        assert exec_count == 0
+
+        # Scenario 7b: Mid-execution cancellation
+        res_mid_cancel = runtime.invoke(
+            ToolInvocationRequest(
+                auth_context=worker,
+                tool_id=m_plain.id,
+                parameters={"path": "item.txt", "note": "cancel_mid"},
+                workspace_root=str(workspace),
+                task_id=task_id,
+                run_id=run_id,
+                timestamp=_utc(7),
+            )
+        )
+        assert res_mid_cancel.status == "CANCELLED"
+        assert res_mid_cancel.error_code == "CANCELLED"
+        assert exec_count == 1
+
+        # Scenario 12: Non-idempotent failure executes exactly once with no retry
+        res_partial = runtime.invoke(
+            ToolInvocationRequest(
+                auth_context=worker,
+                tool_id=m_plain.id,
+                parameters={"path": "item.txt", "note": "partial_fail"},
+                workspace_root=str(workspace),
+                task_id=task_id,
+                run_id=run_id,
+                timestamp=_utc(8),
+            )
+        )
+        assert res_partial.status == "FAILED"
+        assert res_partial.error_code == "PARTIAL_EXECUTION"
+        assert exec_count == 2
+        partial_rows = store.tools.list_executions(
+            task_id=task_id,
+            run_id=run_id,
+            tool_id=m_plain.id,
+            status="FAILED",
+        )
+        assert len(partial_rows) == 1
+        cancelled_rows = store.tools.list_executions(
+            task_id=task_id,
+            run_id=run_id,
+            tool_id=m_plain.id,
+            status="CANCELLED",
+        )
+        assert len(cancelled_rows) == 2
     finally:
         store.close()

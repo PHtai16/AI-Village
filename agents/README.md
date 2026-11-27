@@ -2,7 +2,7 @@
 
 Thư mục `agents/` chỉ lưu trữ các tệp khai báo cấu hình tĩnh (manifest, vai trò, năng lực và ranh giới quyền hạn) của các AI Agent, Master Agent và các phòng ban chức năng. Tuyệt đối không đưa logic điều phối nghiệp vụ, mã gọi API Engine hay dữ liệu trạng thái runtime vào thư mục này.
 
-> **Trạng thái hiện tại (P05.01):** Chỉ lưu trữ hồ sơ YAML tĩnh đã chuẩn hóa (`agents/master/agent.yaml`, `agents/roles/it_artifact_worker/agent.yaml`) và tài liệu cấu trúc; toàn bộ mã Pydantic/Loader/Registry nằm tại `core/agents/` và `storage/repositories/`. Tuyệt đối không đặt file Python hoặc trạng thái runtime vào thư mục `agents/`.
+> **Trạng thái hiện tại (P05.01 + Phase 07):** Lưu trữ hồ sơ YAML tĩnh đã chuẩn hóa (`agents/master/agent.yaml`, `agents/roles/it_artifact_worker/agent.yaml`, cùng 9 hồ sơ khuyến nghị phòng ban tại `agents/departments/*/department.yaml`); toàn bộ mã Pydantic/Loader/Registry nằm tại `core/agents/` và `storage/repositories/`. Tuyệt đối không đặt file Python hoặc trạng thái runtime vào thư mục `agents/`.
 
 ## 1. Cấu trúc Dự kiến
 

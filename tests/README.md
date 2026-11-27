@@ -62,6 +62,8 @@ python -m pytest tests/orchestration/test_p06_05_06_delivery_and_gate_d.py -v
 python -m pytest tests/storage/test_p04_04_sqlite_migrations.py -v
 python -m pytest tests/storage/test_p04_05_persistent_repositories.py -v
 python -m pytest tests/storage/test_p04_05_persistence_acceptance.py -v
+python -m pytest tests/tools -v
+$env:AI_VILLAGE_RUN_LIVE="1"; python -m pytest tests/tools/test_code_and_mcp_tools.py -k live -v
 $env:CREWAI_DISABLE_TELEMETRY="true"; $env:OTEL_SDK_DISABLED="true"; .runtime/crewai-bench-venv/Scripts/python.exe -m pytest tests/benchmarks/p03_02/test_crewai_evaluation_unit.py -v
 ```
 

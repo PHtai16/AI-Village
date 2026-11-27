@@ -2,6 +2,7 @@
 
 from core.tools.models import (
     McpToolBinding,
+    ToolCancelledError,
     ToolCategory,
     ToolCostProfile,
     ToolExecutionContext,
@@ -26,6 +27,7 @@ from core.tools.runtime import ToolRuntime, aggregate_tool_usage
 
 __all__ = [
     "McpToolBinding",
+    "ToolCancelledError",
     "ToolCategory",
     "ToolCostProfile",
     "ToolExecutionContext",

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
+from collections.abc import Callable
 import logging
 from pathlib import Path
 from time import perf_counter
@@ -18,6 +20,7 @@ from core.governance.evaluator import compute_request_fingerprint
 from core.governance.manager import PermissionManager
 from core.governance.models import PolicyDecision, PolicyRequest
 from core.tools.models import (
+    ToolCancelledError,
     ToolExecutionContext,
     ToolExecutionError,
     ToolExecutionRecord,
@@ -97,7 +100,12 @@ class ToolRuntime:
         self._repo = tool_repo
         self._records: list[ToolExecutionRecord] = []
 
-    def invoke(self, request: ToolInvocationRequest) -> ToolResult:
+    def invoke(
+        self,
+        request: ToolInvocationRequest,
+        *,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> ToolResult:
         """Execute one governed tool invocation following all 10 lifecycle steps."""
         execution_id = new_tool_execution_id()
         started = perf_counter()
@@ -307,6 +315,16 @@ class ToolRuntime:
             approval_id=request.approval_id,
         )
 
+        if is_cancelled is not None and is_cancelled():
+            return _finalize(
+                status="CANCELLED",
+                action=manifest.permissions_required[0],
+                error_code="CANCELLED",
+                error_message=f"Tool '{manifest.id}' execution cancelled prior to launch.",
+                audit_event_id=last_audit_id,
+                event_type="tool.call_failed",
+            )
+
         if needs_approval and approval_trigger is not None:
             approval_action, trigger_decision = approval_trigger
             fingerprint = compute_request_fingerprint(
@@ -347,7 +365,13 @@ class ToolRuntime:
                     expected_fingerprint=fingerprint,
                     timestamp=request.timestamp,
                     system_deny=trigger_decision.system_deny,
-                    action_fn=lambda: self._run_handler(manifest, handler, request.parameters, approved_ctx),
+                    action_fn=lambda: self._run_handler(
+                        manifest,
+                        handler,
+                        request.parameters,
+                        approved_ctx,
+                        is_cancelled=is_cancelled,
+                    ),
                     correlation_id=corr_id,
                 )
             except ApprovalError as exc:
@@ -386,6 +410,7 @@ class ToolRuntime:
             handler,
             request.parameters,
             exec_ctx,
+            is_cancelled=is_cancelled,
         )
         primary_action = manifest.permissions_required[0]
         return self._complete_execution(
@@ -406,11 +431,24 @@ class ToolRuntime:
         handler: ToolHandler,
         parameters: dict[str, Any],
         ctx: ToolExecutionContext,
+        *,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> tuple[ToolResultStatus, ToolHandlerOutput | None, str | None, str | None]:
-        """Invoke handler safely catching timeouts and tool errors cleanly."""
+        """Invoke handler safely catching cancellation, timeouts, and tool errors cleanly."""
         try:
+            if is_cancelled is not None and is_cancelled():
+                raise ToolCancelledError(f"Tool '{manifest.id}' cancelled prior to handler invocation.")
             output = handler(dict(parameters), ctx)
+            if is_cancelled is not None and is_cancelled():
+                raise ToolCancelledError(f"Tool '{manifest.id}' cancelled before committing output.")
             return ("SUCCESS", output, None, None)
+        except (ToolCancelledError, asyncio.CancelledError) as exc:
+            return (
+                "CANCELLED",
+                None,
+                "CANCELLED",
+                str(exc) or f"Tool '{manifest.id}' execution cancelled.",
+            )
         except TimeoutError as exc:
             return ("TIMEOUT", None, "TIMED_OUT", str(exc) or f"Tool '{manifest.id}' timed out.")
         except ToolExecutionError as exc:

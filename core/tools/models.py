@@ -61,6 +61,13 @@ class ToolExecutionError(RuntimeError):
         self.retryable = retryable
 
 
+class ToolCancelledError(ToolExecutionError):
+    """Raised when tool execution is cancelled cooperatively."""
+
+    def __init__(self, message: str = "Tool execution cancelled.") -> None:
+        super().__init__("CANCELLED", message, retryable=False)
+
+
 class ToolCostProfile(BaseModel):
     """Transparent tool invocation cost profile without fabricated metrics."""
 

@@ -2,7 +2,7 @@
 
 Thư mục `tools/` chứa các công cụ thực thi độc lập với phòng ban và nhân vật, được tổ chức thành 5 nhóm chức năng (`files/`, `code/`, `browser/`, `research/`, `office/`). Công cụ thuần túy thực hiện thao tác kỹ thuật có kiểm soát, không chứa prompt nhân vật hay logic điều phối của Master.
 
-> **Trạng thái hiện tại:** Chỉ thiết lập cấu trúc tài liệu ranh giới cho Chặng A. Chưa triển khai bất kỳ công cụ thực thi thật nào (triển khai từ `PHASE 07`).
+> **Trạng thái hiện tại:** Đã hoàn thiện `PHASE 07` (`P07.01`–`P07.06`) với 17 công cụ chuẩn hóa trên 5 nhóm `files/`, `code/`, `browser/`, `research/`, `office/` cùng cầu nối `mcp_bridge/` và `core/tools/`, lưu vết vào SQLite migration `0011` (chi tiết kiểm toán tại [docs/reviews/PHASE_07_AUDIT.md](file:///C:/DoCho/AI-Village/docs/reviews/PHASE_07_AUDIT.md)).
 
 ## 1. Tài liệu Tham chiếu Bắt buộc
 
