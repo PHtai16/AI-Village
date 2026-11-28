@@ -76,6 +76,11 @@ PERMISSION_MATRIX_ACTIONS: frozenset[str] = frozenset(
         "knowledge.write",
         "settings.update",
         "kanban.transition",
+        "skill.propose",
+        "skill.review_technical",
+        "skill.benchmark",
+        "skill.activate",
+        "skill.rollback",
     }
 )
 
@@ -157,6 +162,11 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "trash.restore",
                 "knowledge.read",
                 "knowledge.write",
+                "skill.propose",
+                "skill.review_technical",
+                "skill.benchmark",
+                "skill.activate",
+                "skill.rollback",
             ],
         ),
         PolicyRule(
@@ -219,6 +229,9 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "vault.write",
                 "knowledge.read",
                 "knowledge.write",
+                "skill.propose",
+                "skill.activate",
+                "skill.rollback",
             ],
         ),
         PolicyRule(
@@ -253,6 +266,8 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "vault.write",
                 "knowledge.read",
                 "knowledge.write",
+                "skill.propose",
+                "skill.review_technical",
             ],
         ),
         PolicyRule(
@@ -280,6 +295,8 @@ def build_default_policy_rules() -> list[PolicyRule]:
                 "vault.write",
                 "knowledge.read",
                 "knowledge.write",
+                "skill.propose",
+                "skill.benchmark",
             ],
         ),
     ]
@@ -462,6 +479,9 @@ class PolicyEvaluator:
             "vault.delete",
             "vault.backup",
             "vault.restore",
+            "skill.benchmark",
+            "skill.activate",
+            "skill.rollback",
         }:
             return _make_decision(
                 "DENY",
@@ -495,6 +515,23 @@ class PolicyEvaluator:
                 message="Master delivery cannot mark unverified deliverables as VERIFIED or bypass QA.",
                 matched_ids=["inv.master_delivery_no_qa_bypass"],
                 system_deny=True,
+            )
+
+        if request.action == "skill.activate" and (
+            bool(request.parameters.get("requires_human_approval"))
+            or bool(request.parameters.get("has_scripts"))
+            or bool(request.parameters.get("has_permission_delta"))
+            or bool(request.parameters.get("sensitive_workflow"))
+            or str(request.parameters.get("risk_level", "low")).lower() in {"medium", "high"}
+        ):
+            return _make_decision(
+                "APPROVAL_REQUIRED",
+                reason_code="SENSITIVE_SKILL_APPROVAL_REQUIRED",
+                message=(
+                    "Skill activation modifies tools/permissions, scripts, dependencies, or sensitive "
+                    "workflows and requires explicit Human Operator approval."
+                ),
+                matched_ids=["gov.require_approval_sensitive_skill_activation"],
             )
 
         # Workspace boundary check whenever workspace_root or target_path is supplied.
