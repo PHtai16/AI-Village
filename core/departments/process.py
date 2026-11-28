@@ -22,6 +22,12 @@ from core.departments.process_models import (
     DurationSource,
     DuplicateRetrospectiveConflictError,
     ExecutionHistoryReaderPort,
+    ImprovementMetrics,
+    ImprovementStatus,
+    PatternAnalysisOutcome,
+    PatternAnalysisRequest,
+    PatternCategory,
+    ProcessImprovementRepository,
     ProcessOwnershipError,
     ProcessRetrospectiveRecord,
     ProcessRetrospectiveRepository,
@@ -38,12 +44,14 @@ from core.departments.process_models import (
     SkillUsageStatus,
     StaleRetrospectiveVersionError,
     StoredTaskRetrospective,
+    SuggestedImprovement,
     TaskExecutionEvidenceBundle,
     TaskExecutionSummary,
     TaskRetrospectiveInput,
     TaskRetrospectiveOutcome,
     TaskRetrospectiveRevision,
     compute_summary_fingerprint,
+    new_improvement_id,
     new_retrospective_id,
     scrub_text,
 )
@@ -680,6 +688,7 @@ class ProcessDepartmentService:
         journal: EventJournal,
         history_reader: ExecutionHistoryReaderPort | None = None,
         retrospective_repo: ProcessRetrospectiveRepository | None = None,
+        improvement_repo: ProcessImprovementRepository | None = None,
         skill_catalog: ApprovedSkillCatalogPort | None = None,
     ) -> None:
         """Bind Process/Skills service to Governance, Journal, and optional persistence ports."""
@@ -695,11 +704,21 @@ class ProcessDepartmentService:
                 else None
             )
         )
+        self._improvement_repo: ProcessImprovementRepository | None = (
+            improvement_repo
+            if improvement_repo is not None
+            else (
+                retrospective_repo
+                if isinstance(retrospective_repo, ProcessImprovementRepository)
+                else None
+            )
+        )
         self._skill_catalog: ApprovedSkillCatalogPort = (
             skill_catalog if skill_catalog is not None else FailClosedEmptySkillCatalog()
         )
         self._retrospectives: list[ProcessRetrospectiveRecord] = []
         self._proposals: list[SkillCandidateProposal] = []
+        self._improvements: dict[tuple[PatternCategory, str], SuggestedImprovement] = {}
 
     def compile_task_retrospective(
         self,
@@ -1561,6 +1580,582 @@ class ProcessDepartmentService:
         """List unapproved skill candidate proposals derived from real task history."""
         return list(self._proposals)
 
+    def analyze_patterns_and_suggest_improvements(
+        self,
+        request: PatternAnalysisRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> PatternAnalysisOutcome:
+        """Scan persisted Task retrospectives across Tasks to detect repeated errors, waste, and skill gaps."""
+        authorize_and_audit(
+            self._pm,
+            auth_context=auth_context,
+            action="knowledge.write",
+            resource=f"process:pattern_scan:{request.department or 'all'}",
+            timestamp=request.timestamp,
+            correlation_id="proc-p10-02-pattern-scan",
+        )
+        if auth_context.actor_kind == "worker_agent":
+            assigned = set(auth_context.assigned_task_ids)
+            if not request.task_ids or any(tid not in assigned for tid in request.task_ids):
+                raise ProcessOwnershipError(
+                    "TASK_OWNERSHIP_DENIED",
+                    "Worker agents cannot run cross-task pattern scans on unassigned Tasks.",
+                )
+
+        if self._repo is None:
+            raise ProcessValidationError(
+                "RETROSPECTIVE_REPO_UNAVAILABLE",
+                "ProcessRetrospectiveRepository is required for cross-task P10.02 pattern detection.",
+            )
+
+        all_stored = self._repo.list_retrospectives(limit=0)
+        requested_task_set = set(request.task_ids)
+        filtered: list[StoredTaskRetrospective] = []
+        for rec in all_stored:
+            if requested_task_set and rec.task_id not in requested_task_set:
+                continue
+            if request.department is not None and request.department not in rec.summary.departments_involved:
+                continue
+            filtered.append(rec)
+
+        filtered.sort(key=lambda r: (r.summary.recorded_at, r.task_id))
+        scanned_count = len(filtered)
+        if scanned_count < request.min_occurrences:
+            existing_all = self._list_existing_improvements()
+            return PatternAnalysisOutcome(
+                scanned_retrospective_count=scanned_count,
+                all_improvements=existing_all,
+            )
+
+        candidate_specs = _build_pattern_improvement_specs(
+            filtered,
+            min_occurrences=request.min_occurrences,
+            redundant_call_threshold=request.redundant_call_threshold,
+            scanned_task_count=scanned_count,
+            timestamp=request.timestamp,
+            auth_context=auth_context,
+        )
+
+        created: list[SuggestedImprovement] = []
+        updated: list[SuggestedImprovement] = []
+        unchanged: list[SuggestedImprovement] = []
+        last_ev_id: str | None = None
+
+        for spec, ev in candidate_specs:
+            if self._improvement_repo is not None:
+                saved, was_created, was_updated = self._improvement_repo.upsert_improvement_atomic(
+                    improvement=spec,
+                    actor_id=auth_context.actor_id,
+                    audit_event=ev,
+                )
+            else:
+                saved, was_created, was_updated = self._upsert_improvement_in_memory(spec, ev)
+            if was_created:
+                created.append(saved)
+                last_ev_id = saved.audit_event_id
+            elif was_updated:
+                updated.append(saved)
+                last_ev_id = saved.audit_event_id
+            else:
+                unchanged.append(saved)
+
+        return PatternAnalysisOutcome(
+            scanned_retrospective_count=scanned_count,
+            created_improvements=created,
+            updated_improvements=updated,
+            unchanged_improvements=unchanged,
+            all_improvements=self._list_existing_improvements(),
+            audit_event_id=last_ev_id,
+        )
+
+    def _upsert_improvement_in_memory(
+        self,
+        spec: SuggestedImprovement,
+        audit_event: Event,
+    ) -> tuple[SuggestedImprovement, bool, bool]:
+        key = (spec.pattern_type, spec.pattern_key)
+        existing = self._improvements.get(key)
+        if existing is not None and existing.source_fingerprint == spec.source_fingerprint:
+            return existing, False, False
+        self._journal.append(audit_event)
+        if existing is None:
+            self._improvements[key] = spec
+            return spec, True, False
+        next_imp = spec.model_copy(
+            update={
+                "improvement_id": existing.improvement_id,
+                "status": existing.status,
+                "record_version": existing.record_version + 1,
+                "detected_at": existing.detected_at,
+            }
+        )
+        self._improvements[key] = next_imp
+        return next_imp, False, True
+
+    def _list_existing_improvements(
+        self,
+        *,
+        pattern_type: PatternCategory | None = None,
+        status: ImprovementStatus | None = None,
+    ) -> list[SuggestedImprovement]:
+        if self._improvement_repo is not None:
+            return self._improvement_repo.list_improvements(
+                pattern_type=pattern_type,
+                status=status,
+            )
+        items = list(self._improvements.values())
+        if pattern_type is not None:
+            items = [i for i in items if i.pattern_type == pattern_type]
+        if status is not None:
+            items = [i for i in items if i.status == status]
+        return sorted(items, key=lambda i: (i.detected_at, i.improvement_id))
+
+    def list_suggested_improvements(
+        self,
+        *,
+        pattern_type: PatternCategory | None = None,
+        status: ImprovementStatus | None = None,
+        auth_context: TrustedAuthContext | None = None,
+        timestamp: datetime | None = None,
+    ) -> list[SuggestedImprovement]:
+        """List persisted multi-task improvement suggestions respecting Governance read policy."""
+        if auth_context is not None:
+            authorize_and_audit(
+                self._pm,
+                auth_context=auth_context,
+                action="knowledge.read",
+                resource=f"process:improvements:{pattern_type or 'all'}",
+                timestamp=timestamp or datetime.now(timezone.utc),
+                correlation_id="proc-list-improvements",
+            )
+            if auth_context.actor_kind == "worker_agent":
+                assigned = set(auth_context.assigned_task_ids)
+                return [
+                    imp
+                    for imp in self._list_existing_improvements(
+                        pattern_type=pattern_type, status=status
+                    )
+                    if all(tid in assigned for tid in imp.evidence_task_ids)
+                ]
+        return self._list_existing_improvements(pattern_type=pattern_type, status=status)
+
+    def get_suggested_improvement(
+        self,
+        improvement_id: str,
+        *,
+        auth_context: TrustedAuthContext | None = None,
+        timestamp: datetime | None = None,
+    ) -> SuggestedImprovement | None:
+        """Retrieve a single persisted ``SuggestedImprovement`` by identifier."""
+        item = (
+            self._improvement_repo.get_improvement(improvement_id)
+            if self._improvement_repo is not None
+            else next(
+                (i for i in self._improvements.values() if i.improvement_id == improvement_id),
+                None,
+            )
+        )
+        if auth_context is not None:
+            authorize_and_audit(
+                self._pm,
+                auth_context=auth_context,
+                action="knowledge.read",
+                resource=f"process:improvement:{improvement_id}",
+                timestamp=timestamp or datetime.now(timezone.utc),
+                correlation_id=f"proc-get-imp-{improvement_id}",
+            )
+            if item is not None and auth_context.actor_kind == "worker_agent":
+                assigned = set(auth_context.assigned_task_ids)
+                if not all(tid in assigned for tid in item.evidence_task_ids):
+                    raise ProcessOwnershipError(
+                        "TASK_OWNERSHIP_DENIED",
+                        f"Worker '{auth_context.actor_id}' lacks ownership for improvement '{improvement_id}'.",
+                    )
+        return item
+
+    def update_improvement_status(
+        self,
+        improvement_id: str,
+        *,
+        status: ImprovementStatus,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> SuggestedImprovement:
+        """Transition a ``SuggestedImprovement`` status cleanly with audit tracking."""
+        authorize_and_audit(
+            self._pm,
+            auth_context=auth_context,
+            action="knowledge.write",
+            resource=f"process:improvement:{improvement_id}:status",
+            timestamp=timestamp,
+            correlation_id=f"proc-imp-status-{improvement_id}",
+        )
+        if auth_context.actor_kind == "worker_agent":
+            raise ProcessOwnershipError(
+                "IMPROVEMENT_MUTATION_DENIED",
+                "Worker agents cannot transition process improvement status.",
+            )
+        if self._improvement_repo is not None:
+            return self._improvement_repo.update_improvement_status(
+                improvement_id,
+                status=status,
+                updated_at=timestamp,
+            )
+        for k, v in list(self._improvements.items()):
+            if v.improvement_id == improvement_id:
+                upd = v.model_copy(
+                    update={"status": status, "record_version": v.record_version + 1, "updated_at": timestamp}
+                )
+                self._improvements[k] = upd
+                return upd
+        raise ProcessValidationError(
+            "IMPROVEMENT_NOT_FOUND",
+            f"Improvement '{improvement_id}' does not exist.",
+        )
+
+
+def _to_snake_key(raw: str, *, fallback: str = "pattern_item", max_len: int = 56) -> str:
+    """Normalize arbitrary error/tool text into a valid snake_case identifier without secrets."""
+    cleaned = "".join(ch if ch.isalnum() else "_" for ch in raw.lower())
+    parts = [p for p in cleaned.split("_") if p]
+    joined = "_".join(parts)[:max_len].strip("_")
+    if len(joined) < 2:
+        joined = fallback
+    if not joined[0].isalnum():
+        joined = f"p_{joined}"[:max_len]
+    return joined
+
+
+def _aggregate_task_metrics(
+    retros: list[StoredTaskRetrospective],
+    *,
+    scanned_task_count: int,
+    error_occurrences: int = 0,
+    retry_count_total: int = 0,
+    redundant_extra_calls: int = 0,
+) -> ImprovementMetrics:
+    """Compute strictly factual cross-task metrics without fabricating missing durations or costs."""
+    durations = [r.summary.duration_ms for r in retros if r.summary.duration_ms is not None]
+    costs = [r.summary.cost_usd for r in retros if r.summary.cost_usd is not None]
+    total_dur = sum(durations) if durations else None
+    avg_dur = round(total_dur / len(durations), 2) if durations and total_dur is not None else None
+    total_cost = round(sum(costs), 8) if costs else None
+    n_tasks = len(retros)
+    return ImprovementMetrics(
+        occurrence_count=n_tasks,
+        distinct_task_count=n_tasks,
+        scanned_task_count=scanned_task_count,
+        affected_task_ratio=round(n_tasks / scanned_task_count, 4),
+        error_occurrences=error_occurrences,
+        retry_count_total=retry_count_total,
+        redundant_extra_calls=redundant_extra_calls,
+        avg_duration_ms=avg_dur,
+        total_duration_ms=total_dur,
+        cost_usd_total=total_cost,
+    )
+
+
+def _finalize_improvement_record(
+    *,
+    pattern_type: PatternCategory,
+    pattern_key: str,
+    suggested_skill_id: str,
+    title: str,
+    rationale: str,
+    recommended_action: str,
+    retros: list[StoredTaskRetrospective],
+    observed_error_codes: list[str],
+    observed_tools: list[str],
+    observed_fixes: list[str],
+    metrics: ImprovementMetrics,
+    timestamp: datetime,
+    auth_context: TrustedAuthContext,
+) -> tuple[SuggestedImprovement, Event]:
+    """Assemble validated SuggestedImprovement + corresponding process.pattern_detected Event."""
+    ordered = sorted(retros, key=lambda r: (r.summary.recorded_at, r.task_id))
+    task_ids = [r.task_id for r in ordered]
+    retro_ids = [r.retrospective_id for r in ordered]
+    run_ids = list(dict.fromkeys(rid for r in ordered for rid in r.summary.run_ids))
+    ev_refs = list(dict.fromkeys(ref for r in ordered for ref in r.summary.evidence_refs))
+    depts = list(dict.fromkeys(d for r in ordered for d in r.summary.departments_involved))
+
+    fp = compute_summary_fingerprint(
+        {
+            "pattern_type": pattern_type,
+            "pattern_key": pattern_key,
+            "evidence_task_ids": task_ids,
+            "evidence_retrospective_ids": retro_ids,
+            "observed_error_codes": observed_error_codes,
+            "observed_tools": observed_tools,
+            "metrics": metrics.model_dump(mode="json"),
+        }
+    )
+    imp_id = new_improvement_id()
+    ev = Event(
+        event_id=new_event_id(),
+        timestamp=timestamp,
+        event_type="process.pattern_detected",
+        source=actor_kind_to_event_source(auth_context.actor_kind),
+        actor_id=event_actor_id(auth_context),
+        correlation_id=f"proc-pattern-{pattern_key[:32]}",
+        redacted_payload=sanitize_event_payload(
+            {
+                "department": "process",
+                "improvement_id": imp_id,
+                "pattern_type": pattern_type,
+                "pattern_key": pattern_key,
+                "suggested_skill_id": suggested_skill_id,
+                "occurrence_count": metrics.occurrence_count,
+                "evidence_task_ids": task_ids,
+                "evidence_retrospective_ids": retro_ids,
+                "source_fingerprint": fp,
+            }
+        ),
+    )
+    imp = SuggestedImprovement(
+        improvement_id=imp_id,
+        pattern_type=pattern_type,
+        pattern_key=pattern_key,
+        suggested_skill_id=suggested_skill_id,
+        title=title,
+        rationale=rationale,
+        recommended_action=recommended_action,
+        evidence_task_ids=task_ids,
+        evidence_retrospective_ids=retro_ids,
+        evidence_run_ids=run_ids,
+        evidence_refs=ev_refs,
+        observed_error_codes=observed_error_codes,
+        observed_tools=observed_tools,
+        observed_fixes=observed_fixes,
+        departments_involved=depts,
+        metrics=metrics,
+        status="SUGGESTED",
+        source_fingerprint=fp,
+        record_version=1,
+        detected_at=timestamp,
+        updated_at=timestamp,
+        audit_event_id=ev.event_id,
+    )
+    return imp, ev
+
+
+def _build_pattern_improvement_specs(
+    retros: list[StoredTaskRetrospective],
+    *,
+    min_occurrences: int,
+    redundant_call_threshold: int,
+    scanned_task_count: int,
+    timestamp: datetime,
+    auth_context: TrustedAuthContext,
+) -> list[tuple[SuggestedImprovement, Event]]:
+    """Detect repeated errors, redundant tool operations, and missing skill gaps cleanly."""
+    specs: list[tuple[SuggestedImprovement, Event]] = []
+
+    # 1. Repeated Error patterns grouped by (tool_id, error_code) per distinct Task.
+    error_groups: dict[str, dict[str, Any]] = {}
+    for rec in retros:
+        s = rec.summary
+        seen_keys_this_task: set[str] = set()
+        for err in s.errors_observed:
+            tool_part = f"{err.tool_id.split('.')[-1]}_" if err.tool_id else ""
+            raw_key = f"err_{tool_part}{err.error_code}"
+            pkey = _to_snake_key(raw_key, fallback="err_recurring")
+            grp = error_groups.setdefault(
+                pkey,
+                {
+                    "retros": {},
+                    "error_count": 0,
+                    "codes": set(),
+                    "tools": set(),
+                    "fixes": [],
+                },
+            )
+            grp["error_count"] += 1
+            grp["codes"].add(err.error_code)
+            if err.tool_id:
+                grp["tools"].add(err.tool_id)
+            if rec.task_id not in seen_keys_this_task:
+                seen_keys_this_task.add(rec.task_id)
+                grp["retros"][rec.task_id] = rec
+                for fix in s.fixes_applied:
+                    if not fix.resolved_error_code or fix.resolved_error_code == err.error_code:
+                        if fix.description not in grp["fixes"]:
+                            grp["fixes"].append(fix.description)
+        for failed_tool in s.failed_tool_ids:
+            if any(e.tool_id == failed_tool for e in s.errors_observed):
+                continue
+            pkey = _to_snake_key(f"err_{failed_tool}_failed", fallback="err_tool_failed")
+            grp = error_groups.setdefault(
+                pkey,
+                {
+                    "retros": {},
+                    "error_count": 0,
+                    "codes": set(),
+                    "tools": set(),
+                    "fixes": [],
+                },
+            )
+            grp["error_count"] += 1
+            grp["tools"].add(failed_tool)
+            grp["retros"][rec.task_id] = rec
+
+    for pkey in sorted(error_groups):
+        grp = error_groups[pkey]
+        matched_retros: list[StoredTaskRetrospective] = list(grp["retros"].values())
+        if len(matched_retros) < min_occurrences:
+            continue
+        codes = sorted(grp["codes"])
+        tools = sorted(grp["tools"])
+        skill_id = _to_snake_key(f"prevent_{pkey}", fallback="prevent_recurring_error")
+        metrics = _aggregate_task_metrics(
+            matched_retros,
+            scanned_task_count=scanned_task_count,
+            error_occurrences=int(grp["error_count"]),
+        )
+        specs.append(
+            _finalize_improvement_record(
+                pattern_type="repeated_error",
+                pattern_key=pkey,
+                suggested_skill_id=skill_id,
+                title=f"Handle recurring failure pattern '{pkey}'",
+                rationale=(
+                    f"Observed error(s) {codes or [pkey]} across {len(matched_retros)} of "
+                    f"{scanned_task_count} scanned Tasks ({grp['error_count']} error events)."
+                ),
+                recommended_action=(
+                    f"Create preflight validation and remediation skill '{skill_id}' covering "
+                    f"tools {tools or ['task_workflow']}."
+                ),
+                retros=matched_retros,
+                observed_error_codes=codes,
+                observed_tools=tools,
+                observed_fixes=list(grp["fixes"]),
+                metrics=metrics,
+                timestamp=timestamp,
+                auth_context=auth_context,
+            )
+        )
+
+    # 2. Redundant operations (retries or excessive repeated invocations per tool across Tasks).
+    redundant_groups: dict[str, dict[str, Any]] = {}
+    for rec in retros:
+        s = rec.summary
+        for ts in s.tool_summaries:
+            extra_calls = max(ts.retry_count, max(0, ts.invocation_count - 1))
+            if ts.retry_count >= 1 or ts.invocation_count >= redundant_call_threshold:
+                pkey = _to_snake_key(f"redundant_{ts.tool_id}", fallback="redundant_tool_ops")
+                grp = redundant_groups.setdefault(
+                    pkey,
+                    {"retros": {}, "retries": 0, "extra_calls": 0, "tools": set()},
+                )
+                grp["retros"][rec.task_id] = rec
+                grp["retries"] += ts.retry_count
+                grp["extra_calls"] += extra_calls
+                grp["tools"].add(ts.tool_id)
+
+    for pkey in sorted(redundant_groups):
+        grp = redundant_groups[pkey]
+        matched_retros = list(grp["retros"].values())
+        if len(matched_retros) < min_occurrences:
+            continue
+        tools = sorted(grp["tools"])
+        skill_id = _to_snake_key(f"optimize_{pkey}", fallback="optimize_tool_workflow")
+        metrics = _aggregate_task_metrics(
+            matched_retros,
+            scanned_task_count=scanned_task_count,
+            retry_count_total=int(grp["retries"]),
+            redundant_extra_calls=int(grp["extra_calls"]),
+        )
+        specs.append(
+            _finalize_improvement_record(
+                pattern_type="redundant_operations",
+                pattern_key=pkey,
+                suggested_skill_id=skill_id,
+                title=f"Reduce redundant operations for '{', '.join(tools)}'",
+                rationale=(
+                    f"Observed {grp['extra_calls']} redundant tool calls and {grp['retries']} retries "
+                    f"across {len(matched_retros)} Tasks on {tools}."
+                ),
+                recommended_action=(
+                    f"Standardize batched execution checklist '{skill_id}' to reduce repeated calls."
+                ),
+                retros=matched_retros,
+                observed_error_codes=[],
+                observed_tools=tools,
+                observed_fixes=[],
+                metrics=metrics,
+                timestamp=timestamp,
+                auth_context=auth_context,
+            )
+        )
+
+    # 3. Missing Skill Gaps across recurring multi-tool / tagged workflows without invoked skills.
+    gap_groups: dict[str, dict[str, Any]] = {}
+    for rec in retros:
+        s = rec.summary
+        if s.skills_invoked:
+            continue
+        if s.pattern_tag:
+            pkey = _to_snake_key(f"gap_{s.pattern_tag}", fallback="gap_workflow")
+            suggested = _to_snake_key(s.pattern_tag, fallback="standardized_workflow")
+        elif len(s.tools_used) >= 2:
+            short_tools = "_".join(sorted(t.split(".")[-1] for t in s.tools_used))
+            pkey = _to_snake_key(f"gap_{short_tools}", fallback="gap_multi_tool_workflow")
+            suggested = _to_snake_key(f"workflow_{short_tools}", fallback="standardized_multi_tool")
+        else:
+            uninvoked_declared = [
+                su.skill_id for su in s.skill_usages if not su.invoked and not su.approved_in_catalog
+            ]
+            if not uninvoked_declared:
+                continue
+            skill_tok = "_".join(sorted(set(uninvoked_declared)))
+            pkey = _to_snake_key(f"gap_{skill_tok}", fallback="gap_missing_skill")
+            suggested = _to_snake_key(skill_tok, fallback="standardized_skill")
+
+        grp = gap_groups.setdefault(
+            pkey,
+            {"retros": {}, "suggested": suggested, "tools": set(), "codes": set()},
+        )
+        grp["retros"][rec.task_id] = rec
+        grp["tools"].update(s.tools_used)
+        for err in s.errors_observed:
+            grp["codes"].add(err.error_code)
+
+    for pkey in sorted(gap_groups):
+        grp = gap_groups[pkey]
+        matched_retros = list(grp["retros"].values())
+        if len(matched_retros) < min_occurrences:
+            continue
+        tools = sorted(grp["tools"])
+        codes = sorted(grp["codes"])
+        suggested = str(grp["suggested"])
+        metrics = _aggregate_task_metrics(matched_retros, scanned_task_count=scanned_task_count)
+        specs.append(
+            _finalize_improvement_record(
+                pattern_type="missing_skill_gap",
+                pattern_key=pkey,
+                suggested_skill_id=suggested,
+                title=f"Build approved Skill '{suggested}' for recurring unassisted workflow",
+                rationale=(
+                    f"{len(matched_retros)} Tasks repeated workflow '{pkey}' with tools {tools} "
+                    "and zero approved Skill invocations observed."
+                ),
+                recommended_action=(
+                    f"Draft candidate Skill '{suggested}' with explicit triggers, inputs/outputs, and QA benchmark."
+                ),
+                retros=matched_retros,
+                observed_error_codes=codes,
+                observed_tools=tools,
+                observed_fixes=[],
+                metrics=metrics,
+                timestamp=timestamp,
+                auth_context=auth_context,
+            )
+        )
+
+    return specs
+
 
 def _summarize_manual_tools(
     deduped_tools: list[ToolExecutionRecord],
@@ -1596,7 +2191,13 @@ __all__ = [
     "DepartmentBehaviorError",
     "DuplicateRetrospectiveConflictError",
     "ExecutionHistoryReaderPort",
+    "ImprovementMetrics",
+    "ImprovementStatus",
+    "PatternAnalysisOutcome",
+    "PatternAnalysisRequest",
+    "PatternCategory",
     "ProcessDepartmentService",
+    "ProcessImprovementRepository",
     "ProcessOwnershipError",
     "ProcessRetrospectiveRecord",
     "ProcessRetrospectiveRepository",
@@ -1611,6 +2212,7 @@ __all__ = [
     "SkillUsageRecord",
     "StaleRetrospectiveVersionError",
     "StoredTaskRetrospective",
+    "SuggestedImprovement",
     "TaskExecutionEvidenceBundle",
     "TaskExecutionSummary",
     "TaskRetrospectiveInput",

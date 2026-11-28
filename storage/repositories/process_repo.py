@@ -12,12 +12,15 @@ from core.contracts.identifiers import validate_aware_datetime, validate_safe_pa
 from core.departments.process_models import (
     AgentSkillSnapshot,
     DuplicateRetrospectiveConflictError,
+    ImprovementStatus,
+    PatternCategory,
     ProcessRetrospectiveRecord,
     ProcessTaskNotFoundError,
     ProcessValidationError,
     ResolvedConflictFact,
     StaleRetrospectiveVersionError,
     StoredTaskRetrospective,
+    SuggestedImprovement,
     TaskArtifactFact,
     TaskEvidenceFact,
     TaskExecutionEvidenceBundle,
@@ -704,6 +707,258 @@ class SQLiteProcessRepository:
             agent_snapshots=agent_snapshots,
             sources_consulted=sources,
         )
+
+    def _sync_improvement_task_links(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        improvement: SuggestedImprovement,
+        linked_at: datetime,
+    ) -> None:
+        linked_iso = linked_at.isoformat()
+        for task_id, retro_id in zip(
+            improvement.evidence_task_ids,
+            improvement.evidence_retrospective_ids,
+            strict=True,
+        ):
+            conn.execute(
+                """
+                INSERT INTO improvement_task_links (
+                    improvement_id, task_id, retrospective_id, linked_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(improvement_id, task_id) DO UPDATE SET
+                    retrospective_id = excluded.retrospective_id,
+                    linked_at = excluded.linked_at;
+                """,
+                (improvement.improvement_id, task_id, retro_id, linked_iso),
+            )
+
+    def upsert_improvement_atomic(
+        self,
+        *,
+        improvement: SuggestedImprovement,
+        actor_id: str,
+        audit_event: Event,
+    ) -> tuple[SuggestedImprovement, bool, bool]:
+        """Atomically persist, update, or deduplicate a P10.02 ``SuggestedImprovement``."""
+        validated = SuggestedImprovement.model_validate_json(improvement.model_dump_json())
+        validate_safe_payload(validated.model_dump(mode="json"), "suggested_improvement")
+
+        with self._store.transaction_scope() as conn:
+            existing = conn.execute(
+                """
+                SELECT * FROM improvement_suggestions
+                WHERE pattern_type = ? AND pattern_key = ?;
+                """,
+                (validated.pattern_type, validated.pattern_key),
+            ).fetchone()
+
+            if existing is None:
+                self._append_audit_or_raise(conn, audit_event)
+                payload_json = _dumps(validated.model_dump(mode="json"))
+                det_iso = validated.detected_at.isoformat()
+                upd_iso = validated.updated_at.isoformat()
+                try:
+                    conn.execute(
+                        """
+                        INSERT INTO improvement_suggestions (
+                            improvement_id, pattern_type, pattern_key, suggested_skill_id,
+                            title, status, occurrence_count, record_version,
+                            source_fingerprint, improvement_json, detected_by,
+                            detected_at, updated_at, last_audit_event_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (
+                            validated.improvement_id,
+                            validated.pattern_type,
+                            validated.pattern_key,
+                            validated.suggested_skill_id,
+                            validated.title,
+                            validated.status,
+                            validated.metrics.occurrence_count,
+                            validated.source_fingerprint,
+                            payload_json,
+                            actor_id,
+                            det_iso,
+                            upd_iso,
+                            audit_event.event_id,
+                        ),
+                    )
+                    self._sync_improvement_task_links(
+                        conn, improvement=validated, linked_at=validated.updated_at
+                    )
+                except sqlite3.Error as exc:
+                    raise RepositoryError(
+                        "PERSISTENCE_FAILED",
+                        f"Failed storing improvement '{validated.improvement_id}': {exc}",
+                        entity_id=validated.improvement_id,
+                    ) from exc
+                return validated, True, False
+
+            stored_existing = SuggestedImprovement.model_validate_json(
+                str(existing["improvement_json"])
+            )
+            if str(existing["source_fingerprint"]) == validated.source_fingerprint:
+                return stored_existing, False, False
+
+            next_ver = int(existing["record_version"]) + 1
+            canonical_id = str(existing["improvement_id"])
+            preserved_status = stored_existing.status
+            norm_payload = dict(audit_event.redacted_payload)
+            norm_payload["improvement_id"] = canonical_id
+            norm_payload["record_version"] = next_ver
+            norm_event = audit_event.model_copy(update={"redacted_payload": norm_payload})
+            self._append_audit_or_raise(conn, norm_event)
+
+            next_imp = validated.model_copy(
+                update={
+                    "improvement_id": canonical_id,
+                    "status": preserved_status,
+                    "record_version": next_ver,
+                    "detected_at": stored_existing.detected_at,
+                    "audit_event_id": norm_event.event_id,
+                }
+            )
+            payload_json = _dumps(next_imp.model_dump(mode="json"))
+            upd_iso = next_imp.updated_at.isoformat()
+            try:
+                conn.execute(
+                    """
+                    UPDATE improvement_suggestions
+                    SET suggested_skill_id = ?,
+                        title = ?,
+                        occurrence_count = ?,
+                        record_version = ?,
+                        source_fingerprint = ?,
+                        improvement_json = ?,
+                        updated_at = ?,
+                        last_audit_event_id = ?
+                    WHERE improvement_id = ?;
+                    """,
+                    (
+                        next_imp.suggested_skill_id,
+                        next_imp.title,
+                        next_imp.metrics.occurrence_count,
+                        next_ver,
+                        next_imp.source_fingerprint,
+                        payload_json,
+                        upd_iso,
+                        norm_event.event_id,
+                        canonical_id,
+                    ),
+                )
+                self._sync_improvement_task_links(
+                    conn, improvement=next_imp, linked_at=next_imp.updated_at
+                )
+            except sqlite3.Error as exc:
+                raise RepositoryError(
+                    "PERSISTENCE_FAILED",
+                    f"Failed updating improvement '{canonical_id}': {exc}",
+                    entity_id=canonical_id,
+                ) from exc
+            return next_imp, False, True
+
+    def get_improvement(self, improvement_id: str) -> SuggestedImprovement | None:
+        """Fetch persisted ``SuggestedImprovement`` by ``improvement_id``."""
+        with self._store.open_connection() as conn:
+            row = conn.execute(
+                "SELECT improvement_json FROM improvement_suggestions WHERE improvement_id = ?;",
+                (improvement_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return SuggestedImprovement.model_validate_json(str(row["improvement_json"]))
+
+    def get_improvement_by_pattern(
+        self,
+        pattern_type: PatternCategory,
+        pattern_key: str,
+    ) -> SuggestedImprovement | None:
+        """Fetch persisted ``SuggestedImprovement`` by unique ``(pattern_type, pattern_key)``."""
+        with self._store.open_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT improvement_json FROM improvement_suggestions
+                WHERE pattern_type = ? AND pattern_key = ?;
+                """,
+                (pattern_type, pattern_key),
+            ).fetchone()
+            if row is None:
+                return None
+            return SuggestedImprovement.model_validate_json(str(row["improvement_json"]))
+
+    def list_improvements(
+        self,
+        *,
+        pattern_type: PatternCategory | None = None,
+        status: ImprovementStatus | None = None,
+    ) -> list[SuggestedImprovement]:
+        """List persisted improvement suggestions ordered deterministically."""
+        clauses: list[str] = []
+        params: list[object] = []
+        if pattern_type is not None:
+            clauses.append("pattern_type = ?")
+            params.append(pattern_type)
+        if status is not None:
+            clauses.append("status = ?")
+            params.append(status)
+        where_sql = f"WHERE {' AND '.join(clauses)} " if clauses else ""
+        with self._store.open_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT improvement_json FROM improvement_suggestions
+                {where_sql}
+                ORDER BY detected_at ASC, improvement_id ASC;
+                """,
+                tuple(params),
+            ).fetchall()
+            return [
+                SuggestedImprovement.model_validate_json(str(r["improvement_json"])) for r in rows
+            ]
+
+    def update_improvement_status(
+        self,
+        improvement_id: str,
+        *,
+        status: ImprovementStatus,
+        updated_at: datetime,
+    ) -> SuggestedImprovement:
+        """Transition an existing improvement suggestion's lifecycle status atomically."""
+        validated_ts = validate_aware_datetime(updated_at, "updated_at")
+        with self._store.transaction_scope() as conn:
+            row = conn.execute(
+                "SELECT improvement_json, record_version FROM improvement_suggestions WHERE improvement_id = ?;",
+                (improvement_id,),
+            ).fetchone()
+            if row is None:
+                raise ProcessValidationError(
+                    "IMPROVEMENT_NOT_FOUND",
+                    f"Improvement '{improvement_id}' does not exist.",
+                )
+            current = SuggestedImprovement.model_validate_json(str(row["improvement_json"]))
+            next_ver = int(row["record_version"]) + 1
+            updated = current.model_copy(
+                update={
+                    "status": status,
+                    "record_version": next_ver,
+                    "updated_at": validated_ts,
+                }
+            )
+            conn.execute(
+                """
+                UPDATE improvement_suggestions
+                SET status = ?, record_version = ?, updated_at = ?, improvement_json = ?
+                WHERE improvement_id = ?;
+                """,
+                (
+                    status,
+                    next_ver,
+                    validated_ts.isoformat(),
+                    _dumps(updated.model_dump(mode="json")),
+                    improvement_id,
+                ),
+            )
+            return updated
 
 
 __all__ = ["SQLiteProcessRepository"]

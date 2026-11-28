@@ -608,3 +608,149 @@ class ProcessRetrospectiveRepository(Protocol):
 
     def list_revisions(self, retrospective_id: str) -> list[TaskRetrospectiveRevision]:
         """List immutable historical revisions for ``retrospective_id``."""
+
+
+PatternCategory = Literal["repeated_error", "redundant_operations", "missing_skill_gap"]
+ImprovementStatus = Literal["SUGGESTED", "CANDIDATE_CREATED", "RESOLVED", "DISMISSED"]
+
+
+def new_improvement_id() -> str:
+    """Generate canonical P10.02 SuggestedImprovement identifier (`imp_*`)."""
+    return f"imp_{uuid.uuid4().hex[:14]}"
+
+
+class PatternAnalysisRequest(BaseModel):
+    """Input configuration to scan persisted Task retrospectives for verifiable patterns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_ids: list[TaskId] = Field(default_factory=list, max_length=500)
+    department: DepartmentId | None = None
+    min_occurrences: int = Field(default=3, ge=2, le=100)
+    redundant_call_threshold: int = Field(default=2, ge=2, le=50)
+    timestamp: datetime
+
+    @field_validator("timestamp")
+    @classmethod
+    def _validate_ts(cls, value: datetime) -> datetime:
+        return validate_aware_datetime(value, "timestamp")
+
+
+class ImprovementMetrics(BaseModel):
+    """Strictly measured cross-task quantitative evidence backing a suggested improvement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    occurrence_count: int = Field(ge=2)
+    distinct_task_count: int = Field(ge=2)
+    scanned_task_count: int = Field(ge=2)
+    affected_task_ratio: float = Field(ge=0.0, le=1.0)
+    error_occurrences: int = Field(default=0, ge=0)
+    retry_count_total: int = Field(default=0, ge=0)
+    redundant_extra_calls: int = Field(default=0, ge=0)
+    avg_duration_ms: float | None = Field(default=None, ge=0.0)
+    total_duration_ms: int | None = Field(default=None, ge=0)
+    cost_usd_total: float | None = Field(default=None, ge=0.0)
+
+
+class SuggestedImprovement(BaseModel):
+    """Durable, evidence-backed continuous improvement suggestion mined across multiple Tasks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    improvement_id: str
+    pattern_type: PatternCategory
+    pattern_key: str
+    suggested_skill_id: str
+    title: str = Field(min_length=3, max_length=200)
+    rationale: str = Field(min_length=5, max_length=2000)
+    recommended_action: str = Field(min_length=5, max_length=1000)
+    evidence_task_ids: list[TaskId] = Field(min_length=2)
+    evidence_retrospective_ids: list[str] = Field(min_length=2)
+    evidence_run_ids: list[RunId] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    observed_error_codes: list[str] = Field(default_factory=list)
+    observed_tools: list[str] = Field(default_factory=list)
+    observed_fixes: list[str] = Field(default_factory=list)
+    departments_involved: list[DepartmentId] = Field(default_factory=list)
+    metrics: ImprovementMetrics
+    status: ImprovementStatus = "SUGGESTED"
+    source_fingerprint: Sha256Hex
+    record_version: int = Field(default=1, ge=1)
+    detected_at: datetime
+    updated_at: datetime
+    audit_event_id: EventId
+
+    @field_validator("pattern_key", "suggested_skill_id")
+    @classmethod
+    def _validate_keys(cls, value: str, info: object) -> str:
+        return validate_snake_id(value, getattr(info, "field_name", "pattern_key"))
+
+    @field_validator("title", "rationale", "recommended_action")
+    @classmethod
+    def _scrub_prose(cls, value: str, info: object) -> str:
+        return scrub_text(value, max_length=2000) or "Pattern observed."
+
+    @field_validator("observed_error_codes", "observed_tools", "observed_fixes")
+    @classmethod
+    def _scrub_lists(cls, values: list[str]) -> list[str]:
+        return [scrub_text(v, max_length=500) for v in values if scrub_text(v, max_length=500)]
+
+    @field_validator("detected_at", "updated_at")
+    @classmethod
+    def _validate_dts(cls, value: datetime, info: object) -> datetime:
+        return validate_aware_datetime(value, getattr(info, "field_name", "timestamp"))
+
+
+class PatternAnalysisOutcome(BaseModel):
+    """Structured result returned by ``analyze_patterns_and_suggest_improvements``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scanned_retrospective_count: int = Field(ge=0)
+    created_improvements: list[SuggestedImprovement] = Field(default_factory=list)
+    updated_improvements: list[SuggestedImprovement] = Field(default_factory=list)
+    unchanged_improvements: list[SuggestedImprovement] = Field(default_factory=list)
+    all_improvements: list[SuggestedImprovement] = Field(default_factory=list)
+    audit_event_id: EventId | None = None
+
+
+@runtime_checkable
+class ProcessImprovementRepository(Protocol):
+    """Persistence contract for durable P10.02 multi-task pattern improvements."""
+
+    def upsert_improvement_atomic(
+        self,
+        *,
+        improvement: SuggestedImprovement,
+        actor_id: str,
+        audit_event: Event,
+    ) -> tuple[SuggestedImprovement, bool, bool]:
+        """Atomically persist or deduplicate a pattern improvement linked to real Tasks."""
+
+    def get_improvement(self, improvement_id: str) -> SuggestedImprovement | None:
+        """Fetch persisted ``SuggestedImprovement`` by ``improvement_id``."""
+
+    def get_improvement_by_pattern(
+        self,
+        pattern_type: PatternCategory,
+        pattern_key: str,
+    ) -> SuggestedImprovement | None:
+        """Fetch persisted ``SuggestedImprovement`` by unique ``(pattern_type, pattern_key)``."""
+
+    def list_improvements(
+        self,
+        *,
+        pattern_type: PatternCategory | None = None,
+        status: ImprovementStatus | None = None,
+    ) -> list[SuggestedImprovement]:
+        """List persisted improvement suggestions ordered by update time."""
+
+    def update_improvement_status(
+        self,
+        improvement_id: str,
+        *,
+        status: ImprovementStatus,
+        updated_at: datetime,
+    ) -> SuggestedImprovement:
+        """Update lifecycle status of an existing improvement suggestion."""

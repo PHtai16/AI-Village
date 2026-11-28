@@ -97,6 +97,7 @@ EventType = Literal[
     "collaboration.conflict_resolved",
     "master.delivery_compiled",
     "process.retrospective_recorded",
+    "process.pattern_detected",
     "skill.usage_observed",
     "team.stale_detected",
     "team.missing_capability",
