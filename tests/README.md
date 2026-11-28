@@ -57,6 +57,7 @@ python -m pytest tests/departments/test_p10_01_process_retrospectives.py tests/d
 python -m pytest tests/departments/test_p11_01_concurrent_intake.py -v
 python -m pytest tests/departments/test_p11_02_interrupt_routing.py -v
 python -m pytest tests/optimization/test_p11_03_scheduler.py -v
+python -m pytest tests/departments/test_p11_04_resource_ledger.py -v
 python -m pytest tests/skills -v
 python -m pytest tests/orchestration/test_p05_03_master_planning.py -v
 python -m pytest tests/orchestration/test_p05_04_dynamic_team_builder.py -v
