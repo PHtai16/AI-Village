@@ -20,6 +20,10 @@ _CHECKLIST_ITEM_ID_RE = re.compile(r"^chk_[a-z0-9][a-z0-9_-]{3,63}$")
 _NOTIFICATION_ID_RE = re.compile(r"^ntf_[a-z0-9][a-z0-9_-]{3,63}$")
 _PROJECT_ID_RE = re.compile(r"^prj_[a-z0-9][a-z0-9_-]{2,63}$")
 _EVIDENCE_ID_RE = re.compile(r"^evd_[a-z0-9][a-z0-9_-]{3,63}$")
+_CONVERSATION_ID_RE = re.compile(r"^conv_[a-z0-9][a-z0-9_-]{3,63}$")
+_INTAKE_ID_RE = re.compile(r"^intk_[a-z0-9][a-z0-9_-]{3,63}$")
+_REFINEMENT_ID_RE = re.compile(r"^ref_[a-z0-9][a-z0-9_-]{3,63}$")
+_TURN_ID_RE = re.compile(r"^turn_[a-z0-9][a-z0-9_-]{3,63}$")
 _UUID_V4_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
@@ -112,6 +116,26 @@ def new_evidence_id() -> str:
     return f"evd_{uuid.uuid4().hex[:16]}"
 
 
+def new_conversation_id() -> str:
+    """Generate a unique canonical Conversation identifier (`conv_*`)."""
+    return f"conv_{uuid.uuid4().hex[:16]}"
+
+
+def new_intake_id() -> str:
+    """Generate a unique canonical Reception Intake identifier (`intk_*`)."""
+    return f"intk_{uuid.uuid4().hex[:16]}"
+
+
+def new_refinement_id() -> str:
+    """Generate a unique canonical Task Refinement identifier (`ref_*`)."""
+    return f"ref_{uuid.uuid4().hex[:16]}"
+
+
+def new_turn_id() -> str:
+    """Generate a unique canonical Conversation Turn identifier (`turn_*`)."""
+    return f"turn_{uuid.uuid4().hex[:16]}"
+
+
 def new_session_id() -> str:
     """Generate a unique canonical UUID v4 logical Session identifier."""
     return str(uuid.uuid4())
@@ -193,6 +217,34 @@ def validate_evidence_id(value: str) -> str:
     """Validate canonical `evd_*` Evidence identifier."""
     return _validate_pattern(
         value, _EVIDENCE_ID_RE, "evidence_id", "^evd_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_conversation_id(value: str) -> str:
+    """Validate canonical `conv_*` Conversation identifier."""
+    return _validate_pattern(
+        value, _CONVERSATION_ID_RE, "conversation_id", "^conv_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_intake_id(value: str) -> str:
+    """Validate canonical `intk_*` Reception Intake identifier."""
+    return _validate_pattern(
+        value, _INTAKE_ID_RE, "intake_id", "^intk_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_refinement_id(value: str) -> str:
+    """Validate canonical `ref_*` Task Refinement identifier."""
+    return _validate_pattern(
+        value, _REFINEMENT_ID_RE, "refinement_id", "^ref_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_turn_id(value: str) -> str:
+    """Validate canonical `turn_*` Conversation Turn identifier."""
+    return _validate_pattern(
+        value, _TURN_ID_RE, "turn_id", "^turn_[a-z0-9][a-z0-9_-]{3,63}$"
     )
 
 
@@ -384,6 +436,17 @@ def sanitize_payload(value: Any) -> Any:
     return value
 
 
+def scrub_secret_text(value: str) -> str:
+    """Redact credentials cleanly so scrubbed text contains zero secret prefixes or values."""
+    scrubbed = str(sanitize_payload(value))
+    scrubbed = re.sub(
+        r"(?i)(?:aiza|sk-|ghp_|gho_|github_pat_|glpat-|xox[bp]-|bearer\s+)\[REDACTED(?:_SECRET)?\]",
+        "[REDACTED_SECRET]",
+        scrubbed,
+    )
+    return scrubbed
+
+
 TaskId = Annotated[str, AfterValidator(validate_task_id)]
 RunId = Annotated[str, AfterValidator(validate_run_id)]
 ArtifactId = Annotated[str, AfterValidator(validate_artifact_id)]
@@ -392,6 +455,10 @@ ChecklistItemId = Annotated[str, AfterValidator(validate_checklist_item_id)]
 NotificationId = Annotated[str, AfterValidator(validate_notification_id)]
 ProjectId = Annotated[str, AfterValidator(validate_project_id)]
 EvidenceId = Annotated[str, AfterValidator(validate_evidence_id)]
+ConversationId = Annotated[str, AfterValidator(validate_conversation_id)]
+IntakeId = Annotated[str, AfterValidator(validate_intake_id)]
+RefinementId = Annotated[str, AfterValidator(validate_refinement_id)]
+TurnId = Annotated[str, AfterValidator(validate_turn_id)]
 SessionId = Annotated[str, AfterValidator(validate_session_id)]
 LegacySpikeSessionRef = Annotated[str, AfterValidator(validate_legacy_session_ref)]
 AgentId = Annotated[str, AfterValidator(validate_agent_id)]

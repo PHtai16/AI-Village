@@ -55,6 +55,7 @@ from storage.repositories.sqlite_store import (
     SQLiteSessionRepository,
     SQLiteTaskRepository,
 )
+from storage.repositories.reception_repo import SQLiteReceptionRepository
 
 __all__ = [
     "DuplicateEntityError",
@@ -81,6 +82,7 @@ __all__ = [
     "SQLiteLifecycleRepository",
     "SQLiteMetadataRepository",
     "SQLitePlanRepository",
+    "SQLiteReceptionRepository",
     "SQLiteRecruitmentRepository",
     "SQLiteRepositoryStore",
     "SQLiteRunRepository",

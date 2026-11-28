@@ -1315,6 +1315,7 @@ class SQLiteRepositoryStore:
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
         from storage.repositories.planning_repo import SQLitePlanRepository
         from storage.repositories.process_repo import SQLiteProcessRepository
+        from storage.repositories.reception_repo import SQLiteReceptionRepository
         from storage.repositories.recruitment_repo import SQLiteRecruitmentRepository
         from storage.repositories.skills_repo import SQLiteSkillsRepository
         from storage.repositories.team_repo import SQLiteTeamProposalRepository
@@ -1326,6 +1327,7 @@ class SQLiteRepositoryStore:
         self.agents = SQLiteAgentRegistryRepository(self)
         self.plans = SQLitePlanRepository(self)
         self.process = SQLiteProcessRepository(self)
+        self.reception = SQLiteReceptionRepository(self)
         self.skills = SQLiteSkillsRepository(self)
         self.teams = SQLiteTeamProposalRepository(self)
         self.worker_sessions = SQLiteWorkerSessionRepository(self)
