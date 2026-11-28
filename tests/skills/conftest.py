@@ -52,6 +52,7 @@ class SkillFactoryHarness:
             tool_lookup=self.tool_registry,
             improvement_repo=new_store.process,
             retrospective_repo=new_store.process,
+            evidence_vault=self.dept.evidence_vault,
         )
         return new_store, svc
 
@@ -72,6 +73,7 @@ def skill_harness(tmp_path: Path) -> SkillFactoryHarness:
         tool_lookup=tool_reg,
         improvement_repo=dept.store.process,
         retrospective_repo=dept.store.process,
+        evidence_vault=dept.evidence_vault,
     )
     return SkillFactoryHarness(
         dept=dept,

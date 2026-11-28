@@ -1,5 +1,10 @@
 """Phase 10 Skill Factory and Continuous Improvement lifecycle package."""
 
+from core.skills.benchmarking import (
+    compute_ab_benchmark_metrics,
+    evaluate_benchmark_status,
+    scrub_benchmark_outcomes,
+)
 from core.skills.models import (
     SENSITIVE_SKILL_TOOLS,
     VALID_SKILL_TRANSITIONS,
@@ -105,8 +110,11 @@ __all__ = [
     "SkillValidationError",
     "VALID_SKILL_TRANSITIONS",
     "assess_skill_risk_and_sensitivity",
+    "compute_ab_benchmark_metrics",
     "compute_directory_file_hashes",
+    "evaluate_benchmark_status",
     "new_activation_proposal_id",
+    "scrub_benchmark_outcomes",
     "new_benchmark_id",
     "new_improvement_outcome_id",
     "new_it_review_id",
