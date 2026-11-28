@@ -68,7 +68,7 @@ def _format_summary(event: Event) -> str:
     if isinstance(prev_s, str) and isinstance(new_s, str):
         raw = f"{event.event_type}: {prev_s} -> {new_s}"
     elif event.event_type in {"tool.call_observed", "tool.call_completed", "engine.event_forwarded"}:
-        tool_name = event.redacted_payload.get("tool_name")
+        tool_name = event.redacted_payload.get("tool_name") or event.redacted_payload.get("tool_id")
         if isinstance(tool_name, str) and tool_name.strip():
             raw = f"{event.event_type} tool={tool_name.strip()} source={event.source}"
         else:
@@ -91,7 +91,7 @@ def _entry_to_timeline_row(entry: JournalEntry) -> TimelineEntry:
 
     tool_name: str | None = None
     if ev.event_type in {"tool.call_observed", "tool.call_completed", "engine.event_forwarded"}:
-        raw_tool = payload.get("tool_name")
+        raw_tool = payload.get("tool_name") or payload.get("tool_id")
         if isinstance(raw_tool, str) and raw_tool.strip():
             tool_name = raw_tool.strip()
 
