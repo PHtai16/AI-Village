@@ -2,7 +2,7 @@
 
 Thư mục `core/` chứa toàn bộ thuật toán điều phối, máy trạng thái nhiệm vụ, quản lý phiên làm việc, luồng sự kiện và chính sách kiểm soát an ninh của AI Village.
 
-> **Trạng thái hiện tại:** Chỉ xác lập ranh giới thiết kế cho Chặng A. Chưa triển khai bất kỳ module nghiệp vụ Python nào thuộc `PHASE 03`–`11`.
+> **Trạng thái hiện tại (sau Chặng F):** Đã triển khai `contracts/`, `tasks/`, `events/`, `governance/`, `runtime/`, `agents/`, `orchestration/`, `tools/` và `departments/` kèm kiểm thử đơn vị và tích hợp đạt ngưỡng `Gate F`; `core/optimization/` dự kiến triển khai ở `PHASE 11`.
 
 ## 1. Các Nhóm Logic Dự kiến
 
