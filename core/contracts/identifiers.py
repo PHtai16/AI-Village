@@ -30,6 +30,9 @@ _ESCALATION_ID_RE = re.compile(r"^esc_[a-z0-9][a-z0-9_-]{3,63}$")
 _QUEUE_ENTRY_ID_RE = re.compile(r"^qent_[a-z0-9][a-z0-9_-]{3,63}$")
 _LEASE_ID_RE = re.compile(r"^lease_[a-z0-9][a-z0-9_-]{3,63}$")
 _SCHEDULE_ID_RE = re.compile(r"^sched_[a-z0-9][a-z0-9_-]{3,63}$")
+_RESOURCE_POLICY_ID_RE = re.compile(r"^rpol_[a-z0-9][a-z0-9_-]{3,63}$")
+_RESOURCE_LEDGER_ID_RE = re.compile(r"^rled_[a-z0-9][a-z0-9_-]{3,63}$")
+_RESOURCE_ALERT_ID_RE = re.compile(r"^ralt_[a-z0-9][a-z0-9_-]{3,63}$")
 _UUID_V4_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
@@ -170,6 +173,21 @@ def new_lease_id() -> str:
 def new_schedule_id() -> str:
     """Generate a unique canonical Scheduled Task identifier (`sched_*`)."""
     return f"sched_{uuid.uuid4().hex[:16]}"
+
+
+def new_resource_policy_id() -> str:
+    """Generate a resource budget policy identifier with prefix ``rpol_``."""
+    return f"rpol_{uuid.uuid4().hex[:16]}"
+
+
+def new_resource_ledger_id() -> str:
+    """Generate a resource ledger entry identifier with prefix ``rled_``."""
+    return f"rled_{uuid.uuid4().hex[:16]}"
+
+
+def new_resource_alert_id() -> str:
+    """Generate a resource threshold alert identifier with prefix ``ralt_``."""
+    return f"ralt_{uuid.uuid4().hex[:16]}"
 
 
 def new_session_id() -> str:
@@ -323,6 +341,27 @@ def validate_schedule_id(value: str) -> str:
     """Validate canonical `sched_*` Scheduled Task identifier."""
     return _validate_pattern(
         value, _SCHEDULE_ID_RE, "schedule_id", "^sched_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_resource_policy_id(value: str) -> str:
+    """Validate canonical `rpol_*` Resource Budget Policy identifier."""
+    return _validate_pattern(
+        value, _RESOURCE_POLICY_ID_RE, "policy_id", "^rpol_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_resource_ledger_id(value: str) -> str:
+    """Validate canonical `rled_*` Resource Ledger Entry identifier."""
+    return _validate_pattern(
+        value, _RESOURCE_LEDGER_ID_RE, "ledger_entry_id", "^rled_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_resource_alert_id(value: str) -> str:
+    """Validate canonical `ralt_*` Resource Threshold Alert identifier."""
+    return _validate_pattern(
+        value, _RESOURCE_ALERT_ID_RE, "alert_id", "^ralt_[a-z0-9][a-z0-9_-]{3,63}$"
     )
 
 
@@ -543,6 +582,9 @@ EscalationId = Annotated[str, AfterValidator(validate_escalation_id)]
 QueueEntryId = Annotated[str, AfterValidator(validate_queue_entry_id)]
 LeaseId = Annotated[str, AfterValidator(validate_lease_id)]
 ScheduleId = Annotated[str, AfterValidator(validate_schedule_id)]
+ResourcePolicyId = Annotated[str, AfterValidator(validate_resource_policy_id)]
+ResourceLedgerId = Annotated[str, AfterValidator(validate_resource_ledger_id)]
+ResourceAlertId = Annotated[str, AfterValidator(validate_resource_alert_id)]
 SessionId = Annotated[str, AfterValidator(validate_session_id)]
 LegacySpikeSessionRef = Annotated[str, AfterValidator(validate_legacy_session_ref)]
 AgentId = Annotated[str, AfterValidator(validate_agent_id)]

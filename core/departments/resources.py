@@ -20,6 +20,7 @@ from core.contracts.identifiers import (
 )
 from core.contracts.references import NotificationRef, NotificationSeverity
 from core.contracts.run import RunTelemetryRef, RunTelemetryStatus
+from core.departments import resources_ledger as _ledger_ops
 from core.departments._common import (
     DepartmentBehaviorError,
     ToolInvokerPort,
@@ -27,6 +28,18 @@ from core.departments._common import (
     authorize_and_audit,
     event_actor_id,
     invoke_tool_checked,
+)
+from core.departments.resources_models import (
+    BucketQuotaSummary,
+    RecordResourceUsageOutcome,
+    RecordResourceUsageRequest,
+    RegisterBudgetPolicyRequest,
+    ResourceBudgetPolicy,
+    ResourceLedgerEntry,
+    ResourceLedgerQuery,
+    ResourceLedgerRepository,
+    ResourceThresholdAlert,
+    TaskResourceUsageSummary,
 )
 from core.events.journal import EventJournal
 from core.governance.manager import PermissionManager
@@ -247,13 +260,15 @@ class ResourcesDepartmentService:
         sampler: HostMetricsSamplerPort | None = None,
         metadata_repo: Any | None = None,
         tool_invoker: ToolInvokerPort | None = None,
+        ledger_repository: ResourceLedgerRepository | None = None,
     ) -> None:
-        """Bind Resources service to Governance, EventJournal, optional notification store and ToolRuntime."""
+        """Bind Resources service to Governance, EventJournal, optional notification store, ToolRuntime, and Ledger."""
         self._pm = permission_manager
         self._journal = journal
         self._sampler: HostMetricsSamplerPort = sampler or DefaultHostMetricsSampler()
         self._metadata = metadata_repo
         self._tools = tool_invoker
+        self._ledger = ledger_repository
         self._scopes: dict[tuple[str, str, str | None, str | None], QuotaScopeRecord] = {}
         self._inventories: list[PostRunResourceInventory] = []
 
@@ -644,3 +659,137 @@ class ResourcesDepartmentService:
         if task_id is None:
             return list(self._inventories)
         return [item for item in self._inventories if item.task_id == task_id]
+
+    def register_budget_policy(
+        self,
+        request: RegisterBudgetPolicyRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> ResourceBudgetPolicy:
+        """Register or update a durable budget/quota threshold policy (Operator or Master only)."""
+        return _ledger_ops.register_budget_policy(
+            self._pm,
+            self._ledger,
+            request,
+            auth_context=auth_context,
+        )
+
+    def record_usage(
+        self,
+        request: RecordResourceUsageRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> RecordResourceUsageOutcome:
+        """Persist immutable usage ledger telemetry and evaluate budget/quota threshold alerts."""
+        return _ledger_ops.record_usage(
+            self._pm,
+            self._ledger,
+            request,
+            auth_context=auth_context,
+        )
+
+    def get_task_resource_summary(
+        self,
+        task_id: str,
+        *,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> TaskResourceUsageSummary:
+        """Return honest Task resource totals without converting unavailable metrics to zero."""
+        return _ledger_ops.get_task_resource_summary(
+            self._pm,
+            self._ledger,
+            task_id,
+            auth_context=auth_context,
+            timestamp=timestamp,
+        )
+
+    def get_bucket_quota_summary(
+        self,
+        quota_bucket_key: str,
+        *,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> BucketQuotaSummary | None:
+        """Return shared/verified quota consumption metrics for a quota bucket."""
+        return _ledger_ops.get_bucket_quota_summary(
+            self._pm,
+            self._ledger,
+            quota_bucket_key,
+            auth_context=auth_context,
+            timestamp=timestamp,
+        )
+
+    def list_resource_ledger(
+        self,
+        query: ResourceLedgerQuery | None = None,
+        *,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> list[ResourceLedgerEntry]:
+        """List durable resource ledger rows filtered by query."""
+        return _ledger_ops.list_resource_ledger(
+            self._pm,
+            self._ledger,
+            query,
+            auth_context=auth_context,
+            timestamp=timestamp,
+        )
+
+    def list_resource_alerts(
+        self,
+        *,
+        scope_ref: str | None = None,
+        include_resolved: bool = False,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> list[ResourceThresholdAlert]:
+        """List persisted resource budget and quota threshold alerts."""
+        return _ledger_ops.list_resource_alerts(
+            self._pm,
+            self._ledger,
+            scope_ref=scope_ref,
+            include_resolved=include_resolved,
+            auth_context=auth_context,
+            timestamp=timestamp,
+        )
+
+    def acknowledge_resource_alert(
+        self,
+        alert_id: str,
+        *,
+        expected_record_version: int,
+        note: str,
+        timestamp: datetime,
+        auth_context: TrustedAuthContext,
+    ) -> ResourceThresholdAlert:
+        """Acknowledge an active resource threshold alert cleanly."""
+        return _ledger_ops.acknowledge_resource_alert(
+            self._pm,
+            self._ledger,
+            alert_id,
+            expected_record_version=expected_record_version,
+            note=note,
+            timestamp=timestamp,
+            auth_context=auth_context,
+        )
+
+    def resolve_resource_alert(
+        self,
+        alert_id: str,
+        *,
+        expected_record_version: int,
+        note: str,
+        timestamp: datetime,
+        auth_context: TrustedAuthContext,
+    ) -> ResourceThresholdAlert:
+        """Resolve an active resource threshold alert cleanly."""
+        return _ledger_ops.resolve_resource_alert(
+            self._pm,
+            self._ledger,
+            alert_id,
+            expected_record_version=expected_record_version,
+            note=note,
+            timestamp=timestamp,
+            auth_context=auth_context,
+        )

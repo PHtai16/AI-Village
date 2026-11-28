@@ -33,6 +33,7 @@ from storage.repositories.lifecycle_repo import (
 )
 from storage.repositories.planning_repo import SQLitePlanRepository
 from storage.repositories.recruitment_repo import SQLiteRecruitmentRepository
+from storage.repositories.resources_repo import SQLiteResourcesRepository
 from storage.repositories.scheduler_repo import SQLiteSchedulerRepository
 from storage.repositories.team_repo import SQLiteTeamProposalRepository
 from storage.repositories.tool_repo import SqliteToolRepository
@@ -88,6 +89,7 @@ __all__ = [
     "SQLiteReceptionRepository",
     "SQLiteRecruitmentRepository",
     "SQLiteRepositoryStore",
+    "SQLiteResourcesRepository",
     "SQLiteRunRepository",
     "SQLiteSchedulerRepository",
     "SQLiteSessionRepository",
