@@ -1312,6 +1312,7 @@ class SQLiteRepositoryStore:
         from storage.repositories.approval_repo import SQLiteApprovalRepository
         from storage.repositories.collaboration_repo import SQLiteCollaborationRepository
         from storage.repositories.handoff_repo import SQLiteWorkerHandoffRepository
+        from storage.repositories.interrupt_repo import SQLiteInterruptRepository
         from storage.repositories.lifecycle_repo import SQLiteLifecycleRepository
         from storage.repositories.planning_repo import SQLitePlanRepository
         from storage.repositories.process_repo import SQLiteProcessRepository
@@ -1334,6 +1335,7 @@ class SQLiteRepositoryStore:
         self.handoffs = SQLiteWorkerHandoffRepository(self)
         self.recruitment = SQLiteRecruitmentRepository(self)
         self.collaboration = SQLiteCollaborationRepository(self)
+        self.interrupts = SQLiteInterruptRepository(self)
         self.tools = SqliteToolRepository(self)
 
     @property

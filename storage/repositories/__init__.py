@@ -4,6 +4,7 @@ from storage.repositories.agent_registry_repo import SQLiteAgentRegistryReposito
 from storage.repositories.approval_repo import SQLiteApprovalRepository
 from storage.repositories.collaboration_repo import SQLiteCollaborationRepository
 from storage.repositories.handoff_repo import SQLiteWorkerHandoffRepository
+from storage.repositories.interrupt_repo import SQLiteInterruptRepository
 from storage.repositories.errors import (
     DuplicateEntityError,
     EntityNotFoundError,
@@ -78,6 +79,7 @@ __all__ = [
     "SQLiteApprovalRepository",
     "SQLiteCollaborationRepository",
     "SQLiteEventJournal",
+    "SQLiteInterruptRepository",
     "SQLiteLifecyclePersistenceAdapter",
     "SQLiteLifecycleRepository",
     "SQLiteMetadataRepository",

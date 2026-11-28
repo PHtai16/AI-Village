@@ -24,6 +24,9 @@ _CONVERSATION_ID_RE = re.compile(r"^conv_[a-z0-9][a-z0-9_-]{3,63}$")
 _INTAKE_ID_RE = re.compile(r"^intk_[a-z0-9][a-z0-9_-]{3,63}$")
 _REFINEMENT_ID_RE = re.compile(r"^ref_[a-z0-9][a-z0-9_-]{3,63}$")
 _TURN_ID_RE = re.compile(r"^turn_[a-z0-9][a-z0-9_-]{3,63}$")
+_INTERRUPT_ID_RE = re.compile(r"^intr_[a-z0-9][a-z0-9_-]{3,63}$")
+_INCIDENT_ID_RE = re.compile(r"^inc_[a-z0-9][a-z0-9_-]{3,63}$")
+_ESCALATION_ID_RE = re.compile(r"^esc_[a-z0-9][a-z0-9_-]{3,63}$")
 _UUID_V4_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
@@ -52,7 +55,7 @@ _RAW_SECRET_PREFIXES: tuple[str, ...] = (
     "bearer ",
 )
 _EMBEDDED_SECRET_RE = re.compile(
-    r"(?:AIza[0-9A-Za-z\-_]{4,}|sk-[0-9A-Za-z\-_]{4,}|ghp_[0-9A-Za-z]{4,}|github_pat_[0-9A-Za-z_]{4,}|xox[bp]-[0-9A-Za-z-]{4,}|(?i:bearer\s+[A-Za-z0-9\-._~+/=]{4,})|(?i:(?:api[_-]?key|raw[_-]?key|secret|password|token)\s*[=:]\s*[^\s,;\"']+))"
+    r"(?:(?<![A-Za-z0-9])(?:AIza[0-9A-Za-z\-_]{4,}|sk-[0-9A-Za-z\-_]{4,}|ghp_[0-9A-Za-z]{4,}|github_pat_[0-9A-Za-z_]{4,}|xox[bp]-[0-9A-Za-z-]{4,})|(?i:\bbearer\s+[A-Za-z0-9\-._~+/=]{4,})|(?i:\b(?:api[_-]?key|raw[_-]?key|secret|password|token)\s*[=:]\s*[^\s,;\"']+))"
 )
 _FORBIDDEN_KEY_FRAGMENTS: tuple[str, ...] = (
     "api_key",
@@ -134,6 +137,21 @@ def new_refinement_id() -> str:
 def new_turn_id() -> str:
     """Generate a unique canonical Conversation Turn identifier (`turn_*`)."""
     return f"turn_{uuid.uuid4().hex[:16]}"
+
+
+def new_interrupt_id() -> str:
+    """Generate a unique canonical Interrupt event identifier (`intr_*`)."""
+    return f"intr_{uuid.uuid4().hex[:16]}"
+
+
+def new_incident_id() -> str:
+    """Generate a unique canonical Interrupt Incident identifier (`inc_*`)."""
+    return f"inc_{uuid.uuid4().hex[:16]}"
+
+
+def new_escalation_id() -> str:
+    """Generate a unique canonical Interrupt Escalation identifier (`esc_*`)."""
+    return f"esc_{uuid.uuid4().hex[:16]}"
 
 
 def new_session_id() -> str:
@@ -245,6 +263,27 @@ def validate_turn_id(value: str) -> str:
     """Validate canonical `turn_*` Conversation Turn identifier."""
     return _validate_pattern(
         value, _TURN_ID_RE, "turn_id", "^turn_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_interrupt_id(value: str) -> str:
+    """Validate canonical `intr_*` Interrupt event identifier."""
+    return _validate_pattern(
+        value, _INTERRUPT_ID_RE, "interrupt_id", "^intr_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_incident_id(value: str) -> str:
+    """Validate canonical `inc_*` Interrupt Incident identifier."""
+    return _validate_pattern(
+        value, _INCIDENT_ID_RE, "incident_id", "^inc_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_escalation_id(value: str) -> str:
+    """Validate canonical `esc_*` Interrupt Escalation identifier."""
+    return _validate_pattern(
+        value, _ESCALATION_ID_RE, "escalation_id", "^esc_[a-z0-9][a-z0-9_-]{3,63}$"
     )
 
 
@@ -459,6 +498,9 @@ ConversationId = Annotated[str, AfterValidator(validate_conversation_id)]
 IntakeId = Annotated[str, AfterValidator(validate_intake_id)]
 RefinementId = Annotated[str, AfterValidator(validate_refinement_id)]
 TurnId = Annotated[str, AfterValidator(validate_turn_id)]
+InterruptId = Annotated[str, AfterValidator(validate_interrupt_id)]
+IncidentId = Annotated[str, AfterValidator(validate_incident_id)]
+EscalationId = Annotated[str, AfterValidator(validate_escalation_id)]
 SessionId = Annotated[str, AfterValidator(validate_session_id)]
 LegacySpikeSessionRef = Annotated[str, AfterValidator(validate_legacy_session_ref)]
 AgentId = Annotated[str, AfterValidator(validate_agent_id)]
