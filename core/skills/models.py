@@ -587,6 +587,7 @@ class SkillActivationProposalRecord(BaseModel):
     version: SemVer
     package_sha256: Sha256Hex
     benchmark_id: str
+    task_id: TaskId | None = None
     proposal_status: SkillProposalStatus
     requires_human_approval: bool
     sensitivity_reasons: list[str] = Field(default_factory=list)
@@ -818,6 +819,24 @@ class SkillLifecycleRepository(Protocol):
         audit_event: Event,
     ) -> SkillActivePointer:
         """Atomically revert active pointer to a prior immutable APPROVED version."""
+
+    def disable_active_skill_atomic(
+        self,
+        *,
+        package: SkillPackageRecord,
+        expected_record_version: int,
+        pointer: SkillActivePointer | None,
+        audit_event: Event,
+    ) -> SkillPackageRecord:
+        """Disable a Skill version and clear active pointer if pointing to that version."""
+
+    def update_activation_proposal_atomic(
+        self,
+        *,
+        proposal: SkillActivationProposalRecord,
+        audit_event: Event,
+    ) -> SkillActivationProposalRecord:
+        """Update status of an activation proposal atomically (e.g. REJECTED)."""
 
     def insert_improvement_outcome_atomic(
         self,

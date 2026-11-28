@@ -62,13 +62,13 @@ def assess_skill_risk_and_sensitivity(
         reasons.append(f"Declares external sandbox dependencies: {dependencies}.")
 
     tool_set = set(tools)
-    prior = prior_approved_tools if prior_approved_tools is not None else set()
-    new_or_elevated = sorted(t for t in tool_set if t not in prior or t in SENSITIVE_SKILL_TOOLS)
-    perm_delta = bool(tool_set - prior) or bool(tool_set & SENSITIVE_SKILL_TOOLS)
+    added_tools = (tool_set - prior_approved_tools) if prior_approved_tools is not None else set()
+    elevated_tools = sorted((tool_set & SENSITIVE_SKILL_TOOLS) | added_tools)
+    perm_delta = bool(added_tools) or bool(tool_set & SENSITIVE_SKILL_TOOLS)
     if tool_set & SENSITIVE_SKILL_TOOLS:
         reasons.append(f"Requires sensitive tools: {sorted(tool_set & SENSITIVE_SKILL_TOOLS)}.")
-    elif tool_set - prior:
-        reasons.append(f"Introduces new tool requirements: {sorted(tool_set - prior)}.")
+    elif added_tools:
+        reasons.append(f"Introduces new tool requirements: {sorted(added_tools)}.")
 
     if modifies_sensitive_workflow:
         reasons.append("Declared to alter a sensitive operational workflow.")
@@ -79,7 +79,7 @@ def assess_skill_risk_and_sensitivity(
         has_scripts
         or dependencies
         or (tool_set & SENSITIVE_SKILL_TOOLS)
-        or (prior and bool(tool_set - prior))
+        or bool(added_tools)
         or modifies_sensitive_workflow
         or risk_level in {"medium", "high"}
     )
@@ -90,7 +90,7 @@ def assess_skill_risk_and_sensitivity(
         modifies_sensitive_workflow=modifies_sensitive_workflow,
         has_executable_scripts=has_scripts,
         requires_human_approval=requires_human,
-        sensitivity_reasons=list(dict.fromkeys(reasons or new_or_elevated)),
+        sensitivity_reasons=list(dict.fromkeys(reasons or elevated_tools)),
     )
 
 

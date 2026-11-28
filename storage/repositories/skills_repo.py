@@ -494,6 +494,61 @@ class SQLiteSkillsRepository:
             self._upsert_pointer(conn, val_ptr)
             return val_ptr
 
+    def disable_active_skill_atomic(
+        self,
+        *,
+        package: SkillPackageRecord,
+        expected_record_version: int,
+        pointer: SkillActivePointer | None,
+        audit_event: Event,
+    ) -> SkillPackageRecord:
+        """Disable a Skill version and clear active pointer cleanly inside a transaction."""
+        val_pkg = SkillPackageRecord.model_validate_json(package.model_dump_json())
+        val_ptr = (
+            SkillActivePointer.model_validate_json(pointer.model_dump_json())
+            if pointer is not None
+            else None
+        )
+        with self._store.transaction_scope() as conn:
+            self._append_audit_or_raise(conn, audit_event)
+            self._update_package_row(
+                conn, val_pkg, expected_record_version=expected_record_version
+            )
+            if val_ptr is not None:
+                self._upsert_pointer(conn, val_ptr)
+            return val_pkg
+
+    def update_activation_proposal_atomic(
+        self,
+        *,
+        proposal: SkillActivationProposalRecord,
+        audit_event: Event,
+    ) -> SkillActivationProposalRecord:
+        """Update an existing skill activation proposal cleanly inside a transaction."""
+        val_prop = SkillActivationProposalRecord.model_validate_json(proposal.model_dump_json())
+        with self._store.transaction_scope() as conn:
+            self._append_audit_or_raise(conn, audit_event)
+            conn.execute(
+                """
+                UPDATE skill_activation_proposals
+                SET proposal_status = ?,
+                    approval_id = ?,
+                    proposal_json = ?,
+                    decided_by = ?,
+                    decided_at = ?
+                WHERE proposal_id = ?;
+                """,
+                (
+                    val_prop.proposal_status,
+                    val_prop.approval_id,
+                    _dumps(val_prop.model_dump(mode="json")),
+                    val_prop.decided_by,
+                    val_prop.decided_at.isoformat() if val_prop.decided_at else None,
+                    val_prop.proposal_id,
+                ),
+            )
+            return val_prop
+
     def insert_improvement_outcome_atomic(
         self,
         *,

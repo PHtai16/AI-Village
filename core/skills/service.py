@@ -22,8 +22,15 @@ from core.departments.process_models import (
 )
 from core.departments.qa import EvidenceVaultPort
 from core.events.journal import EventJournal
-from core.governance.manager import PermissionManager
-from core.governance.models import PolicyRequest, TrustedAuthContext, actor_kind_to_event_source
+from core.governance.approvals import ApprovalError
+from core.governance.evaluator import compute_request_fingerprint
+from core.governance.manager import GovernanceAuditError, PermissionDeniedError, PermissionManager
+from core.governance.models import (
+    ApprovalPolicyContext,
+    PolicyRequest,
+    TrustedAuthContext,
+    actor_kind_to_event_source,
+)
 from core.skills.benchmarking import (
     compute_ab_benchmark_metrics,
     evaluate_benchmark_status,
@@ -736,6 +743,761 @@ class SkillLifecycleService:
     def list_benchmarks(self, skill_id: str, version: str) -> list[SkillBenchmarkRecord]:
         """List immutable QA benchmarks recorded for ``(skill_id, version)``."""
         return self._repo.list_benchmarks(skill_id, version)
+
+    # ------------------------------------------------------------------
+    # P10.05: Activation Proposals, Approvals, Outcomes, Disable & Rollback
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _activation_policy_parameters(
+        pkg: SkillPackageRecord,
+        *,
+        requires_human: bool,
+        has_permission_delta: bool,
+    ) -> dict[str, Any]:
+        return {
+            "skill_id": pkg.skill_id,
+            "version": pkg.version,
+            "package_sha256": pkg.package_sha256,
+            "requires_human_approval": requires_human,
+            "has_scripts": pkg.risk_profile.has_executable_scripts,
+            "has_permission_delta": has_permission_delta,
+            "sensitive_workflow": pkg.risk_profile.modifies_sensitive_workflow,
+            "risk_level": pkg.risk_profile.risk_level,
+        }
+
+    def propose_skill_activation(
+        self,
+        request: ProposeSkillActivationRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> SkillActivationProposalRecord:
+        """Propose a benchmark-PASSED Skill for activation, queuing Human Approval when sensitive."""
+        self._authorize(
+            auth_context=auth_context,
+            action="skill.propose",
+            resource=f"skill:{request.skill_id}:{request.version}:activate",
+            task_id=request.task_id,
+            timestamp=request.timestamp,
+            correlation_id=f"skill-prop-{request.skill_id}-{request.version}",
+        )
+        if auth_context.actor_kind not in {"master_agent", "human_operator"}:
+            raise SkillGovernanceError(
+                "ACTIVATION_PROPOSAL_FORBIDDEN",
+                f"Actor kind '{auth_context.actor_kind}' cannot propose production skill activation.",
+            )
+
+        pkg = self._require_package(request.skill_id, request.version)
+        if pkg.lifecycle_status != "UNDER_REVIEW":
+            raise SkillStateError(
+                "INVALID_SKILL_STATE_FOR_ACTIVATION",
+                f"Activation proposal requires 'UNDER_REVIEW' state, got '{pkg.lifecycle_status}'.",
+            )
+        self._verify_candidate_integrity_on_disk(pkg)
+
+        benchmarks = self._repo.list_benchmarks(request.skill_id, request.version)
+        matching_passed = [
+            b
+            for b in benchmarks
+            if b.benchmark_status == "PASSED" and b.package_sha256 == pkg.package_sha256
+        ]
+        if not matching_passed:
+            raise SkillBenchmarkError(
+                "BENCHMARK_PASS_REQUIRED",
+                (
+                    f"Cannot propose activation for '{request.skill_id}@{request.version}': "
+                    f"current benchmark_status is '{pkg.benchmark_status}'."
+                ),
+            )
+        latest_bm = matching_passed[-1]
+
+        open_props = [
+            p
+            for p in self._repo.list_activation_proposals(skill_id=request.skill_id)
+            if p.version == request.version
+            and p.proposal_status in {"PENDING_APPROVAL", "PENDING_ACTIVATION"}
+        ]
+        if open_props:
+            raise SkillStateError(
+                "DUPLICATE_PENDING_PROPOSAL",
+                f"Pending activation proposal '{open_props[0].proposal_id}' already exists.",
+            )
+
+        prior_ptr = self._repo.get_active_pointer(request.skill_id)
+        prior_tools: set[str] | None = None
+        if prior_ptr is not None and prior_ptr.active_version is not None:
+            prior_pkg = self._repo.get_package(request.skill_id, prior_ptr.active_version)
+            if prior_pkg is not None:
+                prior_tools = set(prior_pkg.frontmatter.requirements.tools)
+
+        live_risk = assess_skill_risk_and_sensitivity(
+            tools=pkg.frontmatter.requirements.tools,
+            dependencies=pkg.frontmatter.requirements.dependencies,
+            scripts={k: "present" for k in pkg.file_hashes if k.startswith("scripts/")},
+            risk_level=pkg.risk_profile.risk_level,
+            risks=pkg.risk_profile.risks,
+            modifies_sensitive_workflow=pkg.risk_profile.modifies_sensitive_workflow,
+            prior_approved_tools=prior_tools,
+        )
+        requires_human = live_risk.requires_human_approval
+        resource = f"skill:{request.skill_id}:{request.version}"
+        params = self._activation_policy_parameters(
+            pkg,
+            requires_human=requires_human,
+            has_permission_delta=live_risk.modifies_permissions_or_tools,
+        )
+        fingerprint = compute_request_fingerprint(
+            action="skill.activate",
+            resource=resource,
+            task_id=request.task_id,
+            run_id=None,
+            parameters=params,
+        )
+
+        approval_id: str | None = None
+        proposal_status: Literal["PENDING_APPROVAL", "PENDING_ACTIVATION"] = "PENDING_ACTIVATION"
+        if requires_human:
+            if not request.request_human_approval_if_needed or self._pm.approval_service is None:
+                raise SkillGovernanceError(
+                    "APPROVAL_SERVICE_REQUIRED",
+                    "Sensitive skill activation requires ApprovalService to queue Human Operator approval.",
+                )
+            probe_decision = self._pm.evaluator.evaluate(
+                PolicyRequest(
+                    auth_context=auth_context,
+                    action="skill.activate",
+                    resource=resource,
+                    task_id=request.task_id,
+                    parameters=params,
+                    timestamp=request.timestamp,
+                )
+            )
+            apr = self._pm.approval_service.create_approval_request(
+                requester=auth_context,
+                action="skill.activate",
+                target_resource=resource,
+                task_id=request.task_id,
+                run_id=None,
+                request_fingerprint=probe_decision.request_fingerprint,
+                policy_snapshot=ApprovalPolicyContext(
+                    matched_rule_ids=probe_decision.matched_rule_ids,
+                    rule_versions=self._pm.evaluator.policy_snapshot(
+                        probe_decision.matched_rule_ids
+                    ),
+                    reason_code=probe_decision.reason_code,
+                ),
+                risk_summary=redact_secrets(
+                    f"Activate skill {request.skill_id}@{request.version}: "
+                    + ("; ".join(live_risk.sensitivity_reasons) or request.rationale)
+                )[:500],
+                requested_at=request.timestamp,
+                correlation_id=f"skill-apr-{request.skill_id}-{request.version}",
+            )
+            approval_id = apr.approval_id
+            proposal_status = "PENDING_APPROVAL"
+
+        prop_id = new_activation_proposal_id()
+        ev = Event(
+            event_id=new_event_id(),
+            timestamp=request.timestamp,
+            event_type="skill.activation_proposed",
+            source=actor_kind_to_event_source(auth_context.actor_kind),
+            task_id=request.task_id,
+            actor_id=event_actor_id(auth_context),
+            correlation_id=f"skill-prop-{prop_id}",
+            redacted_payload=sanitize_event_payload(
+                {
+                    "proposal_id": prop_id,
+                    "skill_id": request.skill_id,
+                    "version": request.version,
+                    "package_sha256": pkg.package_sha256,
+                    "benchmark_id": latest_bm.benchmark_id,
+                    "proposal_status": proposal_status,
+                    "requires_human_approval": requires_human,
+                    "approval_id": approval_id,
+                }
+            ),
+        )
+        proposal = SkillActivationProposalRecord(
+            proposal_id=prop_id,
+            skill_id=request.skill_id,
+            version=request.version,
+            package_sha256=pkg.package_sha256,
+            benchmark_id=latest_bm.benchmark_id,
+            task_id=request.task_id,
+            proposal_status=proposal_status,
+            requires_human_approval=requires_human,
+            sensitivity_reasons=live_risk.sensitivity_reasons,
+            approval_id=approval_id,
+            approval_action="skill.activate",
+            approval_resource=resource,
+            approval_request_fingerprint=fingerprint,
+            rationale=request.rationale,
+            proposed_by=auth_context.actor_id,
+            proposed_at=request.timestamp,
+            audit_event_id=ev.event_id,
+        )
+        return self._repo.insert_activation_proposal_atomic(proposal=proposal, audit_event=ev)
+
+    def list_pending_skill_approvals(
+        self,
+        *,
+        include_non_sensitive: bool = False,
+        skill_id: str | None = None,
+    ) -> list[SkillActivationProposalRecord]:
+        """Return queued pending skill activation proposals awaiting operator or Master execution."""
+        items = self._repo.list_activation_proposals(skill_id=skill_id)
+        wanted = (
+            {"PENDING_APPROVAL", "PENDING_ACTIVATION"}
+            if include_non_sensitive
+            else {"PENDING_APPROVAL"}
+        )
+        return [p for p in items if p.proposal_status in wanted]
+
+    def activate_skill_version(
+        self,
+        request: ActivateSkillRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> SkillActivationOutcome:
+        """Promote a benchmarked & approved Skill into immutable ``approved/`` zone and update active pointer."""
+        proposal = self._repo.get_activation_proposal(request.proposal_id)
+        if proposal is None:
+            raise SkillStateError(
+                "ACTIVATION_PROPOSAL_NOT_FOUND",
+                f"Skill activation proposal '{request.proposal_id}' does not exist.",
+            )
+        if proposal.proposal_status not in {"PENDING_APPROVAL", "PENDING_ACTIVATION"}:
+            raise SkillStateError(
+                "PROPOSAL_ALREADY_SETTLED",
+                f"Proposal '{proposal.proposal_id}' is already '{proposal.proposal_status}'.",
+            )
+
+        pkg = self._require_package(proposal.skill_id, proposal.version)
+        if pkg.lifecycle_status != "UNDER_REVIEW":
+            raise SkillStateError(
+                "INVALID_SKILL_STATE_FOR_ACTIVATION",
+                f"Expected package 'UNDER_REVIEW', got '{pkg.lifecycle_status}'.",
+            )
+        self._verify_candidate_integrity_on_disk(pkg)
+        if pkg.package_sha256 != proposal.package_sha256:
+            raise SkillIntegrityError(
+                "PROPOSAL_PACKAGE_SHA_MISMATCH",
+                f"Package hash changed since proposal '{proposal.proposal_id}'.",
+            )
+
+        benchmarks = self._repo.list_benchmarks(pkg.skill_id, pkg.version)
+        if not any(
+            b.benchmark_id == proposal.benchmark_id
+            and b.benchmark_status == "PASSED"
+            and b.package_sha256 == proposal.package_sha256
+            for b in benchmarks
+        ):
+            raise SkillBenchmarkError(
+                "BENCHMARK_PASS_REQUIRED",
+                f"Valid PASSED QA benchmark '{proposal.benchmark_id}' is missing for activation.",
+            )
+
+        params = self._activation_policy_parameters(
+            pkg,
+            requires_human=proposal.requires_human_approval,
+            has_permission_delta=pkg.risk_profile.modifies_permissions_or_tools,
+        )
+        effective_approval_id = request.approval_id or proposal.approval_id
+        policy_req = PolicyRequest(
+            auth_context=auth_context,
+            action="skill.activate",
+            resource=proposal.approval_resource,
+            task_id=proposal.task_id,
+            approval_id=effective_approval_id,
+            parameters=params,
+            timestamp=request.timestamp,
+            correlation_id=f"skill-act-{proposal.proposal_id}",
+        )
+
+        def _perform_activation() -> SkillActivationOutcome:
+            prior_ptr = self._repo.get_active_pointer(pkg.skill_id)
+            prior_active_ver = prior_ptr.active_version if prior_ptr is not None else None
+            demoted_prior: SkillPackageRecord | None = None
+            if prior_active_ver is not None and prior_active_ver != pkg.version:
+                prior_pkg = self._require_package(pkg.skill_id, prior_active_ver)
+                demoted_prior = prior_pkg.model_copy(
+                    update={
+                        "lifecycle_status": "DEPRECATED",
+                        "record_version": prior_pkg.record_version + 1,
+                        "updated_by": auth_context.actor_id,
+                        "updated_at": request.timestamp,
+                    }
+                )
+
+            rel_approved, approved_manifest_sha, approved_pkg_sha, approved_hashes = (
+                promote_package_to_approved(
+                    self._skills_root,
+                    skill_id=pkg.skill_id,
+                    version=pkg.version,
+                    expected_package_sha256=pkg.package_sha256,
+                    frontmatter=pkg.frontmatter,
+                    contract=pkg.contract,
+                    risk_profile=pkg.risk_profile,
+                )
+            )
+            act_ev = Event(
+                event_id=new_event_id(),
+                timestamp=request.timestamp,
+                event_type="skill.activated",
+                source=actor_kind_to_event_source(auth_context.actor_kind),
+                task_id=proposal.task_id,
+                actor_id=event_actor_id(auth_context),
+                correlation_id=f"skill-act-{pkg.skill_id}-{pkg.version}",
+                redacted_payload=sanitize_event_payload(
+                    {
+                        "skill_id": pkg.skill_id,
+                        "version": pkg.version,
+                        "proposal_id": proposal.proposal_id,
+                        "approved_relpath": rel_approved,
+                        "approved_package_sha256": approved_pkg_sha,
+                        "previous_approved_version": prior_active_ver,
+                        "approval_id": effective_approval_id,
+                    }
+                ),
+            )
+            approved_fm = pkg.frontmatter.model_copy(update={"status": "APPROVED"})
+            next_pkg = pkg.model_copy(
+                update={
+                    "lifecycle_status": "APPROVED",
+                    "frontmatter": approved_fm,
+                    "storage_zone": "approved",
+                    "package_relpath": rel_approved,
+                    "manifest_sha256": approved_manifest_sha,
+                    "package_sha256": approved_pkg_sha,
+                    "file_hashes": approved_hashes,
+                    "approved_for_production": True,
+                    "record_version": pkg.record_version + 1,
+                    "updated_by": auth_context.actor_id,
+                    "updated_at": request.timestamp,
+                    "last_audit_event_id": act_ev.event_id,
+                }
+            )
+            next_prop = proposal.model_copy(
+                update={
+                    "proposal_status": "ACTIVATED",
+                    "approval_id": effective_approval_id,
+                    "decided_by": auth_context.actor_id,
+                    "decided_at": request.timestamp,
+                }
+            )
+            next_ptr = SkillActivePointer(
+                skill_id=pkg.skill_id,
+                active_version=pkg.version,
+                previous_approved_version=prior_active_ver,
+                updated_by=auth_context.actor_id,
+                updated_at=request.timestamp,
+                last_audit_event_id=act_ev.event_id,
+            )
+            try:
+                saved_pkg, saved_prop, saved_ptr = self._repo.activate_package_atomic(
+                    package=next_pkg,
+                    expected_record_version=pkg.record_version,
+                    proposal=next_prop,
+                    pointer=next_ptr,
+                    demoted_prior_package=demoted_prior,
+                    audit_event=act_ev,
+                )
+            except Exception:
+                dest_dir = (self._skills_root / rel_approved).resolve()
+                if dest_dir.exists() and self._skills_root in dest_dir.parents:
+                    shutil.rmtree(dest_dir, ignore_errors=True)
+                raise
+            return SkillActivationOutcome(
+                package=saved_pkg,
+                proposal=saved_prop,
+                active_pointer=saved_ptr,
+                audit_event_id=act_ev.event_id,
+            )
+
+        try:
+            _, outcome = self._pm.dispatch_protected_action(policy_req, _perform_activation)
+            return outcome
+        except PermissionDeniedError as exc:
+            raise SkillGovernanceError(exc.decision.reason_code, exc.decision.message) from exc
+        except ApprovalError as exc:
+            raise SkillGovernanceError(exc.error_code, exc.message) from exc
+        except GovernanceAuditError as exc:
+            raise SkillGovernanceError("GOVERNANCE_AUDIT_FAILED", str(exc)) from exc
+
+    def reject_skill(
+        self,
+        skill_id: str,
+        version: str,
+        *,
+        reason: str,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> SkillPackageRecord:
+        """Explicitly reject a ``CANDIDATE`` or ``UNDER_REVIEW`` Skill version and close pending proposals."""
+        validate_aware_datetime(timestamp, "timestamp")
+        clean_reason = ensure_not_secret(reason, "reason")
+        if auth_context.actor_kind not in {"master_agent", "human_operator", "trusted_verifier"}:
+            raise SkillGovernanceError(
+                "SKILL_REJECT_DENIED",
+                f"Actor kind '{auth_context.actor_kind}' cannot reject Skill packages.",
+            )
+        self._authorize(
+            auth_context=auth_context,
+            action="skill.propose",
+            resource=f"skill:{skill_id}:{version}:reject",
+            timestamp=timestamp,
+        )
+        current = self._require_package(skill_id, version)
+        self._assert_transition(current.lifecycle_status, "REJECTED")
+        ev = Event(
+            event_id=new_event_id(),
+            timestamp=timestamp,
+            event_type="skill.rejected",
+            source=actor_kind_to_event_source(auth_context.actor_kind),
+            actor_id=event_actor_id(auth_context),
+            correlation_id=f"skill-rej-{skill_id}-{version}",
+            redacted_payload=sanitize_event_payload(
+                {
+                    "skill_id": skill_id,
+                    "version": version,
+                    "reason": clean_reason,
+                    "previous_status": current.lifecycle_status,
+                }
+            ),
+        )
+        updated = current.model_copy(
+            update={
+                "lifecycle_status": "REJECTED",
+                "approved_for_production": False,
+                "record_version": current.record_version + 1,
+                "updated_by": auth_context.actor_id,
+                "updated_at": timestamp,
+                "last_audit_event_id": ev.event_id,
+            }
+        )
+        saved = self._repo.update_package_atomic(
+            package=updated,
+            expected_record_version=current.record_version,
+            audit_event=ev,
+        )
+        for prop in self._repo.list_activation_proposals(skill_id=skill_id):
+            if prop.version == version and prop.proposal_status in {
+                "PENDING_APPROVAL",
+                "PENDING_ACTIVATION",
+            }:
+                close_ev = Event(
+                    event_id=new_event_id(),
+                    timestamp=timestamp,
+                    event_type="skill.rejected",
+                    source=actor_kind_to_event_source(auth_context.actor_kind),
+                    actor_id=event_actor_id(auth_context),
+                    correlation_id=f"skill-prop-rej-{prop.proposal_id}",
+                    redacted_payload={"proposal_id": prop.proposal_id, "reason": clean_reason},
+                )
+                self._repo.update_activation_proposal_atomic(
+                    proposal=prop.model_copy(
+                        update={
+                            "proposal_status": "REJECTED",
+                            "decided_by": auth_context.actor_id,
+                            "decided_at": timestamp,
+                        }
+                    ),
+                    audit_event=close_ev,
+                )
+        return saved
+
+    def rollback_skill(
+        self,
+        request: RollbackSkillRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> SkillRollbackOutcome:
+        """Instantly revert an active Skill to a previously verified immutable APPROVED version."""
+        self._authorize(
+            auth_context=auth_context,
+            action="skill.rollback",
+            resource=f"skill:{request.skill_id}:rollback",
+            timestamp=request.timestamp,
+            correlation_id=f"skill-rb-{request.skill_id}",
+        )
+        ptr = self._repo.get_active_pointer(request.skill_id)
+        if ptr is None or ptr.active_version is None:
+            raise SkillStateError(
+                "NO_ACTIVE_SKILL_VERSION",
+                f"Skill '{request.skill_id}' currently has no active version to roll back.",
+            )
+        from_ver = ptr.active_version
+        target_ver = request.target_version or ptr.previous_approved_version
+        if target_ver is None or target_ver == from_ver:
+            raise SkillStateError(
+                "NO_ROLLBACK_TARGET",
+                f"Skill '{request.skill_id}' has no distinct prior APPROVED version for rollback.",
+            )
+
+        curr_pkg = self._require_package(request.skill_id, from_ver)
+        target_pkg = self._require_package(request.skill_id, target_ver)
+        if target_pkg.storage_zone != "approved":
+            raise SkillIntegrityError(
+                "ROLLBACK_TARGET_NOT_APPROVED",
+                f"Target rollback version '{request.skill_id}@{target_ver}' was never promoted to approved/.",
+            )
+        verify_approved_package_integrity(
+            self._skills_root,
+            package_relpath=target_pkg.package_relpath,
+            expected_package_sha256=target_pkg.package_sha256,
+        )
+
+        rb_ev = Event(
+            event_id=new_event_id(),
+            timestamp=request.timestamp,
+            event_type="skill.rolled_back",
+            source=actor_kind_to_event_source(auth_context.actor_kind),
+            actor_id=event_actor_id(auth_context),
+            correlation_id=f"skill-rb-{request.skill_id}-{target_ver}",
+            redacted_payload=sanitize_event_payload(
+                {
+                    "skill_id": request.skill_id,
+                    "rolled_back_from": from_ver,
+                    "restored_version": target_ver,
+                    "previous_version_status": request.mark_current_as,
+                    "reason": request.reason,
+                }
+            ),
+        )
+        demoted_pkg = curr_pkg.model_copy(
+            update={
+                "lifecycle_status": request.mark_current_as,
+                "approved_for_production": False,
+                "record_version": curr_pkg.record_version + 1,
+                "updated_by": auth_context.actor_id,
+                "updated_at": request.timestamp,
+                "last_audit_event_id": rb_ev.event_id,
+            }
+        )
+        restored_pkg = target_pkg.model_copy(
+            update={
+                "lifecycle_status": "APPROVED",
+                "approved_for_production": True,
+                "record_version": target_pkg.record_version + 1,
+                "updated_by": auth_context.actor_id,
+                "updated_at": request.timestamp,
+                "last_audit_event_id": rb_ev.event_id,
+            }
+        )
+        next_ptr = SkillActivePointer(
+            skill_id=request.skill_id,
+            active_version=target_ver,
+            previous_approved_version=from_ver,
+            updated_by=auth_context.actor_id,
+            updated_at=request.timestamp,
+            last_audit_event_id=rb_ev.event_id,
+        )
+        saved_ptr = self._repo.rollback_active_pointer_atomic(
+            previous_active_package=demoted_pkg,
+            restored_package=restored_pkg,
+            pointer=next_ptr,
+            audit_event=rb_ev,
+        )
+        return SkillRollbackOutcome(
+            skill_id=request.skill_id,
+            rolled_back_from_version=from_ver,
+            restored_version=target_ver,
+            previous_version_status=request.mark_current_as,
+            active_pointer=saved_ptr,
+            audit_event_id=rb_ev.event_id,
+        )
+
+    def disable_skill(
+        self,
+        skill_id: str,
+        version: str,
+        *,
+        reason: str,
+        auth_context: TrustedAuthContext,
+        timestamp: datetime,
+    ) -> SkillPackageRecord:
+        """Emergency kill-switch disabling a Skill version and clearing active pointer if targeted."""
+        validate_aware_datetime(timestamp, "timestamp")
+        clean_reason = ensure_not_secret(reason, "reason")
+        self._authorize(
+            auth_context=auth_context,
+            action="skill.rollback",
+            resource=f"skill:{skill_id}:{version}:disable",
+            timestamp=timestamp,
+        )
+        curr = self._require_package(skill_id, version)
+        self._assert_transition(curr.lifecycle_status, "DISABLED")
+        ptr = self._repo.get_active_pointer(skill_id)
+        dis_ev = Event(
+            event_id=new_event_id(),
+            timestamp=timestamp,
+            event_type="skill.disabled",
+            source=actor_kind_to_event_source(auth_context.actor_kind),
+            actor_id=event_actor_id(auth_context),
+            correlation_id=f"skill-dis-{skill_id}-{version}",
+            redacted_payload=sanitize_event_payload(
+                {"skill_id": skill_id, "version": version, "reason": clean_reason}
+            ),
+        )
+        next_pkg = curr.model_copy(
+            update={
+                "lifecycle_status": "DISABLED",
+                "approved_for_production": False,
+                "record_version": curr.record_version + 1,
+                "updated_by": auth_context.actor_id,
+                "updated_at": timestamp,
+                "last_audit_event_id": dis_ev.event_id,
+            }
+        )
+        next_ptr: SkillActivePointer | None = None
+        if ptr is not None and ptr.active_version == version:
+            next_ptr = SkillActivePointer(
+                skill_id=skill_id,
+                active_version=None,
+                previous_approved_version=ptr.previous_approved_version,
+                updated_by=auth_context.actor_id,
+                updated_at=timestamp,
+                last_audit_event_id=dis_ev.event_id,
+            )
+        return self._repo.disable_active_skill_atomic(
+            package=next_pkg,
+            expected_record_version=curr.record_version,
+            pointer=next_ptr,
+            audit_event=dis_ev,
+        )
+
+    def record_improvement_outcome(
+        self,
+        request: RecordImprovementOutcomeRequest,
+        *,
+        auth_context: TrustedAuthContext,
+    ) -> SkillImprovementOutcomeRecord:
+        """Compare real baseline vs post-activation Task retrospectives cleanly without fake data."""
+        self._authorize(
+            auth_context=auth_context,
+            action="knowledge.write",
+            resource=f"skill:{request.skill_id}:{request.version}:outcome",
+            timestamp=request.timestamp,
+        )
+        if auth_context.actor_kind == "worker_agent":
+            raise SkillGovernanceError(
+                "OUTCOME_RECORDING_DENIED",
+                "Worker agents cannot certify production skill improvement outcomes.",
+            )
+        if self._retro_repo is None:
+            raise SkillStateError(
+                "RETROSPECTIVE_REPO_UNAVAILABLE",
+                "ProcessRetrospectiveRepository is required to compute measured skill outcomes.",
+            )
+        self._require_package(request.skill_id, request.version)
+
+        overlap = set(request.baseline_task_ids) & set(request.post_activation_task_ids)
+        if overlap:
+            raise SkillValidationError(
+                "OVERLAPPING_OUTCOME_COHORTS",
+                f"Baseline and post-activation cohorts share task IDs: {sorted(overlap)}.",
+            )
+
+        def _load_cohort(task_ids: list[str], label: str) -> tuple[float, float | None, float]:
+            summaries = []
+            for tid in task_ids:
+                stored = self._retro_repo.get_by_task(tid)
+                if stored is None:
+                    raise SkillValidationError(
+                        "MISSING_TASK_RETROSPECTIVE",
+                        f"{label} task '{tid}' lacks a persisted P10.01 retrospective.",
+                    )
+                summaries.append(stored.summary)
+            n = len(summaries)
+            err_rate = round(sum(1 for s in summaries if s.errors_observed) / n, 4)
+            durs = [s.duration_ms for s in summaries if s.duration_ms is not None]
+            avg_dur = round(sum(durs) / len(durs), 2) if durs else None
+            avg_calls = round(sum(s.total_tool_calls for s in summaries) / n, 2)
+            return err_rate, avg_dur, avg_calls
+
+        b_err, b_dur, b_calls = _load_cohort(request.baseline_task_ids, "Baseline")
+        p_err, p_dur, p_calls = _load_cohort(request.post_activation_task_ids, "Post-activation")
+
+        regression = bool(
+            p_err > b_err
+            or (
+                b_dur is not None
+                and p_dur is not None
+                and p_dur > (b_dur * 1.25 if b_dur > 0 else p_dur)
+                and p_calls >= b_calls
+            )
+            or (p_err == b_err and b_err > 0.0 and p_calls > b_calls)
+        )
+        outcome_id = new_improvement_outcome_id()
+        summary_msg = (
+            f"Skill {request.skill_id}@{request.version}: error_rate {b_err}->{p_err}, "
+            f"avg_tool_calls {b_calls}->{p_calls}, avg_duration_ms {b_dur}->{p_dur}, "
+            f"regression_detected={regression}."
+        )
+        ev = Event(
+            event_id=new_event_id(),
+            timestamp=request.timestamp,
+            event_type="skill.improvement_outcome_recorded",
+            source=actor_kind_to_event_source(auth_context.actor_kind),
+            actor_id=event_actor_id(auth_context),
+            correlation_id=f"skill-out-{outcome_id}",
+            redacted_payload=sanitize_event_payload(
+                {
+                    "outcome_id": outcome_id,
+                    "skill_id": request.skill_id,
+                    "version": request.version,
+                    "source_improvement_id": request.source_improvement_id,
+                    "baseline_error_rate": b_err,
+                    "post_error_rate": p_err,
+                    "baseline_avg_tool_calls": b_calls,
+                    "post_avg_tool_calls": p_calls,
+                    "regression_detected": regression,
+                }
+            ),
+        )
+        outcome_rec = SkillImprovementOutcomeRecord(
+            outcome_id=outcome_id,
+            skill_id=request.skill_id,
+            version=request.version,
+            source_improvement_id=request.source_improvement_id,
+            baseline_task_ids=list(request.baseline_task_ids),
+            post_activation_task_ids=list(request.post_activation_task_ids),
+            baseline_error_rate=b_err,
+            post_error_rate=p_err,
+            baseline_avg_duration_ms=b_dur,
+            post_avg_duration_ms=p_dur,
+            baseline_avg_tool_calls=b_calls,
+            post_avg_tool_calls=p_calls,
+            regression_detected=regression,
+            summary=summary_msg,
+            recorded_at=request.timestamp,
+            audit_event_id=ev.event_id,
+        )
+        saved = self._repo.insert_improvement_outcome_atomic(
+            outcome=outcome_rec, audit_event=ev
+        )
+        if (
+            not regression
+            and request.source_improvement_id is not None
+            and self._improvement_repo is not None
+        ):
+            self._improvement_repo.update_improvement_status(
+                request.source_improvement_id,
+                status="RESOLVED",
+                updated_at=request.timestamp,
+            )
+        return saved
+
+    def get_active_pointer(self, skill_id: str) -> SkillActivePointer | None:
+        """Return active pointer record for ``skill_id``."""
+        return self._repo.get_active_pointer(skill_id)
+
+    def list_improvement_outcomes(
+        self, *, skill_id: str | None = None
+    ) -> list[SkillImprovementOutcomeRecord]:
+        """List immutable post-activation measured outcomes."""
+        return self._repo.list_improvement_outcomes(skill_id=skill_id)
 
     # ------------------------------------------------------------------
     # ApprovedSkillCatalogPort implementation (consumed cleanly by HR & Process)
