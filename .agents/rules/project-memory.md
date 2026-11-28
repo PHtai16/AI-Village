@@ -8,7 +8,7 @@ description: Bộ nhớ dự án AI Village cập nhật trạng thái và ranh 
 ## Trạng thái tiến độ và kiểm chứng
 - Dự án đã hoàn tất từ Chặng A đến Chặng G (`PHASE 10` và toàn bộ `PHASE 11` gồm `P11.01`–`P11.05` cùng `Gate G: PASS`) ở mức `OFFLINE_E2E_VERIFIED`.
 - Các commit mã nguồn chính của `PHASE 11`: `22accc0` cho `P11.01`, `33291b7` cho `P11.02`, `9065d87` cho `P11.03`, `aba62d0` cho `P11.04`, `30aec5e` cho `P11.05` và `a2bcac6` cho nghiệm thu `Gate G`, báo cáo tổng hợp tại `docs/reviews/PHASE_11_GATE_G_AUDIT.md`.
-- Trọng tâm kế tiếp: chuyển sang **CHẶNG H / PHASE 12 — API & Realtime**, bắt đầu từ `P12.01`.
+- Trọng tâm kế tiếp: đã chính thức đăng ký **PHASE 11.5 — APPLICATION INTEGRATION & RUNTIME READINESS** (`PLANNED`, đặc tả tại `docs/PHASE_11_5_APPLICATION_INTEGRATION_RUNTIME_READINESS.md`) làm pha tích hợp backend bắt buộc (bắt đầu từ `11.5-A`) trước khi mở khóa **CHẶNG H / PHASE 12 — API & Realtime**.
 
 ## Bản đồ thành phần hiện có trên đĩa
 - `agents/`: có `agents/master/agent.yaml` và `agents/roles/it_artifact_worker/agent.yaml` giữ `tools.allowed: []` và `skills.allowed: []`, cùng 9 manifest phòng ban tại `agents/departments/*/department.yaml`.
