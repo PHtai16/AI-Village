@@ -27,6 +27,9 @@ _TURN_ID_RE = re.compile(r"^turn_[a-z0-9][a-z0-9_-]{3,63}$")
 _INTERRUPT_ID_RE = re.compile(r"^intr_[a-z0-9][a-z0-9_-]{3,63}$")
 _INCIDENT_ID_RE = re.compile(r"^inc_[a-z0-9][a-z0-9_-]{3,63}$")
 _ESCALATION_ID_RE = re.compile(r"^esc_[a-z0-9][a-z0-9_-]{3,63}$")
+_QUEUE_ENTRY_ID_RE = re.compile(r"^qent_[a-z0-9][a-z0-9_-]{3,63}$")
+_LEASE_ID_RE = re.compile(r"^lease_[a-z0-9][a-z0-9_-]{3,63}$")
+_SCHEDULE_ID_RE = re.compile(r"^sched_[a-z0-9][a-z0-9_-]{3,63}$")
 _UUID_V4_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
@@ -152,6 +155,21 @@ def new_incident_id() -> str:
 def new_escalation_id() -> str:
     """Generate a unique canonical Interrupt Escalation identifier (`esc_*`)."""
     return f"esc_{uuid.uuid4().hex[:16]}"
+
+
+def new_queue_entry_id() -> str:
+    """Generate a unique canonical Scheduler Queue Entry identifier (`qent_*`)."""
+    return f"qent_{uuid.uuid4().hex[:16]}"
+
+
+def new_lease_id() -> str:
+    """Generate a unique canonical Execution Lease identifier (`lease_*`)."""
+    return f"lease_{uuid.uuid4().hex[:16]}"
+
+
+def new_schedule_id() -> str:
+    """Generate a unique canonical Scheduled Task identifier (`sched_*`)."""
+    return f"sched_{uuid.uuid4().hex[:16]}"
 
 
 def new_session_id() -> str:
@@ -284,6 +302,27 @@ def validate_escalation_id(value: str) -> str:
     """Validate canonical `esc_*` Interrupt Escalation identifier."""
     return _validate_pattern(
         value, _ESCALATION_ID_RE, "escalation_id", "^esc_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_queue_entry_id(value: str) -> str:
+    """Validate canonical `qent_*` Scheduler Queue Entry identifier."""
+    return _validate_pattern(
+        value, _QUEUE_ENTRY_ID_RE, "queue_entry_id", "^qent_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_lease_id(value: str) -> str:
+    """Validate canonical `lease_*` Execution Lease identifier."""
+    return _validate_pattern(
+        value, _LEASE_ID_RE, "lease_id", "^lease_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_schedule_id(value: str) -> str:
+    """Validate canonical `sched_*` Scheduled Task identifier."""
+    return _validate_pattern(
+        value, _SCHEDULE_ID_RE, "schedule_id", "^sched_[a-z0-9][a-z0-9_-]{3,63}$"
     )
 
 
@@ -501,6 +540,9 @@ TurnId = Annotated[str, AfterValidator(validate_turn_id)]
 InterruptId = Annotated[str, AfterValidator(validate_interrupt_id)]
 IncidentId = Annotated[str, AfterValidator(validate_incident_id)]
 EscalationId = Annotated[str, AfterValidator(validate_escalation_id)]
+QueueEntryId = Annotated[str, AfterValidator(validate_queue_entry_id)]
+LeaseId = Annotated[str, AfterValidator(validate_lease_id)]
+ScheduleId = Annotated[str, AfterValidator(validate_schedule_id)]
 SessionId = Annotated[str, AfterValidator(validate_session_id)]
 LegacySpikeSessionRef = Annotated[str, AfterValidator(validate_legacy_session_ref)]
 AgentId = Annotated[str, AfterValidator(validate_agent_id)]
