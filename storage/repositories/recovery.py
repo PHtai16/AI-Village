@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -116,6 +117,29 @@ def _parse_optional_run_baseline(raw_row: dict[str, object] | None, inconsistenc
         return None
 
 
+def _list_cross_task_referenced_artifact_ids(
+    store: SQLiteRepositoryStore,
+    task_id: str,
+) -> set[str]:
+    """Return cross-task Vault artifact IDs reused by ``task_id`` while authored by another Task."""
+    try:
+        with store.open_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT r.artifact_id
+                FROM artifact_task_references r
+                JOIN artifact_registry_entries e ON e.artifact_id = r.artifact_id
+                WHERE r.referencing_task_id = ? AND e.task_id != ?;
+                """,
+                (task_id, task_id),
+            ).fetchall()
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return set()
+        raise
+    return {str(row["artifact_id"]) for row in rows}
+
+
 def recover_task(
     store: SQLiteRepositoryStore,
     task_id: str,
@@ -149,6 +173,7 @@ def recover_task(
     sessions = store.sessions.list_sessions(task_id=task_id)
     checklist_items = store.metadata.list_checklist_items(task_id)
     artifacts = store.metadata.list_artifacts(task_id=task_id)
+    cross_task_refs = _list_cross_task_referenced_artifact_ids(store, task_id)
 
     run_replays: dict[str, RunReplayResult] = {}
     for run in runs:
@@ -181,13 +206,19 @@ def recover_task(
                     f"Task snapshot active_run_id '{snapshot_task.active_run_id}' differs from replayed '{replayed.active_run_id}'."
                 )
             if snapshot_task.status == "COMPLETED":
-                missing_arts = set(replay_result.artifact_ids) - set(snapshot_task.artifact_ids)
+                missing_arts = set(replay_result.artifact_ids) - (
+                    set(snapshot_task.artifact_ids) | cross_task_refs
+                )
                 if missing_arts:
                     inconsistencies.append(
                         f"Task snapshot artifact_ids omits replayed artifacts: {sorted(missing_arts)}."
                     )
             else:
-                known_arts = set(snapshot_task.artifact_ids) | {a.artifact_id for a in artifacts}
+                known_arts = (
+                    set(snapshot_task.artifact_ids)
+                    | {a.artifact_id for a in artifacts}
+                    | cross_task_refs
+                )
                 missing_arts = set(replay_result.artifact_ids) - known_arts
                 if missing_arts:
                     inconsistencies.append(
