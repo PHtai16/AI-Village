@@ -342,8 +342,8 @@ def test_mission_control_ux_and_roadmap_consistency() -> None:
         REPO_ROOT / "docs" / "architecture" / "SYSTEM_BLUEPRINT.md"
     ).read_text(encoding="utf-8")
 
-    # Ensure no Phase 04-17 implementation item beyond verified DONE items (currently up to P10.01) is prematurely marked DONE
+    # Ensure no Phase 04-17 implementation item beyond verified DONE items (currently up to PHASE 10 / P10.05) is prematurely marked DONE
     for line in progress_text.splitlines():
         match = re.match(r"^- \[x\] \*\*P(\d{2}\.\d{2})\b", line)
-        if match and match.group(1) not in {"00.01", "00.02", "00.03", "00.04", "02.01", "02.02", "02.03", "02.04", "02.05", "02.06", "03.01", "03.02", "03.03", "04.01", "04.02", "04.03", "04.04", "04.05", "04.06", "04.07", "05.01", "05.02", "05.03", "05.04", "05.05", "05.06", "05.07", "06.01", "06.02", "06.03", "06.04", "06.05", "06.06", "07.01", "07.02", "07.03", "07.04", "07.05", "07.06", "08.01", "08.02", "08.03", "08.04", "08.05", "09.01", "09.02", "09.03", "09.04", "09.05", "09.06", "09.07", "09.08", "09.09", "10.01"} and not match.group(1).startswith("01."):
+        if match and match.group(1) not in {"00.01", "00.02", "00.03", "00.04", "02.01", "02.02", "02.03", "02.04", "02.05", "02.06", "03.01", "03.02", "03.03", "04.01", "04.02", "04.03", "04.04", "04.05", "04.06", "04.07", "05.01", "05.02", "05.03", "05.04", "05.05", "05.06", "05.07", "06.01", "06.02", "06.03", "06.04", "06.05", "06.06", "07.01", "07.02", "07.03", "07.04", "07.05", "07.06", "08.01", "08.02", "08.03", "08.04", "08.05", "09.01", "09.02", "09.03", "09.04", "09.05", "09.06", "09.07", "09.08", "09.09", "10.01", "10.02", "10.03", "10.04", "10.05"} and not match.group(1).startswith("01."):
             raise AssertionError(f"Premature DONE marker in roadmap: {line}")
