@@ -33,6 +33,8 @@ _SCHEDULE_ID_RE = re.compile(r"^sched_[a-z0-9][a-z0-9_-]{3,63}$")
 _RESOURCE_POLICY_ID_RE = re.compile(r"^rpol_[a-z0-9][a-z0-9_-]{3,63}$")
 _RESOURCE_LEDGER_ID_RE = re.compile(r"^rled_[a-z0-9][a-z0-9_-]{3,63}$")
 _RESOURCE_ALERT_ID_RE = re.compile(r"^ralt_[a-z0-9][a-z0-9_-]{3,63}$")
+_CLEANUP_ID_RE = re.compile(r"^clnp_[a-z0-9][a-z0-9_-]{3,63}$")
+_PROCESS_HANDOFF_ID_RE = re.compile(r"^phnd_[a-z0-9][a-z0-9_-]{3,63}$")
 _UUID_V4_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
@@ -188,6 +190,16 @@ def new_resource_ledger_id() -> str:
 def new_resource_alert_id() -> str:
     """Generate a resource threshold alert identifier with prefix ``ralt_``."""
     return f"ralt_{uuid.uuid4().hex[:16]}"
+
+
+def new_cleanup_id() -> str:
+    """Generate a post-task cleanup identifier with prefix ``clnp_``."""
+    return f"clnp_{uuid.uuid4().hex[:16]}"
+
+
+def new_process_handoff_id() -> str:
+    """Generate a process learning handoff identifier with prefix ``phnd_``."""
+    return f"phnd_{uuid.uuid4().hex[:16]}"
 
 
 def new_session_id() -> str:
@@ -362,6 +374,20 @@ def validate_resource_alert_id(value: str) -> str:
     """Validate canonical `ralt_*` Resource Threshold Alert identifier."""
     return _validate_pattern(
         value, _RESOURCE_ALERT_ID_RE, "alert_id", "^ralt_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_cleanup_id(value: str) -> str:
+    """Validate canonical `clnp_*` Post-Task Cleanup identifier."""
+    return _validate_pattern(
+        value, _CLEANUP_ID_RE, "cleanup_id", "^clnp_[a-z0-9][a-z0-9_-]{3,63}$"
+    )
+
+
+def validate_process_handoff_id(value: str) -> str:
+    """Validate canonical `phnd_*` Process Learning Handoff identifier."""
+    return _validate_pattern(
+        value, _PROCESS_HANDOFF_ID_RE, "handoff_id", "^phnd_[a-z0-9][a-z0-9_-]{3,63}$"
     )
 
 
@@ -585,6 +611,8 @@ ScheduleId = Annotated[str, AfterValidator(validate_schedule_id)]
 ResourcePolicyId = Annotated[str, AfterValidator(validate_resource_policy_id)]
 ResourceLedgerId = Annotated[str, AfterValidator(validate_resource_ledger_id)]
 ResourceAlertId = Annotated[str, AfterValidator(validate_resource_alert_id)]
+CleanupId = Annotated[str, AfterValidator(validate_cleanup_id)]
+ProcessHandoffId = Annotated[str, AfterValidator(validate_process_handoff_id)]
 SessionId = Annotated[str, AfterValidator(validate_session_id)]
 LegacySpikeSessionRef = Annotated[str, AfterValidator(validate_legacy_session_ref)]
 AgentId = Annotated[str, AfterValidator(validate_agent_id)]

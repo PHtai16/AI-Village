@@ -2,6 +2,7 @@
 
 from storage.repositories.agent_registry_repo import SQLiteAgentRegistryRepository
 from storage.repositories.approval_repo import SQLiteApprovalRepository
+from storage.repositories.cleanup_repo import ManagedTempCleanupExecutor, SQLiteCleanupRepository
 from storage.repositories.collaboration_repo import SQLiteCollaborationRepository
 from storage.repositories.handoff_repo import SQLiteWorkerHandoffRepository
 from storage.repositories.interrupt_repo import SQLiteInterruptRepository
@@ -67,6 +68,7 @@ __all__ = [
     "IdempotencyConflictError",
     "IdempotencyRecord",
     "InterruptedWorkAssessment",
+    "ManagedTempCleanupExecutor",
     "MetadataRepository",
     "OwnershipMismatchError",
     "PairedOperation",
@@ -79,6 +81,7 @@ __all__ = [
     "RunRepository",
     "SQLiteAgentRegistryRepository",
     "SQLiteApprovalRepository",
+    "SQLiteCleanupRepository",
     "SQLiteCollaborationRepository",
     "SQLiteEventJournal",
     "SQLiteInterruptRepository",

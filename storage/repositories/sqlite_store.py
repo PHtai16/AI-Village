@@ -1310,6 +1310,7 @@ class SQLiteRepositoryStore:
         )
         from storage.repositories.agent_registry_repo import SQLiteAgentRegistryRepository
         from storage.repositories.approval_repo import SQLiteApprovalRepository
+        from storage.repositories.cleanup_repo import SQLiteCleanupRepository
         from storage.repositories.collaboration_repo import SQLiteCollaborationRepository
         from storage.repositories.handoff_repo import SQLiteWorkerHandoffRepository
         from storage.repositories.interrupt_repo import SQLiteInterruptRepository
@@ -1333,6 +1334,7 @@ class SQLiteRepositoryStore:
         self.reception = SQLiteReceptionRepository(self)
         self.resources = SQLiteResourcesRepository(self)
         self.scheduler = SQLiteSchedulerRepository(self)
+        self.cleanup = SQLiteCleanupRepository(self)
         self.skills = SQLiteSkillsRepository(self)
         self.teams = SQLiteTeamProposalRepository(self)
         self.worker_sessions = SQLiteWorkerSessionRepository(self)
